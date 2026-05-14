@@ -12,6 +12,27 @@
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icon-192.png">
   <style>
+    /* ── Install gate (mobile browser only) ── */
+    #install-gate{
+      position:fixed;inset:0;z-index:9999;
+      background:#0e0f14;
+      display:none;
+      flex-direction:column;align-items:center;justify-content:center;
+      padding:32px 24px;text-align:center;
+    }
+    #install-gate.show{display:flex}
+    .ig-icon{font-size:3.5rem;margin-bottom:20px}
+    .ig-title{font-size:1.2rem;font-weight:700;color:#e8eaf2;margin-bottom:8px}
+    .ig-sub{font-size:.82rem;color:#7b7f96;line-height:1.7;margin-bottom:28px}
+    .ig-steps{width:100%;display:flex;flex-direction:column;gap:10px;margin-bottom:28px}
+    .ig-step{display:flex;align-items:center;gap:12px;background:#191b23;border:1px solid #252733;border-radius:10px;padding:12px 14px;text-align:left}
+    .ig-step-num{width:26px;height:26px;border-radius:50%;background:#7c8cff;color:#fff;font-size:.72rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+    .ig-step-text{font-size:.8rem;color:#e8eaf2;line-height:1.5}
+    .ig-step-text b{color:#7c8cff}
+    .ig-arrow{font-size:2rem;animation:bounce 1.5s infinite}
+    @keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(6px)}}
+
+    /* ── Install banner (Android) ── */
     #install-banner{
       position:fixed;bottom:0;left:0;right:0;z-index:200;
       background:#1c1c2e;border-top:1px solid #2e3141;
@@ -22,7 +43,6 @@
     #install-banner.show{display:block}
     .ib-title{font-size:.9rem;font-weight:700;color:#e8eaf2;margin-bottom:4px}
     .ib-sub{font-size:.76rem;color:#7b7f96;line-height:1.6;margin-bottom:14px}
-    .ib-sub b{color:#e8eaf2}
     .ib-steps{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
     .ib-step{display:flex;align-items:center;gap:10px;font-size:.78rem;color:#7b7f96}
     .ib-step-num{width:22px;height:22px;border-radius:50%;background:#7c8cff;color:#fff;font-size:.65rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
@@ -307,11 +327,20 @@
     Fridge
   </button>
 </nav>
-<!-- Install Banner -->
+<!-- Install Gate (mobile browser only — fullscreen block) -->
+<div id="install-gate">
+  <div class="ig-icon">🎰</div>
+  <div class="ig-title">Open Casino from your home screen</div>
+  <div class="ig-sub">This app must be installed to use. It only takes a few seconds!</div>
+  <div class="ig-steps" id="ig-steps"></div>
+  <div class="ig-arrow" id="ig-arrow"></div>
+</div>
+
+<!-- Install Banner (Android Chrome — bottom sheet) -->
 <div id="install-banner">
   <div class="ib-icon">🎰</div>
-  <div class="ib-title">Add Casino Calc to your home screen</div>
-  <div class="ib-sub">Install the app for the best experience — works offline and looks like a native app.</div>
+  <div class="ib-title">Install Casino</div>
+  <div class="ib-sub">Add to your home screen for the best experience.</div>
   <div class="ib-steps" id="ib-steps"></div>
   <div class="ib-btns">
     <button class="ib-btn-install" id="ib-install-btn">Install</button>
@@ -321,65 +350,99 @@
 
 <script src="app.js"></script>
 <script>
-  // Don't show if already installed as PWA
   const isStandalone = window.navigator.standalone === true ||
     window.matchMedia('(display-mode: standalone)').matches;
+  const isMobile = /android|iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+  const isAndroid = /android/i.test(navigator.userAgent);
+  let deferredPrompt = null;
 
-  if (!isStandalone) {
-    const banner = document.getElementById('install-banner');
-    const stepsEl = document.getElementById('ib-steps');
-    const installBtn = document.getElementById('ib-install-btn');
-    const dismissBtn = document.getElementById('ib-dismiss-btn');
+  // Catch Android install prompt early
+  window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();
+    deferredPrompt = e;
+    // If on mobile and not standalone, show gate instead of banner
+    if (!isStandalone && isMobile) showAndroidGate();
+    else if (!isStandalone) showAndroidBanner();
+  });
 
-    const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
-    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-    let deferredPrompt = null;
+  if (!isStandalone && isMobile) {
+    // Show fullscreen gate — block the app
+    const gate = document.getElementById('install-gate');
+    const stepsEl = document.getElementById('ig-steps');
+    const arrowEl = document.getElementById('ig-arrow');
 
-    // Android/Chrome: catch install prompt
-    window.addEventListener('beforeinstallprompt', e => {
-      e.preventDefault();
-      deferredPrompt = e;
-      showBanner('android');
-    });
-
-    function showBanner(platform) {
-      if (platform === 'ios') {
-        stepsEl.innerHTML = `
-          <div class="ib-step"><div class="ib-step-num">1</div><span>Tap the <b>Share</b> button at the bottom of Safari</span></div>
-          <div class="ib-step"><div class="ib-step-num">2</div><span>Scroll down and tap <b>"Add to Home Screen"</b></span></div>
-          <div class="ib-step"><div class="ib-step-num">3</div><span>Tap <b>"Add"</b> in the top right corner</span></div>`;
-        installBtn.textContent = 'Got it';
-        installBtn.onclick = () => hideBanner();
-      } else {
-        stepsEl.innerHTML = `
-          <div class="ib-step"><div class="ib-step-num">1</div><span>Tap <b>"Install"</b> below</span></div>
-          <div class="ib-step"><div class="ib-step-num">2</div><span>Confirm in the browser popup</span></div>`;
-        installBtn.onclick = async () => {
-          if (deferredPrompt) {
-            deferredPrompt.prompt();
-            const result = await deferredPrompt.userChoice;
-            deferredPrompt = null;
-            hideBanner();
-          }
-        };
-      }
-      setTimeout(() => banner.classList.add('show'), 800);
-    }
-
-    function hideBanner() {
-      banner.classList.remove('show');
-      localStorage.setItem('pwa_dismissed', '1');
-    }
-
-    dismissBtn.onclick = hideBanner;
-
-    // Show iOS banner after short delay if not dismissed before
-    if (isIOS && isSafari && !localStorage.getItem('pwa_dismissed')) {
-      showBanner('ios');
+    if (isIOS && isSafari) {
+      stepsEl.innerHTML = `
+        <div class="ig-step"><div class="ig-step-num">1</div><div class="ig-step-text">Tap the <b>Share</b> button ⎋ at the bottom of Safari</div></div>
+        <div class="ig-step"><div class="ig-step-num">2</div><div class="ig-step-text">Scroll and tap <b>"Add to Home Screen"</b></div></div>
+        <div class="ig-step"><div class="ig-step-num">3</div><div class="ig-step-text">Tap <b>"Add"</b> in the top right</div></div>`;
+      arrowEl.textContent = '⬇️';
+      gate.classList.add('show');
+    } else if (isAndroid) {
+      // Wait for beforeinstallprompt — gate shown there
+      // Fallback if prompt doesn't fire (already installed or not supported)
+      setTimeout(() => {
+        if (!deferredPrompt && !isStandalone) {
+          stepsEl.innerHTML = `
+            <div class="ig-step"><div class="ig-step-num">1</div><div class="ig-step-text">Tap the <b>3-dot menu</b> ⋮ in Chrome</div></div>
+            <div class="ig-step"><div class="ig-step-num">2</div><div class="ig-step-text">Tap <b>"Add to Home screen"</b></div></div>
+            <div class="ig-step"><div class="ig-step-num">3</div><div class="ig-step-text">Tap <b>"Add"</b> to confirm</div></div>`;
+          arrowEl.textContent = '⬆️';
+          gate.classList.add('show');
+        }
+      }, 1500);
     }
   }
 
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+  function showAndroidGate() {
+    const gate = document.getElementById('install-gate');
+    const stepsEl = document.getElementById('ig-steps');
+    const arrowEl = document.getElementById('ig-arrow');
+    stepsEl.innerHTML = `
+      <div class="ig-step"><div class="ig-step-num">1</div><div class="ig-step-text">Tap <b>"Install"</b> in the banner below ↓</div></div>
+      <div class="ig-step"><div class="ig-step-num">2</div><div class="ig-step-text">Confirm in the Chrome popup</div></div>`;
+    arrowEl.textContent = '⬇️';
+    gate.classList.add('show');
+    // Add install button to gate
+    const btn = document.createElement('button');
+    btn.className = 'ib-btn-install';
+    btn.style.cssText = 'margin-top:8px;width:100%;padding:14px;font-size:.9rem';
+    btn.textContent = 'Install Now';
+    btn.onclick = async () => {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        const result = await deferredPrompt.userChoice;
+        deferredPrompt = null;
+        if (result.outcome === 'accepted') gate.classList.remove('show');
+      }
+    };
+    gate.appendChild(btn);
+  }
+
+  function showAndroidBanner() {
+    const banner = document.getElementById('install-banner');
+    const installBtn = document.getElementById('ib-install-btn');
+    const dismissBtn = document.getElementById('ib-dismiss-btn');
+    document.getElementById('ib-steps').innerHTML = `
+      <div class="ib-step"><div class="ib-step-num">1</div><span>Tap "Install" below</span></div>
+      <div class="ib-step"><div class="ib-step-num">2</div><span>Confirm in the browser popup</span></div>`;
+    installBtn.onclick = async () => {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        const result = await deferredPrompt.userChoice;
+        deferredPrompt = null;
+        banner.classList.remove('show');
+      }
+    };
+    dismissBtn.onclick = () => banner.classList.remove('show');
+    setTimeout(() => banner.classList.add('show'), 800);
+  }
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/casino/sw.js', {scope: '/casino/'}).catch(()=>{});
+  }
 </script>
 </body>
 </html>
