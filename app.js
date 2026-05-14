@@ -37,7 +37,10 @@ function getExpected(){
   });
   D.cashpoints.forEach(cp=>{
     if(cp.from==='bank') bank+=cp.amount;   // positive only (bank can't withdraw)
-    if(cp.from==='cash') cash+=cp.amount;   // positive = deposit, negative = withdrawal
+    if(cp.from==='cash') {
+      if(cp.cashPart!==undefined){cash+=cp.cashPart;coin+=cp.coinPart;}
+      else{cash+=cp.amount;}               // legacy entries
+    }
   });
   D.fillups.forEach(f=>{pc-=f.coins*20;});
   return{coin,cash,pc,bank,total:coin+cash+pc+bank};
@@ -200,12 +203,24 @@ function renderHomeLog(){
         <div class="log-right"><div class="log-amt">${fmt(d.coins*20)}</div><div class="log-time">${d.date}</div></div>
         <button class="log-del" onclick="delFillup(${entry.i})">✕</button>`;
     } else if(entry.type==='cashpoint'){
-      const fl=d.from==='bank'?'Bank/Card':'Cash';
-      const isW=d.amount<0;
-      const amtStr=(isW?'−':'+')+fmt(Math.abs(d.amount));
+      let fl,meta,amtStr,amtColor;
+      if(d.from==='cash'&&d.coinPart!==undefined&&d.coinPart!==0){
+        const isW=d.amount<0;
+        amtStr=(isW?'−':'+')+fmt(Math.abs(d.amount));
+        amtColor=isW?'var(--blue)':'var(--purple)';
+        const cashStr=fmt(Math.abs(d.cashPart));const coinStr=fmt(Math.abs(d.coinPart));
+        meta=isW?`Withdrawal · ${cashStr} cash + ${coinStr} mønt`:`Deposit · ${cashStr} cash + ${coinStr} mønt`;
+        fl='Cash';
+      } else {
+        fl=d.from==='bank'?'Bank/Card':'Cash';
+        const isW=d.amount<0;
+        amtStr=(isW?'−':'+')+fmt(Math.abs(d.amount));
+        amtColor=isW?'var(--blue)':'var(--purple)';
+        meta=isW?'Withdrawal':'Deposit'+' · '+fl;
+      }
       div.innerHTML=`<div class="log-ico" style="background:var(--purp-dim)">🎲</div>
-        <div class="log-body"><div class="log-title">Cashpoint<span class="cp-badge">${amtStr}</span></div><div class="log-meta">${isW?'Withdrawal':'Deposit'} · ${fl}</div></div>
-        <div class="log-right"><div class="log-amt" style="color:${isW?'var(--blue)':'var(--purple)'}">${amtStr}</div><div class="log-time">${d.date}</div></div>
+        <div class="log-body"><div class="log-title">Cashpoint<span class="cp-badge">${amtStr}</span></div><div class="log-meta">${meta}</div></div>
+        <div class="log-right"><div class="log-amt" style="color:${amtColor}">${amtStr}</div><div class="log-time">${d.date}</div></div>
         <button class="log-del" onclick="delCashpoint(${entry.i})">✕</button>`;
     } else {
       const icon=d.type==='playcoin'?'🪙':'💵',title=d.type==='playcoin'?'Playcoins Added':'Cash Added';
@@ -332,12 +347,26 @@ function cpCalc(){
     saveBtn.disabled=true;return;
   }
   const fl=_cpFrom==='bank'?'Bank/Card':'Cash';
-  if(amt>0){
-    hint.className='hint cashpoint';hint.style.display='';
-    hint.innerHTML=`Customer deposited <b>+${fmt(amt)}</b> via <b>${fl}</b>. Adding to expected ${_cpFrom} balance.`;
+  if(_cpFrom==='cash'){
+    const cashPart=Math.floor(absAmt/50)*50;
+    const coinPart=absAmt-cashPart;
+    if(amt>0){
+      hint.className='hint cashpoint';hint.style.display='';
+      if(coinPart>0){hint.innerHTML=`Customer deposited <b>+${fmt(amt)}</b> via <b>Cash</b>. Split: <b>${fmt(cashPart)}</b> cash + <b>${fmt(coinPart)}</b> mønt.`;}
+      else{hint.innerHTML=`Customer deposited <b>+${fmt(amt)}</b> via <b>Cash</b>. All cash bills.`;}
+    } else {
+      hint.className='hint info';hint.style.display='';
+      if(coinPart>0){hint.innerHTML=`Customer withdrew <b>${fmt(absAmt)}</b> from cashpoint. Split: <b>${fmt(cashPart)}</b> cash + <b>${fmt(coinPart)}</b> mønt.`;}
+      else{hint.innerHTML=`Customer withdrew <b>${fmt(absAmt)}</b> from cashpoint. All cash bills.`;}
+    }
   } else {
-    hint.className='hint info';hint.style.display='';
-    hint.innerHTML=`Customer withdrew <b>${fmt(absAmt)}</b> from cashpoint in <b>Cash</b>. Subtracting from expected cash.`;
+    if(amt>0){
+      hint.className='hint cashpoint';hint.style.display='';
+      hint.innerHTML=`Customer deposited <b>+${fmt(amt)}</b> via <b>${fl}</b>. Adding to expected bank balance.`;
+    } else {
+      hint.className='hint info';hint.style.display='';
+      hint.innerHTML=`Customer withdrew <b>${fmt(absAmt)}</b> from cashpoint in <b>Cash</b>. Subtracting from expected cash.`;
+    }
   }
   saveBtn.disabled=false;
 }
@@ -345,7 +374,13 @@ function saveCashpoint(){
   const amt=parseFloat(document.getElementById('cp-amt').value);
   if(isNaN(amt)||Math.abs(amt)<20)return flash('cp-amt');
   if(amt<0&&_cpFrom==='bank')return flash('cp-amt');
-  D.cashpoints.push({from:_cpFrom,amount:amt,date:nowFull(),ts:Date.now()});saveState();
+  let entry={from:_cpFrom,amount:amt,date:nowFull(),ts:Date.now()};
+  if(_cpFrom==='cash'){
+    const cashPart=Math.floor(Math.abs(amt)/50)*50*Math.sign(amt);
+    entry.cashPart=cashPart;
+    entry.coinPart=amt-cashPart;
+  }
+  D.cashpoints.push(entry);saveState();
   document.getElementById('cp-amt').value='';document.getElementById('cp-hint').style.display='none';document.getElementById('cp-save-btn').disabled=true;
   renderCashpointList();renderHomeLog();recalc();updateEstCalc();
 }
@@ -357,11 +392,20 @@ function renderCashpointList(){
   el.innerHTML='';
   [...D.cashpoints].reverse().forEach((c,ri)=>{
     const i=D.cashpoints.length-1-ri,d=document.createElement('div');d.className='log-item';
-    const fl=c.from==='bank'?'Bank/Card':'Cash';
-    const isWithdrawal=c.amount<0;
-    const amtStr=(isWithdrawal?'−':'+')+fmt(Math.abs(c.amount));
-    const meta=isWithdrawal?`Withdrawal · ${fl}`:`Deposit · ${fl}`;
-    const amtColor=isWithdrawal?'var(--blue)':'var(--purple)';
+    let meta,amtStr,amtColor;
+    if(c.from==='cash'&&c.coinPart!==undefined&&c.coinPart!==0){
+      const isW=c.amount<0;
+      amtColor=isW?'var(--blue)':'var(--purple)';
+      amtStr=(isW?'−':'+')+fmt(Math.abs(c.amount));
+      const cashStr=fmt(Math.abs(c.cashPart));const coinStr=fmt(Math.abs(c.coinPart));
+      meta=isW?`Withdrawal · ${cashStr} cash + ${coinStr} mønt`:`Deposit · ${cashStr} cash + ${coinStr} mønt`;
+    } else {
+      const fl=c.from==='bank'?'Bank/Card':'Cash';
+      const isW=c.amount<0;
+      amtStr=(isW?'−':'+')+fmt(Math.abs(c.amount));
+      meta=isW?`Withdrawal · ${fl}`:`Deposit · ${fl}`;
+      amtColor=isW?'var(--blue)':'var(--purple)';
+    }
     d.innerHTML=`<div class="log-ico" style="background:var(--purp-dim)">🎲</div>
       <div class="log-body"><div class="log-title">Cashpoint</div><div class="log-meta">${meta}</div></div>
       <div class="log-right"><div class="log-amt" style="color:${amtColor}">${amtStr}</div><div class="log-time">${c.date}</div></div>
