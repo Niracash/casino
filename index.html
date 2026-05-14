@@ -368,97 +368,38 @@
 <script>
   const isStandalone = window.navigator.standalone === true ||
     window.matchMedia('(display-mode: standalone)').matches;
-  const isMobile = /android|iphone|ipad|ipod/i.test(navigator.userAgent);
   const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
   const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-  const isAndroid = /android/i.test(navigator.userAgent);
-  let deferredPrompt = null;
 
   function lockBody(){document.body.classList.add('locked')}
   function unlockBody(){document.body.classList.remove('locked')}
 
-  // Catch Android install prompt early
-  window.addEventListener('beforeinstallprompt', e => {
-    e.preventDefault();
-    deferredPrompt = e;
-    if (!isStandalone && isMobile) showAndroidGate();
-    else if (!isStandalone) showAndroidBanner();
-  });
-
-  if (!isStandalone && isMobile) {
-    lockBody();
+  function dismissGate(){
     const gate = document.getElementById('install-gate');
-    const stepsEl = document.getElementById('ig-steps');
-    const actionsEl = document.getElementById('ig-actions');
-
-    if (isIOS && isSafari) {
-      stepsEl.innerHTML = `
-        <div class="ig-step"><div class="ig-step-num">1</div><div class="ig-step-text">Tap the <b>Share</b> button ⎋ in Safari</div></div>
-        <div class="ig-step"><div class="ig-step-num">2</div><div class="ig-step-text">Scroll down and tap <b>Add to Home Screen</b></div></div>
-        <div class="ig-step"><div class="ig-step-num">3</div><div class="ig-step-text">Tap <b>Add</b> in the top right corner</div></div>`;
-      actionsEl.innerHTML = `<button class="ig-btn-dismiss" onclick="showIOSHint()">How do I do this?</button>`;
-      gate.classList.add('show');
-    } else if (isAndroid) {
-      setTimeout(() => {
-        if (!deferredPrompt && !isStandalone) {
-          stepsEl.innerHTML = `
-            <div class="ig-step"><div class="ig-step-num">1</div><div class="ig-step-text">Tap the <b>3-dot menu</b> ⋮ in Chrome</div></div>
-            <div class="ig-step"><div class="ig-step-num">2</div><div class="ig-step-text">Tap <b>Add to Home screen</b></div></div>
-            <div class="ig-step"><div class="ig-step-num">3</div><div class="ig-step-text">Tap <b>Add</b> to confirm</div></div>`;
-          actionsEl.innerHTML = `<button class="ig-btn-dismiss" onclick="showAndroidFallbackHint()">Got it</button>`;
-          gate.classList.add('show');
-        }
-      }, 1500);
-    }
-  }
-
-  function showIOSHint(){
-    alert('Look for the square-with-arrow icon at the bottom (or top) of Safari, then scroll down in the share sheet to find "Add to Home Screen".');
-  }
-  function showAndroidFallbackHint(){
-    const gate = document.getElementById('install-gate');
-    gate.classList.remove('show');
+    if(gate) gate.classList.remove('show');
     unlockBody();
+    try{sessionStorage.setItem('ccc_dismissed_gate','1');}catch(e){}
   }
+  function wasDismissed(){try{return sessionStorage.getItem('ccc_dismissed_gate')==='1';}catch(e){return false;}}
 
-  function showAndroidGate() {
+  // iOS only — show install gate
+  if(!isStandalone && isIOS && isSafari && !wasDismissed()){
     lockBody();
     const gate = document.getElementById('install-gate');
     const stepsEl = document.getElementById('ig-steps');
     const actionsEl = document.getElementById('ig-actions');
     stepsEl.innerHTML = `
-      <div class="ig-step"><div class="ig-step-num">1</div><div class="ig-step-text">Tap <b>Install</b> below</div></div>
-      <div class="ig-step"><div class="ig-step-num">2</div><div class="ig-step-text">Confirm in the browser popup</div></div>`;
-    actionsEl.innerHTML = `<button class="ig-btn-install" id="ig-install-btn">Install Now</button>`;
-    const btn = document.getElementById('ig-install-btn');
-    btn.onclick = async () => {
-      if (deferredPrompt) {
-        deferredPrompt.prompt();
-        const result = await deferredPrompt.userChoice;
-        deferredPrompt = null;
-        if (result.outcome === 'accepted') {gate.classList.remove('show');unlockBody();}
-      }
-    };
+      <div class="ig-step"><div class="ig-step-num">1</div><div class="ig-step-text">Tap the <b>Share</b> button ⎋ in Safari</div></div>
+      <div class="ig-step"><div class="ig-step-num">2</div><div class="ig-step-text">Scroll down and tap <b>Add to Home Screen</b></div></div>
+      <div class="ig-step"><div class="ig-step-num">3</div><div class="ig-step-text">Tap <b>Add</b> in the top right corner</div></div>`;
+    actionsEl.innerHTML = `
+      <button class="ig-btn-install" style="margin-bottom:8px" onclick="showIOSHelp()">How do I do this?</button>
+      <button class="ig-btn-dismiss" onclick="dismissGate()">Continue in browser</button>`;
     gate.classList.add('show');
   }
 
-  function showAndroidBanner() {
-    const banner = document.getElementById('install-banner');
-    const installBtn = document.getElementById('ib-install-btn');
-    const dismissBtn = document.getElementById('ib-dismiss-btn');
-    document.getElementById('ib-steps').innerHTML = `
-      <div class="ib-step"><div class="ib-step-num">1</div><span>Tap "Install" below</span></div>
-      <div class="ib-step"><div class="ib-step-num">2</div><span>Confirm in the browser popup</span></div>`;
-    installBtn.onclick = async () => {
-      if (deferredPrompt) {
-        deferredPrompt.prompt();
-        const result = await deferredPrompt.userChoice;
-        deferredPrompt = null;
-        banner.classList.remove('show');
-      }
-    };
-    dismissBtn.onclick = () => banner.classList.remove('show');
-    setTimeout(() => banner.classList.add('show'), 800);
+  function showIOSHelp(){
+    alert('Look for the square-with-arrow icon at the bottom (or top) of Safari, then scroll down in the share sheet to find "Add to Home Screen".');
   }
 
   if ('serviceWorker' in navigator) {
