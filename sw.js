@@ -1,5 +1,5 @@
-const CACHE = 'casino-calc-v1';
-const ASSETS = ['/', '/index.html', '/style.css', '/app.js', '/manifest.json'];
+const CACHE = 'casino-v1';
+const ASSETS = ['/casino/', '/casino/index.html', '/casino/style.css', '/casino/app.js', '/casino/manifest.json'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
