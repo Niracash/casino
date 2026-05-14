@@ -370,6 +370,8 @@
     window.matchMedia('(display-mode: standalone)').matches;
   const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
   const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+  const isAndroid = /android/i.test(navigator.userAgent);
+  let deferredPrompt = null;
 
   function lockBody(){document.body.classList.add('locked')}
   function unlockBody(){document.body.classList.remove('locked')}
@@ -382,7 +384,17 @@
   }
   function wasDismissed(){try{return sessionStorage.getItem('ccc_dismissed_gate')==='1';}catch(e){return false;}}
 
-  // iOS only — show install gate
+  // Android: only show install UI when Chrome fires the true PWA prompt
+  if(!isStandalone && isAndroid){
+    window.addEventListener('beforeinstallprompt', e => {
+      e.preventDefault();
+      deferredPrompt = e;
+      if(wasDismissed()) return;
+      showAndroidBanner();
+    });
+  }
+
+  // iOS: show install gate (Safari "Add to Home Screen" creates real standalone app)
   if(!isStandalone && isIOS && isSafari && !wasDismissed()){
     lockBody();
     const gate = document.getElementById('install-gate');
@@ -400,6 +412,29 @@
 
   function showIOSHelp(){
     alert('Look for the square-with-arrow icon at the bottom (or top) of Safari, then scroll down in the share sheet to find "Add to Home Screen".');
+  }
+
+  function showAndroidBanner() {
+    if(wasDismissed()) return;
+    const banner = document.getElementById('install-banner');
+    const installBtn = document.getElementById('ib-install-btn');
+    const dismissBtn = document.getElementById('ib-dismiss-btn');
+    document.getElementById('ib-steps').innerHTML = `
+      <div class="ib-step"><div class="ib-step-num">1</div><span>Tap "Install" below</span></div>
+      <div class="ib-step"><div class="ib-step-num">2</div><span>Confirm in the browser popup</span></div>`;
+    installBtn.onclick = async () => {
+      if(deferredPrompt){
+        deferredPrompt.prompt();
+        const result = await deferredPrompt.userChoice;
+        deferredPrompt = null;
+        if(result.outcome === 'accepted') banner.classList.remove('show');
+      }
+    };
+    dismissBtn.onclick = () => {
+      banner.classList.remove('show');
+      try{sessionStorage.setItem('ccc_dismissed_gate','1');}catch(e){}
+    };
+    setTimeout(() => banner.classList.add('show'), 600);
   }
 
   if ('serviceWorker' in navigator) {
