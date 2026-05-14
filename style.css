@@ -46,7 +46,7 @@
     html,body{height:100%}
     body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-height:100dvh;overflow-x:hidden}
 
-    .hdr{position:fixed;top:0;left:0;right:0;height:var(--hdr-h);background:var(--surf);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 16px;z-index:50;gap:9px}
+    .hdr{position:fixed;top:0;left:0;right:0;height:calc(var(--hdr-h) + env(safe-area-inset-top, 0px));background:var(--surf);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:env(safe-area-inset-top, 0px) 16px 0 16px;z-index:50;gap:9px}
     .hdr-logo{font-size:.92rem;font-weight:700;flex:1;color:var(--text)}
     .hdr-pill{font-size:.57rem;font-weight:600;letter-spacing:.5px;text-transform:uppercase;padding:4px 10px;border-radius:999px;border:1px solid transparent;transition:all .3s}
     .hdr-pill.ok  {background:var(--green-dim);color:var(--green);border-color:var(--green-mid)}
@@ -58,7 +58,7 @@
     .nb.on{color:var(--accent)}
     .nb svg{width:20px;height:20px;stroke-width:1.7}
 
-    .page{display:none;padding:calc(var(--hdr-h) + 18px) 15px calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 18px)}
+    .page{display:none;padding:calc(var(--hdr-h) + env(safe-area-inset-top, 0px) + 18px) 15px calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 18px)}
     .page.on{display:block}
 
     .sec{font-size:.57rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1.3px;margin:22px 0 9px;display:flex;justify-content:space-between;align-items:center}
