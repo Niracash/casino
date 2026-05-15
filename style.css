@@ -1,4 +1,4 @@
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
     :root {
       --bg:      #0e0f14;
@@ -53,7 +53,7 @@
     .hdr-pill.off {background:var(--red-dim);color:var(--red);border-color:var(--red-mid)}
     .hdr-pill.idle{background:var(--card2);color:var(--muted);border-color:var(--border)}
 
-    .nav{position:fixed;bottom:0;left:0;right:0;height:calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));background:var(--surf);border-top:1px solid var(--border);display:flex;z-index:100;padding-bottom:env(safe-area-inset-bottom, 0px)}
+    .nav{position:fixed;bottom:0;left:0;right:0;height:calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));background:var(--surf);border-top:1px solid var(--border);display:flex;z-index:50;padding-bottom:env(safe-area-inset-bottom, 0px)}
     .nb{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:var(--muted);border:none;background:none;cursor:pointer;font-size:.55rem;font-weight:600;padding-bottom:0;transition:color .2s;font-family:'Inter',sans-serif;letter-spacing:.4px;text-transform:uppercase}
     .nb.on{color:var(--accent)}
     .nb svg{width:20px;height:20px;stroke-width:1.7}
