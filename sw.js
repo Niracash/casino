@@ -1,4 +1,4 @@
-const CACHE = ‘casino-v3’;
+const CACHE = ‘casino-v4’;
 const ASSETS = [’/casino/’, ‘/casino/index.html’, ‘/casino/style.css’, ‘/casino/app.js’, ‘/casino/manifest.json’];
 
 self.addEventListener(‘install’, e => {
