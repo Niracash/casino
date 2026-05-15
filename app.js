@@ -125,11 +125,17 @@ function updateHomeEst(){
 
 function updateHomeHints(){
   const exp=getExpected();
+  const fridge=getFridgeTotal();
+  const fridgeCash=fridge>0?Math.floor(fridge/50)*50:0;
+  const fridgeCoin=fridge>0?fridge-fridgeCash:0;
   const setH=(id,v)=>{
     const el=document.getElementById(id);if(!el)return;
     el.innerHTML=D.shift?`Expected: <span>${Math.round(v).toLocaleString('no-NO')} kr</span>`:'';
   };
-  setH('h-coin-hint',exp.coin);setH('h-cash-hint',exp.cash);setH('h-pc-hint',exp.pc);setH('h-bank-hint',exp.bank);
+  setH('h-coin-hint',exp.coin+fridgeCoin);
+  setH('h-cash-hint',exp.cash+fridgeCash);
+  setH('h-pc-hint',exp.pc);
+  setH('h-bank-hint',exp.bank);
 }
 
 function recalc(){
