@@ -15,52 +15,41 @@
     /* ── Install gate (mobile browser only) ── */
     #install-gate{
       position:fixed;inset:0;z-index:9999;
-      background:var(--bg);
+      background:#0e0f14;
       display:none;
       flex-direction:column;align-items:center;justify-content:center;
-      padding:28px 22px;text-align:center;
-      overscroll-behavior:none;
+      padding:32px 24px;text-align:center;
     }
     #install-gate.show{display:flex}
-    body.locked{overflow:hidden !important;position:fixed;width:100%;height:100%;touch-action:none}
-    .ig-card{width:100%;max-width:360px;display:flex;flex-direction:column;align-items:center;animation:fadeIn .4s ease}
-    @keyframes fadeIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
-    .ig-icon{font-size:4rem;margin-bottom:18px;filter:drop-shadow(0 4px 12px rgba(124,140,255,.25))}
-    .ig-title{font-size:1.35rem;font-weight:700;color:var(--text);margin-bottom:10px;letter-spacing:-.3px}
-    .ig-sub{font-size:.88rem;color:var(--sub);line-height:1.65;margin-bottom:32px;max-width:280px}
+    .ig-icon{font-size:3.5rem;margin-bottom:20px}
+    .ig-title{font-size:1.2rem;font-weight:700;color:#e8eaf2;margin-bottom:8px}
+    .ig-sub{font-size:.82rem;color:#7b7f96;line-height:1.7;margin-bottom:28px}
     .ig-steps{width:100%;display:flex;flex-direction:column;gap:10px;margin-bottom:28px}
-    .ig-step{display:flex;align-items:center;gap:14px;background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px;text-align:left;transition:border-color .2s}
-    .ig-step:active{border-color:var(--border2)}
-    .ig-step-num{width:28px;height:28px;border-radius:50%;background:var(--accent-dim);color:var(--accent);border:1px solid var(--accent-mid);font-size:.72rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-    .ig-step-text{font-size:.84rem;color:var(--text);line-height:1.55}
-    .ig-step-text b{color:var(--accent);font-weight:600}
-    .ig-actions{width:100%;display:flex;flex-direction:column;gap:10px}
-    .ig-btn-install{background:var(--accent);color:#fff;border:none;border-radius:var(--rs);padding:14px 16px;font-size:.9rem;font-weight:600;cursor:pointer;font-family:inherit;transition:opacity .15s,transform .1s}
-    .ig-btn-install:active{transform:scale(.97);opacity:.9}
-    .ig-btn-dismiss{background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:var(--rs);padding:12px 16px;font-size:.82rem;font-weight:600;cursor:pointer;font-family:inherit;transition:all .15s}
-    .ig-btn-dismiss:active{background:var(--card)}
+    .ig-step{display:flex;align-items:center;gap:12px;background:#191b23;border:1px solid #252733;border-radius:10px;padding:12px 14px;text-align:left}
+    .ig-step-num{width:26px;height:26px;border-radius:50%;background:#7c8cff;color:#fff;font-size:.72rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+    .ig-step-text{font-size:.8rem;color:#e8eaf2;line-height:1.5}
+    .ig-step-text b{color:#7c8cff}
+    .ig-arrow{font-size:2rem;animation:bounce 1.5s infinite}
+    @keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(6px)}}
 
     /* ── Install banner (Android) ── */
     #install-banner{
       position:fixed;bottom:0;left:0;right:0;z-index:200;
-      background:var(--card);border-top:1px solid var(--border);
-      padding:18px 18px calc(24px + env(safe-area-inset-bottom, 0px));display:none;
-      animation:slideUp .35s cubic-bezier(.2,.8,.2,1);
+      background:#1c1c2e;border-top:1px solid #2e3141;
+      padding:16px 18px 24px;display:none;
+      animation:slideUp .3s ease;
     }
     @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
     #install-banner.show{display:block}
-    .ib-top{display:flex;align-items:center;gap:12px;margin-bottom:12px}
-    .ib-icon{font-size:2.2rem;flex-shrink:0}
-    .ib-title{font-size:.95rem;font-weight:700;color:var(--text)}
-    .ib-sub{font-size:.78rem;color:var(--sub);line-height:1.6;margin-bottom:14px}
-    .ib-steps{display:flex;flex-direction:column;gap:8px;margin-bottom:16px}
-    .ib-step{display:flex;align-items:center;gap:10px;font-size:.8rem;color:var(--sub)}
-    .ib-step-num{width:24px;height:24px;border-radius:50%;background:var(--accent-dim);color:var(--accent);border:1px solid var(--accent-mid);font-size:.68rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+    .ib-title{font-size:.9rem;font-weight:700;color:#e8eaf2;margin-bottom:4px}
+    .ib-sub{font-size:.76rem;color:#7b7f96;line-height:1.6;margin-bottom:14px}
+    .ib-steps{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+    .ib-step{display:flex;align-items:center;gap:10px;font-size:.78rem;color:#7b7f96}
+    .ib-step-num{width:22px;height:22px;border-radius:50%;background:#7c8cff;color:#fff;font-size:.65rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
     .ib-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-    .ib-btn-install{background:var(--accent);color:#fff;border:none;border-radius:var(--rs);padding:12px;font-size:.85rem;font-weight:600;cursor:pointer;font-family:inherit;transition:opacity .15s}
-    .ib-btn-install:active{opacity:.85}
-    .ib-btn-dismiss{background:var(--card2);color:var(--sub);border:1px solid var(--border2);border-radius:var(--rs);padding:12px;font-size:.85rem;font-weight:600;cursor:pointer;font-family:inherit;transition:all .15s}
-    .ib-btn-dismiss:active{background:var(--border)}
+    .ib-btn-install{background:#7c8cff;color:#fff;border:none;border-radius:8px;padding:11px;font-size:.84rem;font-weight:600;cursor:pointer;font-family:inherit}
+    .ib-btn-dismiss{background:#252733;color:#7b7f96;border:1px solid #2e3141;border-radius:8px;padding:11px;font-size:.84rem;font-weight:600;cursor:pointer;font-family:inherit}
+    .ib-icon{font-size:1.8rem;margin-bottom:10px}
   </style>
 </head>
 <body>
@@ -195,7 +184,6 @@
     <div class="cell">
       <div class="cl">💰 Mønt (coins)</div>
       <input type="number" id="s-coin" placeholder="0" min="0" inputmode="numeric" oninput="sPreview();stashInputs()">
-      <div class="exp-hint" id="s-coin-sub"></div>
     </div>
     <div class="cell">
       <div class="cl">💵 Cash</div>
@@ -340,22 +328,18 @@
 </nav>
 <!-- Install Gate (mobile browser only — fullscreen block) -->
 <div id="install-gate">
-  <div class="ig-card">
-    <div class="ig-icon">🎰</div>
-    <div class="ig-title">Install Casino</div>
-    <div class="ig-sub">Add to your home screen for the best experience. Works offline and fits your screen perfectly.</div>
-    <div class="ig-steps" id="ig-steps"></div>
-    <div class="ig-actions" id="ig-actions"></div>
-  </div>
+  <div class="ig-icon">🎰</div>
+  <div class="ig-title">Open Casino from your home screen</div>
+  <div class="ig-sub">This app must be installed to use. It only takes a few seconds!</div>
+  <div class="ig-steps" id="ig-steps"></div>
+  <div class="ig-arrow" id="ig-arrow"></div>
 </div>
 
 <!-- Install Banner (Android Chrome — bottom sheet) -->
 <div id="install-banner">
-  <div class="ib-top">
-    <div class="ib-icon">🎰</div>
-    <div class="ib-title">Install Casino</div>
-  </div>
-  <div class="ib-sub">Add to your home screen for quick access and a full-screen experience.</div>
+  <div class="ib-icon">🎰</div>
+  <div class="ib-title">Install Casino</div>
+  <div class="ib-sub">Add to your home screen for the best experience.</div>
   <div class="ib-steps" id="ib-steps"></div>
   <div class="ib-btns">
     <button class="ib-btn-install" id="ib-install-btn">Install</button>
@@ -373,72 +357,67 @@
   const isAndroid = /android/i.test(navigator.userAgent);
   let deferredPrompt = null;
 
-  function lockBody(){document.body.classList.add('locked')}
-  function unlockBody(){document.body.classList.remove('locked')}
-
   // Catch Android install prompt early
   window.addEventListener('beforeinstallprompt', e => {
     e.preventDefault();
     deferredPrompt = e;
+    // If on mobile and not standalone, show gate instead of banner
     if (!isStandalone && isMobile) showAndroidGate();
     else if (!isStandalone) showAndroidBanner();
   });
 
   if (!isStandalone && isMobile) {
-    lockBody();
+    // Show fullscreen gate — block the app
     const gate = document.getElementById('install-gate');
     const stepsEl = document.getElementById('ig-steps');
-    const actionsEl = document.getElementById('ig-actions');
+    const arrowEl = document.getElementById('ig-arrow');
 
     if (isIOS && isSafari) {
       stepsEl.innerHTML = `
-        <div class="ig-step"><div class="ig-step-num">1</div><div class="ig-step-text">Tap the <b>Share</b> button ⎋ in Safari</div></div>
-        <div class="ig-step"><div class="ig-step-num">2</div><div class="ig-step-text">Scroll down and tap <b>Add to Home Screen</b></div></div>
-        <div class="ig-step"><div class="ig-step-num">3</div><div class="ig-step-text">Tap <b>Add</b> in the top right corner</div></div>`;
-      actionsEl.innerHTML = `<button class="ig-btn-dismiss" onclick="showIOSHint()">How do I do this?</button>`;
+        <div class="ig-step"><div class="ig-step-num">1</div><div class="ig-step-text">Tap the <b>Share</b> button ⎋ at the bottom of Safari</div></div>
+        <div class="ig-step"><div class="ig-step-num">2</div><div class="ig-step-text">Scroll and tap <b>"Add to Home Screen"</b></div></div>
+        <div class="ig-step"><div class="ig-step-num">3</div><div class="ig-step-text">Tap <b>"Add"</b> in the top right</div></div>`;
+      arrowEl.textContent = '⬇️';
       gate.classList.add('show');
     } else if (isAndroid) {
+      // Wait for beforeinstallprompt — gate shown there
+      // Fallback if prompt doesn't fire (already installed or not supported)
       setTimeout(() => {
         if (!deferredPrompt && !isStandalone) {
           stepsEl.innerHTML = `
             <div class="ig-step"><div class="ig-step-num">1</div><div class="ig-step-text">Tap the <b>3-dot menu</b> ⋮ in Chrome</div></div>
-            <div class="ig-step"><div class="ig-step-num">2</div><div class="ig-step-text">Tap <b>Add to Home screen</b></div></div>
-            <div class="ig-step"><div class="ig-step-num">3</div><div class="ig-step-text">Tap <b>Add</b> to confirm</div></div>`;
-          actionsEl.innerHTML = `<button class="ig-btn-dismiss" onclick="showAndroidFallbackHint()">Got it</button>`;
+            <div class="ig-step"><div class="ig-step-num">2</div><div class="ig-step-text">Tap <b>"Add to Home screen"</b></div></div>
+            <div class="ig-step"><div class="ig-step-num">3</div><div class="ig-step-text">Tap <b>"Add"</b> to confirm</div></div>`;
+          arrowEl.textContent = '⬆️';
           gate.classList.add('show');
         }
       }, 1500);
     }
   }
 
-  function showIOSHint(){
-    alert('Look for the square-with-arrow icon at the bottom (or top) of Safari, then scroll down in the share sheet to find "Add to Home Screen".');
-  }
-  function showAndroidFallbackHint(){
-    const gate = document.getElementById('install-gate');
-    gate.classList.remove('show');
-    unlockBody();
-  }
-
   function showAndroidGate() {
-    lockBody();
     const gate = document.getElementById('install-gate');
     const stepsEl = document.getElementById('ig-steps');
-    const actionsEl = document.getElementById('ig-actions');
+    const arrowEl = document.getElementById('ig-arrow');
     stepsEl.innerHTML = `
-      <div class="ig-step"><div class="ig-step-num">1</div><div class="ig-step-text">Tap <b>Install</b> below</div></div>
-      <div class="ig-step"><div class="ig-step-num">2</div><div class="ig-step-text">Confirm in the browser popup</div></div>`;
-    actionsEl.innerHTML = `<button class="ig-btn-install" id="ig-install-btn">Install Now</button>`;
-    const btn = document.getElementById('ig-install-btn');
+      <div class="ig-step"><div class="ig-step-num">1</div><div class="ig-step-text">Tap <b>"Install"</b> in the banner below ↓</div></div>
+      <div class="ig-step"><div class="ig-step-num">2</div><div class="ig-step-text">Confirm in the Chrome popup</div></div>`;
+    arrowEl.textContent = '⬇️';
+    gate.classList.add('show');
+    // Add install button to gate
+    const btn = document.createElement('button');
+    btn.className = 'ib-btn-install';
+    btn.style.cssText = 'margin-top:8px;width:100%;padding:14px;font-size:.9rem';
+    btn.textContent = 'Install Now';
     btn.onclick = async () => {
       if (deferredPrompt) {
         deferredPrompt.prompt();
         const result = await deferredPrompt.userChoice;
         deferredPrompt = null;
-        if (result.outcome === 'accepted') {gate.classList.remove('show');unlockBody();}
+        if (result.outcome === 'accepted') gate.classList.remove('show');
       }
     };
-    gate.classList.add('show');
+    gate.appendChild(btn);
   }
 
   function showAndroidBanner() {
@@ -461,9 +440,7 @@
   }
 
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/casino/sw.js')
-.then(()=>console.log("SW registered"))
-.catch(err=>console.log(err));
+    navigator.serviceWorker.register('/casino/sw.js', {scope: '/casino/'}).catch(()=>{});
   }
 </script>
 </body>
