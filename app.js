@@ -897,6 +897,9 @@ const CHECKLIST={
     {id:'dy1',text:'Clean smoke area'},
     {id:'dy2',text:'Wash cups'},
     {id:'dy3',text:'Sweep floor if dirty'},
+    {id:'dy4',text:'Remove soda cans in shop'},
+    {id:'dy5',text:'Bring back signs from machines that are not used'},
+    {id:'dy6',text:'Clean machines with glas rens'},
   ],
   closing:[
     {id:'cl1',text:'Clean smoke area (After customers are gone)'},
@@ -929,6 +932,21 @@ function renderChecklist(){
     if(!el)return;
     el.innerHTML='';
     let done=0;
+
+    if(group==='day'){
+      // No checkboxes for throughout the day — just a reminder list
+      items.forEach(item=>{
+        const div=document.createElement('div');
+        div.className='cl-item';
+        div.style.cursor='default';
+        div.innerHTML=`<span style="width:6px;height:6px;border-radius:50%;background:var(--accent);flex-shrink:0;margin:0 4px"></span>
+          <span class="cl-item-text">${item.text}</span>`;
+        el.appendChild(div);
+      });
+      const countEl=document.getElementById(counts[group]);
+      if(countEl)countEl.textContent='';
+      return;
+    }
     items.forEach(item=>{
       const checked=!!state[item.id];
       if(checked)done++;
