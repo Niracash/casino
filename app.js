@@ -39,6 +39,7 @@ function goPage(id,btn){
   if(id==='machines'){renderKFLog();renderAddList();}
   if(id==='shift'){renderShiftInfo();sPreview();renderExchangeList();renderCashpointList();updateEstCalc();exCalc();}
   if(id==='shop'){renderShopItems();renderShopLog();}
+  if(id==='checklist'){renderChecklist();}
 }
 
 const g=id=>parseFloat(document.getElementById(id).value)||0;
@@ -877,7 +878,219 @@ function renderShopLog(){
   });
 }
 
-loadState();restoreInputs();
+// ── CHECKLIST ──
+const CHECKLIST={
+  opening:[
+    {id:'op1',text:'Open shop'},
+    {id:'op2',text:'Make sure all machines are on'},
+    {id:'op3',text:'Make sure all lights are on'},
+    {id:'op4',text:'Make sure all screens are on'},
+    {id:'op5',text:'Make sure Top Table is on'},
+    {id:'op6',text:'Vacuum and mop in shop'},
+    {id:'op7',text:'Count counter and do entry'},
+    {id:'op8',text:'Count drinks and snacks and insert in file'},
+    {id:'op9',text:'Clean bathroom if dirty'},
+    {id:'op10',text:'Turn on AC'},
+    {id:'op11',text:'Make coffee'},
+  ],
+  day:[
+    {id:'dy1',text:'Clean smoke area'},
+    {id:'dy2',text:'Wash cups'},
+    {id:'dy3',text:'Sweep floor if dirty'},
+  ],
+  closing:[
+    {id:'cl1',text:'Clean smoke area (After customers are gone)'},
+    {id:'cl2',text:'Wash last cups',time:'23:00'},
+    {id:'cl3',text:'Refill sugar/cream and get coffee ready for tomorrow',time:'23:00'},
+    {id:'cl4',text:'Pickup trash',time:'22:35'},
+    {id:'cl5',text:'Sweep floor last time if dirty',time:'23:30'},
+    {id:'cl6',text:'Clean bathroom',time:'22:15'},
+    {id:'cl7',text:'Do Counter entry — do not forget to print/delete and finalize',time:'23:20'},
+    {id:'cl8',text:'Do drinks and snacks calculation and insert in file',time:'23:30'},
+    {id:'cl9',text:'Turn off Touchsell'},
+    {id:'cl10',text:'Turn off fridge lights'},
+    {id:'cl11',text:'Make sure all screens are off'},
+    {id:'cl12',text:'Make sure all machines are off'},
+    {id:'cl13',text:'Turn off AC'},
+    {id:'cl14',text:'Turn off Counting Machine'},
+  ]
+};
+
+function loadChecklistState(){return JSON.parse(localStorage.getItem('ccc_checklist')||'{}');}
+function saveChecklistState(state){localStorage.setItem('ccc_checklist',JSON.stringify(state));}
+
+function renderChecklist(){
+  const state=loadChecklistState();
+  const groups={opening:'cl-opening',day:'cl-day',closing:'cl-closing'};
+  const counts={opening:'cl-opening-count',day:'cl-day-count',closing:'cl-closing-count'};
+
+  Object.entries(CHECKLIST).forEach(([group,items])=>{
+    const el=document.getElementById(groups[group]);
+    if(!el)return;
+    el.innerHTML='';
+    let done=0;
+    items.forEach(item=>{
+      const checked=!!state[item.id];
+      if(checked)done++;
+      const div=document.createElement('label');
+      div.className='cl-item'+(checked?' done':'');
+      div.innerHTML=`
+        <input type="checkbox" ${checked?'checked':''} onchange="toggleCheck('${item.id}',this.checked)">
+        <span class="cl-item-text">${item.text}</span>
+        ${item.time?`<span class="cl-item-time">${item.time}</span>`:''}`;
+      el.appendChild(div);
+    });
+    const countEl=document.getElementById(counts[group]);
+    if(countEl)countEl.textContent=`${done}/${items.length}`;
+  });
+
+  checkBetbooksAlert();
+}
+
+function toggleCheck(id,checked){
+  const state=loadChecklistState();
+  state[id]=checked;
+  saveChecklistState(state);
+  // Update item style without full re-render
+  const labels=document.querySelectorAll('.cl-item');
+  labels.forEach(l=>{
+    const cb=l.querySelector('input[type=checkbox]');
+    if(cb&&cb.getAttribute('onchange')&&cb.getAttribute('onchange').includes(`'${id}'`)){
+      l.classList.toggle('done',checked);
+    }
+  });
+  // Update counts
+  renderChecklistCounts();
+}
+
+function renderChecklistCounts(){
+  const state=loadChecklistState();
+  const groups={opening:'cl-opening-count',day:'cl-day-count',closing:'cl-closing-count'};
+  Object.entries(CHECKLIST).forEach(([group,items])=>{
+    const done=items.filter(i=>state[i.id]).length;
+    const el=document.getElementById(groups[group]);
+    if(el)el.textContent=`${done}/${items.length}`;
+  });
+}
+
+function clearChecklist(){
+  showModal({
+    icon:'↺',
+    title:'Clear Checklist',
+    msg:'Reset all checkboxes for today?',
+    buttons:[
+      {label:'Cancel',style:'modal-btn-ghost'},
+      {label:'Clear All',style:'modal-btn-danger',action:()=>{
+        saveChecklistState({});
+        renderChecklist();
+      }}
+    ]
+  });
+}
+
+function checkBetbooksAlert(){
+  const el=document.getElementById('betbooks-alert');
+  if(!el)return;
+  const now=new Date();
+  const day=now.getDay(); // 1=Monday
+  const date=now.getDate();
+  const lastDay=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
+  const isMonday=day===1;
+  const isLastDay=date===lastDay;
+  el.style.display=(isMonday||isLastDay)?'block':'none';
+}
+
+// ── COFFEE TIMER ──
+let _coffeeInterval=null;
+let _coffeeEnd=null;
+
+function loadCoffeeTimer(){
+  const saved=localStorage.getItem('ccc_coffee');
+  if(saved){
+    const data=JSON.parse(saved);
+    if(data.end&&Date.now()<data.end){
+      _coffeeEnd=data.end;
+      startCoffeeInterval();
+    } else {
+      localStorage.removeItem('ccc_coffee');
+    }
+  }
+  updateCoffeeDisplay();
+}
+
+function coffeeTimerToggle(){
+  if(_coffeeInterval){
+    // Stop
+    clearInterval(_coffeeInterval);
+    _coffeeInterval=null;
+    _coffeeEnd=null;
+    localStorage.removeItem('ccc_coffee');
+    document.getElementById('coffee-start-btn').textContent='Start Timer';
+    document.getElementById('coffee-timer-status').textContent='Stopped';
+    document.getElementById('coffee-timer-display').style.color='var(--accent)';
+    updateCoffeeDisplay();
+  } else {
+    // Start 2 hours
+    _coffeeEnd=Date.now()+(2*60*60*1000);
+    localStorage.setItem('ccc_coffee',JSON.stringify({end:_coffeeEnd}));
+    startCoffeeInterval();
+    document.getElementById('coffee-start-btn').textContent='Stop Timer';
+    document.getElementById('coffee-timer-status').textContent='Coffee started!';
+  }
+}
+
+function startCoffeeInterval(){
+  document.getElementById('coffee-start-btn').textContent='Stop Timer';
+  _coffeeInterval=setInterval(()=>{
+    const remaining=_coffeeEnd-Date.now();
+    if(remaining<=0){
+      clearInterval(_coffeeInterval);
+      _coffeeInterval=null;
+      _coffeeEnd=null;
+      localStorage.removeItem('ccc_coffee');
+      document.getElementById('coffee-timer-display').textContent='Done!';
+      document.getElementById('coffee-timer-display').style.color='var(--green)';
+      document.getElementById('coffee-timer-status').textContent='Coffee is ready!';
+      document.getElementById('coffee-start-btn').textContent='Start Timer';
+      // Show modal notification
+      showModal({icon:'☕',title:'Coffee Ready!',msg:'2 hours have passed. Time to make fresh coffee!',buttons:[{label:'Got it',style:'modal-btn-primary'}]});
+      return;
+    }
+    updateCoffeeDisplay();
+  },1000);
+}
+
+function updateCoffeeDisplay(){
+  const el=document.getElementById('coffee-timer-display');
+  const st=document.getElementById('coffee-timer-status');
+  if(!el)return;
+  if(!_coffeeEnd||!_coffeeInterval){
+    el.textContent='2:00:00';
+    el.style.color='var(--accent)';
+    if(st&&!_coffeeInterval)st.textContent='Ready to start';
+    return;
+  }
+  const remaining=Math.max(0,_coffeeEnd-Date.now());
+  const h=Math.floor(remaining/3600000);
+  const m=Math.floor((remaining%3600000)/60000);
+  const s=Math.floor((remaining%60000)/1000);
+  el.textContent=`${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  const pct=remaining/(2*60*60*1000);
+  el.style.color=pct>0.25?'var(--accent)':'var(--red)';
+  if(st)st.textContent=`Coffee will be ready in ${h}h ${m}m`;
+}
+
+function coffeeTimerReset(){
+  if(_coffeeInterval){clearInterval(_coffeeInterval);_coffeeInterval=null;}
+  _coffeeEnd=null;
+  localStorage.removeItem('ccc_coffee');
+  document.getElementById('coffee-start-btn').textContent='Start Timer';
+  document.getElementById('coffee-timer-status').textContent='Ready to start';
+  document.getElementById('coffee-timer-display').style.color='var(--accent)';
+  updateCoffeeDisplay();
+}
+
+
 if(D.kfType){
   _kfType=D.kfType;
   document.querySelectorAll('#page-machines .type-sel.cols-3 .tsb').forEach(b=>b.classList.remove('on'));
@@ -888,3 +1101,5 @@ selExFrom('cash');
 renderShiftInfo();renderHomeLog();renderExchangeList();renderCashpointList();renderAddList();renderKFLog();
 renderShopItems();renderShopLog();
 recalc();updateEstCalc();updateHomeEst();
+loadCoffeeTimer();
+checkBetbooksAlert();
