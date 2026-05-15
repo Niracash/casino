@@ -35,7 +35,6 @@ function goPage(id,btn){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
   document.querySelectorAll('.nb').forEach(b=>b.classList.remove('on'));
   document.getElementById('page-'+id).classList.add('on');btn.classList.add('on');
-  restoreInputs(); // ← restored whenever you switch pages
   if(id==='home'){recalc();renderHomeLog();}
   if(id==='machines'){renderKFLog();renderAddList();}
   if(id==='shift'){renderShiftInfo();sPreview();renderExchangeList();renderCashpointList();updateEstCalc();exCalc();}
@@ -97,11 +96,7 @@ function stashInputs(){
 }
 
 function restoreInputs(){
-  const set=(id,v)=>{
-    const el=document.getElementById(id);
-    if(!el)return;
-    if(v!=null&&v!=='')el.value=v;
-  };
+  const set=(id,v)=>{if(v!=null&&v!=='')document.getElementById(id).value=v;};
   if(D.inputs.home){set('h-coin',D.inputs.home.coin);set('h-cash',D.inputs.home.cash);set('h-pc',D.inputs.home.pc);set('h-bank',D.inputs.home.bank);}
   if(D.inputs.shift){set('s-coin',D.inputs.shift.coin);set('s-cash',D.inputs.shift.cash);set('s-pc',D.inputs.shift.pc);set('s-bank',D.inputs.shift.bank);}
   if(D.inputs.machines){set('kf-machine',D.inputs.machines.machine);set('kf-val',D.inputs.machines.val);}
@@ -170,10 +165,10 @@ function recalc(){
   const fridge=getFridgeTotal();
   br.classList.add('on');
   const physDiff=current-D.shift.total;
-  const physStr=Math.abs(Math.round(physDiff))<<1?'0 kr':(physDiff>0?'+':'−')+fmt(physDiff);
+  const physStr=Math.abs(Math.round(physDiff))<1?'0 kr':(physDiff>0?'+':'−')+fmt(physDiff);
   const fridgeCounterStr=fridge>0?` <span style="color:var(--green);font-size:.75rem">(fridge: +${fridge.toLocaleString('no-NO')} kr)</span>`:'';
   bp.innerHTML=physStr+fridgeCounterStr;
-  bp.className=physDiff>0?'bv green':physDiff<<0?'bv red':'bv muted';
+  bp.className=physDiff>0?'bv green':physDiff<0?'bv red':'bv muted';
 
   if(bf){
     if(fridge<=0){bf.textContent='—';bf.className='bv muted';}
@@ -193,7 +188,7 @@ function recalc(){
   const diffNoFridge=diffRaw-fridge; // remove fridge from diff
   const absDiff=Math.abs(Math.round(diffNoFridge));
   const fridgeBracket=fridge>0?` <span style="color:var(--green);font-size:.8rem">(+${fridge.toLocaleString('no-NO')} kr fridge)</span>`:'';
-  if(absDiff<<1){
+  if(absDiff<1){
     db.className='diff ok';
     dv.innerHTML='0 kr'+fridgeBracket;
     ds.textContent='Drawer matches perfectly';
@@ -257,7 +252,7 @@ function renderHomeLog(){
         <button class="log-del" onclick="delFillup(${entry.i})">✕</button>`;
     } else if(entry.type==='cashpoint'){
       const fl=d.from==='bank'?'Bank/Card':'Cash';
-      const isW=d.amount<<0;
+      const isW=d.amount<0;
       const amtStr=(isW?'−':'+')+fmt(Math.abs(d.amount));
       div.innerHTML=`<div class="log-ico" style="background:var(--purp-dim)">🎲</div>
         <div class="log-body"><div class="log-title">Cashpoint<span class="cp-badge">${amtStr}</span></div><div class="log-meta">${isW?'Withdrawal':'Deposit'} · ${fl}</div></div>
@@ -381,12 +376,12 @@ function cpCalc(){
   const amt=parseFloat(raw)||0;
   const hint=document.getElementById('cp-hint'),saveBtn=document.getElementById('cp-save-btn');
   // Negative only allowed for cash
-  if(amt<<0 && _cpFrom==='bank'){
+  if(amt<0 && _cpFrom==='bank'){
     hint.className='hint error';hint.innerHTML='<b>Cannot withdraw from bank</b> — switch to Cash to record a withdrawal.';hint.style.display='';
     saveBtn.disabled=true;return;
   }
   const absAmt=Math.abs(amt);
-  if(absAmt<<20){
+  if(absAmt<20){
     if(absAmt>0){hint.className='hint error';hint.innerHTML='<b>Minimum:</b> 20 kr';hint.style.display='';}
     else hint.style.display='none';
     saveBtn.disabled=true;return;
@@ -414,7 +409,7 @@ function cpCalc(){
 function saveCashpoint(){
   const amt=parseFloat(document.getElementById('cp-amt').value);
   if(isNaN(amt)||Math.abs(amt)<20)return flash('cp-amt');
-  if(amt<<0&&_cpFrom==='bank')return flash('cp-amt');
+  if(amt<0&&_cpFrom==='bank')return flash('cp-amt');
   D.cashpoints.push({from:_cpFrom,amount:amt,date:nowFull(),ts:Date.now()});saveState();
   document.getElementById('cp-amt').value='';document.getElementById('cp-hint').style.display='none';document.getElementById('cp-save-btn').disabled=true;
   renderCashpointList();renderHomeLog();recalc();updateEstCalc();
@@ -428,7 +423,7 @@ function renderCashpointList(){
   [...D.cashpoints].reverse().forEach((c,ri)=>{
     const i=D.cashpoints.length-1-ri,d=document.createElement('div');d.className='log-item';
     const fl=c.from==='bank'?'Bank/Card':'Cash';
-    const isWithdrawal=c.amount<<0;
+    const isWithdrawal=c.amount<0;
     const amtStr=(isWithdrawal?'−':'+')+fmt(Math.abs(c.amount));
     const meta=isWithdrawal?`Withdrawal · ${fl}`:`Deposit · ${fl}`;
     const amtColor=isWithdrawal?'var(--blue)':'var(--purple)';
@@ -589,7 +584,7 @@ function generateShiftPDF(){
     } else if(e.type==='addition'){
       label=d.type==='playcoin'?'Playcoins Added':'Cash Added';detail='Replenishment';amount=f(d.amount);
     } else if(e.type==='cashpoint'){
-      const isW=d.amount<<0;
+      const isW=d.amount<0;
       label='Cashpoint';detail=`${isW?'Withdrawal':'Deposit'} via ${d.from==='bank'?'Bank/Card':'Cash'}`;
       amount=(isW?'−':'+')+f(Math.abs(d.amount));
     } else if(e.type==='exchange'){
@@ -755,7 +750,7 @@ function renderShopItems(){
         </div>
       </div>
       <div class="shop-item-row"><span class="sl">Sold</span><span class="sv">${sold} pcs</span></div>
-      <div class="shop-item-row"><span class="sl">End count</span><span class="sv" id="shop-end-${p.id}" style="color:${end<<0?'var(--red)':'var(--text)'}">${end}</span></div>
+      <div class="shop-item-row"><span class="sl">End count</span><span class="sv" id="shop-end-${p.id}" style="color:${end<0?'var(--red)':'var(--text)'}">${end}</span></div>
       <div class="shop-item-row"><span class="sl">Revenue</span><span class="sv" style="color:var(--green)">${revenue>0?revenue.toLocaleString('no-NO')+' kr':'—'}</span></div>`;
     el.appendChild(div);
   });
@@ -775,7 +770,7 @@ function setShopStart(id, val){
   const start=D.shop.starts[id]||0;
   const end=start-sold;
   const endEl=document.getElementById('shop-end-'+id);
-  if(endEl){endEl.textContent=end;endEl.style.color=end<<0?'var(--red)':'var(--text)';}
+  if(endEl){endEl.textContent=end;endEl.style.color=end<0?'var(--red)':'var(--text)';}
   renderShopSummary();
   updateHomeEst();
 }
@@ -799,7 +794,7 @@ function _doShopSell(id, delta){
 
 function shopSell(id, delta){
   initShop();
-  if(delta<<0){
+  if(delta<0){
     if(D.shop.sold[id]<=0)return;
     const productName=SHOP_PRODUCTS.find(p=>p.id===id).name;
     showModal({
@@ -846,7 +841,7 @@ function renderShopSummary(){
     else                  breakdown=` <span style="color:var(--sub);font-size:.68rem">(Coin: ${pCoin.toLocaleString('no-NO')} kr)</span>`;
     const start=D.shop.starts[p.id]||0;
     const end=start-sold;
-    const endColor=end<<0?'var(--red)':'var(--muted)';
+    const endColor=end<0?'var(--red)':'var(--muted)';
     html+=`<div style="padding:7px 0;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:8px">
       <div>
         <div style="font-size:.82rem;color:var(--sub)">${p.icon} ${p.name}</div>
@@ -854,7 +849,7 @@ function renderShopSummary(){
       </div>
       <div style="text-align:right;flex-shrink:0">
         <div style="font-family:'JetBrains Mono',monospace;font-weight:600;font-size:.84rem;color:var(--text)">${rev.toLocaleString('no-NO')} kr</div>
-        <div style="font-size:.67rem;color:var(--sub);margin-top:1px">${breakdown.replace(/<<[^>]+>/g,'').replace(/[()]/g,'').trim()}</div>
+        <div style="font-size:.67rem;color:var(--sub);margin-top:1px">${breakdown.replace(/<[^>]+>/g,'').replace(/[()]/g,'').trim()}</div>
       </div>
     </div>`;
   });
@@ -1039,7 +1034,7 @@ function loadCoffeeTimer(){
   const saved=localStorage.getItem('ccc_coffee');
   if(saved){
     const data=JSON.parse(saved);
-    if(data.end&&Date.now()<<data.end){
+    if(data.end&&Date.now()<data.end){
       _coffeeEnd=data.end;
       startCoffeeInterval();
     } else {
@@ -1131,7 +1126,6 @@ if(D.kfType){
 selExFrom('cash');
 renderShiftInfo();renderHomeLog();renderExchangeList();renderCashpointList();renderAddList();renderKFLog();
 renderShopItems();renderShopLog();
-restoreInputs(); // ← restored on cold start
 recalc();updateEstCalc();updateHomeEst();
 loadCoffeeTimer();
 checkBetbooksAlert();
