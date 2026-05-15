@@ -393,12 +393,17 @@
   const isAndroid = /android/i.test(navigator.userAgent);
   let deferredPrompt = null;
 
-  // Instantly block app on mobile browser — no delay, no flash
+  // Only hide gate if actually running as installed PWA (standalone mode)
+  // Browser tab on mobile = always show gate, even after installing
   if (!isStandalone && isMobile) {
     document.body.classList.add('gate-active');
     document.getElementById('install-gate').classList.add('show');
-    if (isIOS && isSafari) showIOSGate();
-    else if (isAndroid) showAndroidFallbackGate();
+    if (isIOS && isSafari) {
+      showIOSGate();
+    } else if (isAndroid) {
+      // Show fallback steps immediately, swap to button if prompt fires
+      showAndroidFallbackGate();
+    }
   }
 
   function showIOSGate() {
@@ -431,9 +436,11 @@
         deferredPrompt.prompt();
         const result = await deferredPrompt.userChoice;
         deferredPrompt = null;
+        // Don't hide gate — user must open from home screen
         if (result.outcome === 'accepted') {
-          document.getElementById('install-gate').classList.remove('show');
-          document.body.classList.remove('gate-active');
+          document.getElementById('ig-sub').textContent = 'App installed! Open Casino from your home screen.';
+          document.getElementById('ig-steps').innerHTML = '';
+          document.getElementById('ig-actions').innerHTML = '';
         }
       }
     };
