@@ -56,8 +56,16 @@ function getExpected(){
   let coin=D.shift.coin,cash=D.shift.cash,pc=D.shift.pc,bank=D.shift.bank;
   D.additions.forEach(a=>{if(a.type==='cash')cash+=a.amount;else if(a.type==='playcoin')pc+=a.amount;});
   D.exchanges.forEach(e=>{
-    if(e.from==='cash')cash+=e.amount;if(e.from==='bank')bank+=e.amount;
-    if(e.from==='pc')pc+=e.amount;if(e.from==='coin')coin+=e.amount;
+    // Money coming IN from customer — split cash/bank into cash (floor 50) + coin (remainder)
+    if(e.from==='cash'){
+      const cashPart=Math.floor(e.amount/50)*50;
+      const coinPart=e.amount-cashPart;
+      cash+=cashPart;coin+=coinPart;
+    }
+    if(e.from==='bank')bank+=e.amount;
+    if(e.from==='pc')pc+=e.amount;
+    if(e.from==='coin')coin+=e.amount;
+    // Money going OUT to customer
     if(e.to==='cash')cash-=e.amount;if(e.to==='pc')pc-=e.amount;
     if(e.to==='coin')coin-=e.amount;if(e.to==='bank')bank-=e.amount;
   });
