@@ -124,7 +124,12 @@
     .modal-btn-danger{background:#f06b6b22;color:#f06b6b;border:1px solid #f06b6b44}
     .modal-btn-ghost{background:#ffffff0f;color:#9196b0;border:1px solid #2a2d3e}
     .modal-btn-green{background:#3ecf8e22;color:#3ecf8e;border:1px solid #3ecf8e44}
+    /* Backup/Import */
+    .backup-row{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:10px}
+    .file-input-wrapper{position:relative;overflow:hidden;display:inline-block;width:100%}
+    .file-input-wrapper input[type=file]{position:absolute;left:0;top:0;opacity:0;width:100%;height:100%;cursor:pointer}
   </style>
+<base target="_blank">
 </head>
 <body>
 
@@ -288,6 +293,18 @@
       <div class="shift-date" id="shift-date-display"></div>
     </div>
     <button class="btn btn-red" style="width:auto;padding:7px 13px;font-size:.74rem" onclick="confirmReset()">Reset</button>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="sec">Backup & Restore</div>
+  <div class="hint">Export your shift data to a file, or restore from a previous backup.</div>
+  <div class="backup-row">
+    <button class="btn btn-ghost" onclick="exportData()">⬇ Export Backup</button>
+    <div class="file-input-wrapper">
+      <button class="btn btn-ghost" style="width:100%">⬆ Import Backup</button>
+      <input type="file" accept=".json" onchange="importData(this.files[0])">
+    </div>
   </div>
 
   <div class="divider"></div>
@@ -475,15 +492,12 @@
   const isAndroid = /android/i.test(navigator.userAgent);
   let deferredPrompt = null;
 
-  // Only hide gate if actually running as installed PWA (standalone mode)
-  // Browser tab on mobile = always show gate, even after installing
   if (!isStandalone && isMobile) {
     document.body.classList.add('gate-active');
     document.getElementById('install-gate').classList.add('show');
     if (isIOS && isSafari) {
       showIOSGate();
     } else if (isAndroid) {
-      // Show fallback steps immediately, swap to button if prompt fires
       showAndroidFallbackGate();
     }
   }
@@ -518,7 +532,6 @@
         deferredPrompt.prompt();
         const result = await deferredPrompt.userChoice;
         deferredPrompt = null;
-        // Don't hide gate — user must open from home screen
         if (result.outcome === 'accepted') {
           document.getElementById('ig-sub').textContent = 'App installed! Open Casino from your home screen.';
           document.getElementById('ig-steps').innerHTML = '';
@@ -546,7 +559,6 @@
       </div>`;
   }
 
-  // When Chrome fires install prompt, swap to install button
   window.addEventListener('beforeinstallprompt', e => {
     e.preventDefault();
     deferredPrompt = e;
