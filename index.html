@@ -18,108 +18,38 @@
 
 ```
 #install-gate{
-  position:fixed;inset:0;z-index:9999;
+  position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;
   background:#13141a;
   display:none;
-  pointer-events:none;
   flex-direction:column;align-items:center;justify-content:center;
   padding:40px 28px;text-align:center;
   overflow:hidden;
 }
-#install-gate.show{display:flex;pointer-events:all}
+#install-gate.show{display:flex;}
 
-.ig-card{
-  width:100%;max-width:340px;
-  display:flex;flex-direction:column;align-items:center;
-}
-.ig-emoji{
-  font-size:52px;
-  margin-bottom:24px;
-  line-height:1;
-}
-.ig-title{
-  font-size:1.45rem;font-weight:800;
-  color:#ffffff;
-  margin-bottom:10px;
-  letter-spacing:-.4px;
-  line-height:1.2;
-}
-.ig-sub{
-  font-size:.88rem;
-  color:#9196b0;
-  line-height:1.65;
-  margin-bottom:36px;
-  max-width:260px;
-}
-.ig-steps{
-  width:100%;
-  display:flex;flex-direction:column;
-  gap:10px;
-  margin-bottom:32px;
-}
-.ig-step{
-  display:flex;align-items:center;gap:14px;
-  background:#1e2029;
-  border:1px solid #2a2d3e;
-  border-radius:14px;
-  padding:14px 16px;
-  text-align:left;
-}
-.ig-step-num{
-  width:30px;height:30px;border-radius:50%;
-  background:rgba(124,140,255,.15);
-  color:#7c8cff;
-  border:1.5px solid rgba(124,140,255,.3);
-  font-size:.75rem;font-weight:700;
-  display:flex;align-items:center;justify-content:center;
-  flex-shrink:0;
-}
-.ig-step-text{
-  font-size:.84rem;
-  color:#c8cbe0;
-  line-height:1.5;
-  font-weight:500;
-}
-.ig-step-text b{
-  color:#ffffff;
-  font-weight:700;
-}
-.ig-install-btn{
-  width:100%;
-  background:#7c8cff;
-  color:#fff;
-  border:none;
-  border-radius:14px;
-  padding:16px;
-  font-size:.95rem;
-  font-weight:700;
-  cursor:pointer;
-  font-family:inherit;
-  letter-spacing:-.1px;
-  transition:opacity .15s,transform .1s;
-}
-.ig-install-btn:active{transform:scale(.97);opacity:.9}
+.ig-card{width:100%;max-width:340px;display:flex;flex-direction:column;align-items:center;}
+.ig-emoji{font-size:52px;margin-bottom:24px;line-height:1;}
+.ig-title{font-size:1.45rem;font-weight:800;color:#ffffff;margin-bottom:10px;letter-spacing:-.4px;line-height:1.2;}
+.ig-sub{font-size:.88rem;color:#9196b0;line-height:1.65;margin-bottom:36px;max-width:260px;}
+.ig-steps{width:100%;display:flex;flex-direction:column;gap:10px;margin-bottom:32px;}
+.ig-step{display:flex;align-items:center;gap:14px;background:#1e2029;border:1px solid #2a2d3e;border-radius:14px;padding:14px 16px;text-align:left;}
+.ig-step-num{width:30px;height:30px;border-radius:50%;background:rgba(124,140,255,.15);color:#7c8cff;border:1.5px solid rgba(124,140,255,.3);font-size:.75rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.ig-step-text{font-size:.84rem;color:#c8cbe0;line-height:1.5;font-weight:500;}
+.ig-step-text b{color:#ffffff;font-weight:700;}
+.ig-install-btn{width:100%;background:#7c8cff;color:#fff;border:none;border-radius:14px;padding:16px;font-size:.95rem;font-weight:700;cursor:pointer;font-family:inherit;}
+
 /* ── Custom Modal ── */
 #modal-overlay{
-  position:fixed;inset:0;z-index:10000;
+  position:fixed;top:0;left:0;right:0;bottom:0;z-index:10000;
   background:rgba(0,0,0,.6);
-  display:none;align-items:center;justify-content:center;
+  display:none;
+  align-items:center;justify-content:center;
   padding:24px;
-  backdrop-filter:blur(4px);
-  pointer-events:none;
 }
-#modal-overlay.show{display:flex;pointer-events:all}
-#modal-box{
-  background:#1e2029;
-  border:1px solid #2a2d3e;
-  border-radius:18px;
-  padding:28px 24px 20px;
-  width:100%;max-width:320px;
-  animation:modalIn .2s cubic-bezier(.2,.8,.2,1);
-}
-@keyframes modalIn{from{opacity:0;transform:scale(.93)}to{opacity:1;transform:scale(1)}}
-#modal-icon{font-size:2rem;margin-bottom:14px;text-align:center}
-#modal-title{font-size:1rem;font-weight:700;color:#fff;margin-bottom:8px;text-align:center;line-height:1.3}
+#modal-overlay.show{display:flex;}
+#modal-box{background:#1e2029;border:1px solid #2a2d3e;border-radius:18px;padding:28px 24px 20px;width:100%;max-width:320px;}
+#modal-icon{font-size:2rem;margin-bottom:14px;text-align:center;}
+#modal-title{font-size:1rem;font-weight:700;color:#fff;margin-bottom:8px;text-align:center;line-height:1.3;}
 #modal-msg{font-size:.84rem;color:#9196b0;line-height:1.6;text-align:center;margin-bottom:22px}
 #modal-btns{display:flex;flex-direction:column;gap:8px}
 .modal-btn{width:100%;padding:13px;border-radius:12px;font-size:.88rem;font-weight:600;cursor:pointer;font-family:inherit;border:none;transition:opacity .15s,transform .1s}
@@ -572,5 +502,6 @@
     navigator.serviceWorker.register('/casino/sw.js', {scope: '/casino/'}).catch(()=>{});
   }
 </script>
+
 </body>
 </html>
