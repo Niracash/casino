@@ -13,20 +13,18 @@
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icon-192.png">
   <style>
-    /* Hide app content instantly on mobile non-standalone */
-    body.gate-active > *:not(#install-gate) { display: none !important; }
+    #install-gate{
+      position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;
+      background:#13141a;
+      visibility:hidden;
+      display:flex;
+      flex-direction:column;align-items:center;justify-content:center;
+      padding:40px 28px;text-align:center;
+      overflow:hidden;
+    }
+    #install-gate.show{visibility:visible;}
 
 ```
-#install-gate{
-  position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;
-  background:#13141a;
-  display:none;
-  flex-direction:column;align-items:center;justify-content:center;
-  padding:40px 28px;text-align:center;
-  overflow:hidden;
-}
-#install-gate.show{display:flex;}
-
 .ig-card{width:100%;max-width:340px;display:flex;flex-direction:column;align-items:center;}
 .ig-emoji{font-size:52px;margin-bottom:24px;line-height:1;}
 .ig-title{font-size:1.45rem;font-weight:800;color:#ffffff;margin-bottom:10px;letter-spacing:-.4px;line-height:1.2;}
@@ -40,13 +38,14 @@
 
 /* ── Custom Modal ── */
 #modal-overlay{
-  position:fixed;top:0;left:0;right:0;bottom:0;z-index:10000;
+  position:fixed;top:0;left:0;width:100%;height:100%;z-index:10000;
   background:rgba(0,0,0,.6);
-  display:none;
+  visibility:hidden;
+  display:flex;
   align-items:center;justify-content:center;
   padding:24px;
 }
-#modal-overlay.show{display:flex;}
+#modal-overlay.show{visibility:visible;}
 #modal-box{background:#1e2029;border:1px solid #2a2d3e;border-radius:18px;padding:28px 24px 20px;width:100%;max-width:320px;}
 #modal-icon{font-size:2rem;margin-bottom:14px;text-align:center;}
 #modal-title{font-size:1rem;font-weight:700;color:#fff;margin-bottom:8px;text-align:center;line-height:1.3;}
@@ -423,12 +422,10 @@
   // Only hide gate if actually running as installed PWA (standalone mode)
   // Browser tab on mobile = always show gate, even after installing
   if (!isStandalone && isMobile) {
-    document.body.classList.add('gate-active');
     document.getElementById('install-gate').classList.add('show');
     if (isIOS && isSafari) {
       showIOSGate();
     } else if (isAndroid) {
-      // Show fallback steps immediately, swap to button if prompt fires
       showAndroidFallbackGate();
     }
   }
