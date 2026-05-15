@@ -218,7 +218,11 @@ function renderHomeLog(){
   });
 }
 
-function delFillup(i){D.fillups.splice(i,1);saveState();renderHomeLog();renderKFLog();recalc();updateEstCalc();}
+function delFillup(i){
+  Object.keys(_checkStates).forEach(k=>{if(k.startsWith(i+'_'))delete _checkStates[k];});
+  _saveChecks();
+  D.fillups.splice(i,1);saveState();renderHomeLog();renderKFLog();recalc();updateEstCalc();
+}
 function delExchange(i){D.exchanges.splice(i,1);saveState();renderHomeLog();renderExchangeList();recalc();updateEstCalc();}
 function delCashpoint(i){D.cashpoints.splice(i,1);saveState();renderHomeLog();renderCashpointList();recalc();updateEstCalc();}
 function delAddition(i){D.additions.splice(i,1);saveState();renderHomeLog();renderAddList();recalc();updateEstCalc();}
@@ -424,6 +428,10 @@ function kfCalc(){
   document.getElementById('kfr-val').textContent=fmt(paidOut);
   res.style.display='';saveBtn.disabled=false;stashInputs();
 }
+// Checkbox states — persisted in localStorage
+const _checkStates=JSON.parse(localStorage.getItem('ccc_checks')||'{}');
+function _saveChecks(){localStorage.setItem('ccc_checks',JSON.stringify(_checkStates));}
+
 function buildSteps(total){const MAX=200,steps=[];let rem=total;while(rem>0){const fill=Math.min(rem,MAX);steps.push({fill});rem-=fill;}return steps;}
 function saveKF(){
   const raw=parseFloat(document.getElementById('kf-val').value);if(isNaN(raw)||raw<=0)return;
@@ -449,11 +457,14 @@ function renderKFLog(){
   [...D.fillups].reverse().forEach((f,ri)=>{
     const i=D.fillups.length-1-ri,d=document.createElement('div');d.className='mlog-item';
     const steps=buildSteps(f.coins);
-    const stepsHtml=steps.map(s=>`<label style="display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid var(--border);cursor:pointer;">
-      <input type="checkbox" style="width:16px;height:16px;accent-color:var(--green);flex-shrink:0;cursor:pointer;">
+    const stepsHtml=steps.map((s,si)=>{
+      const key=`${i}_${si}`;
+      const checked=_checkStates[key]?'checked':'';
+      return `<label style="display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid var(--border);cursor:pointer;">
+      <input type="checkbox" data-key="${key}" ${checked} style="width:16px;height:16px;accent-color:var(--green);flex-shrink:0;cursor:pointer;" onchange="_checkStates[this.dataset.key]=this.checked;_saveChecks()">
       <span style="flex:1;font-size:.77rem;color:var(--text)">Fill <b>${s.fill}</b> playcoins</span>
       <span style="font-size:.73rem;color:var(--sub);font-family:'JetBrains Mono',monospace">${(s.fill*20).toLocaleString('no-NO')} kr</span>
-    </label>`).join('');
+    </label>`;}).join('');
     const inputLabels={kr:'Kr', '1cr':'Credit (1 kr)', '05cr':'Credit (0.5 kr)'};
     const krStr = f.type!=='kr' ? ` = ${f.kr!=null?f.kr.toLocaleString('no-NO'):''} kr` : '';
     const inputStr=`<div style="font-size:.72rem;color:var(--sub);margin-top:2px">${inputLabels[f.type]||f.type}: <b style="color:var(--text)">${f.inputVal!=null?f.inputVal.toLocaleString('no-NO'):f.kr.toLocaleString('no-NO')}</b>${krStr}</div>`;
@@ -595,6 +606,8 @@ function confirmReset(){
   }
 
   D={shift:null,exchanges:[],cashpoints:[],fillups:[],additions:[],shop:{starts:{},sold:{},log:[]},inputs:{home:{},shift:{},machines:{}},kfType:'kr'};
+  Object.keys(_checkStates).forEach(k=>delete _checkStates[k]);
+  _saveChecks();
   saveState();
   document.querySelectorAll('input[type=number],input[type=text]').forEach(el=>el.value='');
   document.getElementById('s-preview').textContent='0 kr';document.getElementById('h-current-total').textContent='0 kr';
