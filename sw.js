@@ -1,4 +1,4 @@
-const CACHE = "casino-v2";
+const CACHE = "casino-v3";
 
 const FILES = [
   "/casino/",
@@ -16,7 +16,6 @@ self.addEventListener("install", event => {
       .then(cache => cache.addAll(FILES))
       .catch(err => console.log(err))
   );
-
   self.skipWaiting();
 });
 
@@ -32,7 +31,6 @@ self.addEventListener("activate", event => {
       )
     )
   );
-
   self.clients.claim();
 });
 
@@ -41,10 +39,8 @@ self.addEventListener("fetch", event => {
     fetch(event.request)
       .then(response=>{
         const clone=response.clone();
-
         caches.open(CACHE)
           .then(cache=>cache.put(event.request,clone));
-
         return response;
       })
       .catch(()=>{
