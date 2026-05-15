@@ -483,14 +483,122 @@ function renderShiftInfo(){
   if(D.shift){el.textContent=fmt(D.shift.total);el.className='ssv';date.textContent='Set: '+D.shift.date;}
   else{el.textContent='Not set';el.className='ssv idle';date.textContent='';}
 }
-function confirmReset(){
-  if(confirm('Reset shift? This clears all data for the day.')){
-    D={shift:null,exchanges:[],cashpoints:[],fillups:[],additions:[],shop:{starts:{},sold:{},log:[]},inputs:{home:{},shift:{},machines:{}},kfType:'kr'};
-    saveState();
-    document.querySelectorAll('input[type=number],input[type=text]').forEach(el=>el.value='');
-    document.getElementById('s-preview').textContent='0 kr';document.getElementById('h-current-total').textContent='0 kr';
-    renderShiftInfo();renderHomeLog();renderExchangeList();renderCashpointList();renderAddList();renderKFLog();recalc();updateEstCalc();updateHomeEst();
+function generateShiftPDF(){
+  const f=fmt,now=nowFull();
+  const exp=getExpected();
+  const fridge=getFridgeTotal();
+  const fridgeCash=Math.floor(fridge/50)*50;
+  const fridgeCoin=fridge-fridgeCash;
+
+  // Build log entries sorted by time
+  const all=[
+    ...D.fillups.map((x,i)=>({type:'fillup',ts:x.ts||0,data:x})),
+    ...D.additions.map((x,i)=>({type:'addition',ts:x.ts||0,data:x})),
+    ...D.cashpoints.map((x,i)=>({type:'cashpoint',ts:x.ts||0,data:x})),
+    ...D.exchanges.map((x,i)=>({type:'exchange',ts:x.ts||0,data:x})),
+  ].sort((a,b)=>a.ts-b.ts);
+
+  const CAT={cash:'Cash',pc:'Playcoins',coin:'Mønt',bank:'Bank'};
+
+  let logRows='';
+  all.forEach(e=>{
+    const d=e.data;
+    let label='',detail='',amount='';
+    if(e.type==='fillup'){
+      label='Key Fillup';detail=`Machine ${d.machine} — ${d.coins} coins`;amount=f(d.coins*20);
+    } else if(e.type==='addition'){
+      label=d.type==='playcoin'?'Playcoins Added':'Cash Added';detail='Replenishment';amount=f(d.amount);
+    } else if(e.type==='cashpoint'){
+      const isW=d.amount<0;
+      label='Cashpoint';detail=`${isW?'Withdrawal':'Deposit'} via ${d.from==='bank'?'Bank/Card':'Cash'}`;
+      amount=(isW?'−':'+')+f(Math.abs(d.amount));
+    } else if(e.type==='exchange'){
+      label='Exchange';detail=`${CAT[d.from]} → ${CAT[d.to]}`;amount=f(d.amount);
+    }
+    logRows+=`<tr><td>${d.date||''}</td><td>${label}</td><td>${detail}</td><td style="text-align:right;font-family:monospace">${amount}</td></tr>`;
+  });
+
+  // Fridge summary
+  let fridgeRows='';
+  if(D.shop&&D.shop.sold){
+    const products={sodavand:{n:'Sodavand',p:10},redbull:{n:'Redbull',p:20},vand:{n:'Vand',p:5},bounty:{n:'Bounty',p:10},bueno:{n:'Bueno',p:10},mars:{n:'Mars',p:10},snickers:{n:'Snickers',p:10},pringles:{n:'Pringles',p:10},lighter:{n:'Lighter',p:10}};
+    Object.entries(products).forEach(([id,{n,p}])=>{
+      const sold=D.shop.sold[id]||0;
+      const start=D.shop.starts&&D.shop.starts[id]||0;
+      if(sold>0||start>0){
+        fridgeRows+=`<tr><td>${n}</td><td style="text-align:center">${start}</td><td style="text-align:center">${sold}</td><td style="text-align:center">${start-sold}</td><td style="text-align:right;font-family:monospace">${f(sold*p)}</td></tr>`;
+      }
+    });
   }
+
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8">
+  <title>Casino Shift Report</title>
+  <style>
+    body{font-family:Arial,sans-serif;font-size:13px;color:#111;padding:30px;max-width:720px;margin:0 auto}
+    h1{font-size:20px;margin-bottom:2px;color:#1a1a2e}
+    .meta{color:#666;font-size:12px;margin-bottom:24px}
+    h2{font-size:14px;font-weight:700;margin:22px 0 8px;padding-bottom:4px;border-bottom:2px solid #eee;color:#1a1a2e}
+    table{width:100%;border-collapse:collapse;margin-bottom:6px}
+    th{background:#f4f4f8;text-align:left;padding:7px 10px;font-size:12px;color:#555;border-bottom:2px solid #ddd}
+    td{padding:6px 10px;border-bottom:1px solid #eee;vertical-align:top}
+    tr:last-child td{border-bottom:none}
+    .summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:8px}
+    .summary-box{background:#f8f8fc;border:1px solid #e0e0ec;border-radius:8px;padding:12px 14px}
+    .summary-box .label{font-size:11px;color:#888;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px}
+    .summary-box .value{font-size:16px;font-weight:700;font-family:monospace;color:#1a1a2e}
+    .summary-box .sub{font-size:11px;color:#3ecf8e;margin-top:3px}
+    .green{color:#2a9d5c}.red{color:#e05454}
+    .footer{margin-top:32px;font-size:11px;color:#aaa;text-align:center;border-top:1px solid #eee;padding-top:12px}
+    @media print{body{padding:10px}}
+  </style></head><body>
+  <h1>🎰 Casino — Shift Report</h1>
+  <div class="meta">Generated: ${now}${D.shift?` &nbsp;|&nbsp; Shift started: ${D.shift.date}`:''}</div>
+
+  <h2>Summary</h2>
+  <div class="summary-grid">
+    <div class="summary-box"><div class="label">Start Total</div><div class="value">${D.shift?f(D.shift.total):'—'}</div></div>
+    <div class="summary-box"><div class="label">Expected Total</div><div class="value">${f(exp.total)}</div></div>
+    <div class="summary-box"><div class="label">💰 Mønt Expected</div><div class="value">${f(exp.coin)}</div>${fridgeCoin>0?`<div class="sub">incl. +${f(fridgeCoin)} fridge</div>`:''}</div>
+    <div class="summary-box"><div class="label">💵 Cash Expected</div><div class="value">${f(exp.cash)}</div>${fridgeCash>0?`<div class="sub">incl. +${f(fridgeCash)} fridge</div>`:''}</div>
+    <div class="summary-box"><div class="label">🪙 Playcoins Expected</div><div class="value">${f(exp.pc)}</div></div>
+    <div class="summary-box"><div class="label">💳 Bank Expected</div><div class="value">${f(exp.bank)}</div></div>
+  </div>
+
+  ${fridge>0?`<h2>Fridge Revenue — ${f(fridge)}</h2>
+  <table><thead><tr><th>Product</th><th style="text-align:center">Start</th><th style="text-align:center">Sold</th><th style="text-align:center">End</th><th style="text-align:right">Revenue</th></tr></thead>
+  <tbody>${fridgeRows}</tbody></table>`:''}
+
+  <h2>Transaction Log (${all.length} entries)</h2>
+  ${all.length===0?'<p style="color:#999">No transactions recorded.</p>':`
+  <table><thead><tr><th>Time</th><th>Type</th><th>Detail</th><th style="text-align:right">Amount</th></tr></thead>
+  <tbody>${logRows}</tbody></table>`}
+
+  <div class="footer">Casino Shift Report &nbsp;|&nbsp; ${now}</div>
+  </body></html>`;
+
+  const blob=new Blob([html],{type:'text/html'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download=`Casino-Shift-${nowDate().replace(/\./g,'-')}.html`;
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),3000);
+}
+
+function confirmReset(){
+  if(!confirm('Reset shift? This clears all data for the day.'))return;
+
+  // Only ask about PDF if there's actual data
+  const hasData=D.shift||(D.fillups&&D.fillups.length)||(D.cashpoints&&D.cashpoints.length)||(D.exchanges&&D.exchanges.length)||(D.additions&&D.additions.length);
+  if(hasData&&confirm("Download today's shift report before resetting?")){
+    generateShiftPDF();
+  }
+
+  D={shift:null,exchanges:[],cashpoints:[],fillups:[],additions:[],shop:{starts:{},sold:{},log:[]},inputs:{home:{},shift:{},machines:{}},kfType:'kr'};
+  saveState();
+  document.querySelectorAll('input[type=number],input[type=text]').forEach(el=>el.value='');
+  document.getElementById('s-preview').textContent='0 kr';document.getElementById('h-current-total').textContent='0 kr';
+  renderShiftInfo();renderHomeLog();renderExchangeList();renderCashpointList();renderAddList();renderKFLog();recalc();updateEstCalc();updateHomeEst();
 }
 
 // ── SHOP ──
