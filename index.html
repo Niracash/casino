@@ -96,6 +96,34 @@
       transition:opacity .15s,transform .1s;
     }
     .ig-install-btn:active{transform:scale(.97);opacity:.9}
+    /* ── Custom Modal ── */
+    #modal-overlay{
+      position:fixed;inset:0;z-index:10000;
+      background:rgba(0,0,0,.6);
+      display:none;align-items:center;justify-content:center;
+      padding:24px;
+      backdrop-filter:blur(4px);
+    }
+    #modal-overlay.show{display:flex}
+    #modal-box{
+      background:#1e2029;
+      border:1px solid #2a2d3e;
+      border-radius:18px;
+      padding:28px 24px 20px;
+      width:100%;max-width:320px;
+      animation:modalIn .2s cubic-bezier(.2,.8,.2,1);
+    }
+    @keyframes modalIn{from{opacity:0;transform:scale(.93)}to{opacity:1;transform:scale(1)}}
+    #modal-icon{font-size:2rem;margin-bottom:14px;text-align:center}
+    #modal-title{font-size:1rem;font-weight:700;color:#fff;margin-bottom:8px;text-align:center;line-height:1.3}
+    #modal-msg{font-size:.84rem;color:#9196b0;line-height:1.6;text-align:center;margin-bottom:22px}
+    #modal-btns{display:flex;flex-direction:column;gap:8px}
+    .modal-btn{width:100%;padding:13px;border-radius:12px;font-size:.88rem;font-weight:600;cursor:pointer;font-family:inherit;border:none;transition:opacity .15s,transform .1s}
+    .modal-btn:active{transform:scale(.97);opacity:.85}
+    .modal-btn-primary{background:#7c8cff;color:#fff}
+    .modal-btn-danger{background:#f06b6b22;color:#f06b6b;border:1px solid #f06b6b44}
+    .modal-btn-ghost{background:#ffffff0f;color:#9196b0;border:1px solid #2a2d3e}
+    .modal-btn-green{background:#3ecf8e22;color:#3ecf8e;border:1px solid #3ecf8e44}
   </style>
 </head>
 <body>
@@ -372,6 +400,16 @@
     Fridge
   </button>
 </nav>
+<!-- Custom Modal -->
+<div id="modal-overlay">
+  <div id="modal-box">
+    <div id="modal-icon"></div>
+    <div id="modal-title"></div>
+    <div id="modal-msg"></div>
+    <div id="modal-btns"></div>
+  </div>
+</div>
+
 <!-- Install Gate -->
 <div id="install-gate">
   <div class="ig-card">
