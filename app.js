@@ -36,8 +36,19 @@ function getExpected(){
     if(e.to==='coin')coin-=e.amount;if(e.to==='bank')bank-=e.amount;
   });
   D.cashpoints.forEach(cp=>{
-    if(cp.from==='bank') bank+=cp.amount;   // positive only (bank can't withdraw)
-    if(cp.from==='cash') cash+=cp.amount;   // positive = deposit, negative = withdrawal
+    if(cp.from==='bank') bank+=cp.amount;
+    if(cp.from==='cash'){
+      if(cp.amount>=0){
+        // Split: cash rounds down to nearest 50, remainder goes to mønt coins
+        const cashPart=Math.floor(cp.amount/50)*50;
+        const coinPart=cp.amount-cashPart;
+        cash+=cashPart;
+        coin+=coinPart;
+      } else {
+        // Withdrawal: subtract from cash only
+        cash+=cp.amount;
+      }
+    }
   });
   D.fillups.forEach(f=>{pc-=f.coins*20;});
   return{coin,cash,pc,bank,total:coin+cash+pc+bank};
@@ -338,7 +349,17 @@ function cpCalc(){
   const fl=_cpFrom==='bank'?'Bank/Card':'Cash';
   if(amt>0){
     hint.className='hint cashpoint';hint.style.display='';
-    hint.innerHTML=`Customer deposited <b>+${fmt(amt)}</b> via <b>${fl}</b>. Adding to expected ${_cpFrom} balance.`;
+    if(_cpFrom==='cash'){
+      const cashPart=Math.floor(amt/50)*50;
+      const coinPart=amt-cashPart;
+      let splitStr='';
+      if(cashPart>0&&coinPart>0) splitStr=` → <b>${fmt(cashPart)}</b> cash + <b>${fmt(coinPart)}</b> mønt`;
+      else if(cashPart>0) splitStr=` → <b>${fmt(cashPart)}</b> cash`;
+      else splitStr=` → <b>${fmt(coinPart)}</b> mønt`;
+      hint.innerHTML=`Customer deposited <b>+${fmt(amt)}</b> via <b>Cash</b>${splitStr}`;
+    } else {
+      hint.innerHTML=`Customer deposited <b>+${fmt(amt)}</b> via <b>${fl}</b>. Adding to expected ${_cpFrom} balance.`;
+    }
   } else {
     hint.className='hint info';hint.style.display='';
     hint.innerHTML=`Customer withdrew <b>${fmt(absAmt)}</b> from cashpoint in <b>Cash</b>. Subtracting from expected cash.`;
