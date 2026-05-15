@@ -1,10 +1,49 @@
 let D={shift:null,exchanges:[],cashpoints:[],fillups:[],additions:[],inputs:{home:{},shift:{},machines:{}},kfType:'kr'};
 
-function loadState(){
-  const raw=localStorage.getItem('ccc_v5');
+// ── IndexedDB Storage ──
+const idbStorage={
+  db:null,
+  init(){
+    return new Promise((resolve,reject)=>{
+      const req=indexedDB.open('CasinoApp',1);
+      req.onupgradeneeded=e=>{e.target.result.createObjectStore('store',{keyPath:'key'});};
+      req.onsuccess=e=>{this.db=e.target.result;resolve();};
+      req.onerror=e=>reject(e);
+    });
+  },
+  async getItem(key){
+    if(!this.db)await this.init();
+    return new Promise(resolve=>{
+      const tx=this.db.transaction('store','readonly');
+      const store=tx.objectStore('store');
+      const req=store.get(key);
+      req.onsuccess=()=>resolve(req.result?req.result.value:null);
+    });
+  },
+  async setItem(key,value){
+    if(!this.db)await this.init();
+    return new Promise(resolve=>{
+      const tx=this.db.transaction('store','readwrite');
+      const store=tx.objectStore('store');
+      store.put({key,value});
+      tx.oncomplete=resolve;
+    });
+  }
+};
+
+// Request persistent storage on iOS/Safari
+if(navigator.storage&&navigator.storage.persist){
+  navigator.storage.persist().then(granted=>{
+    console.log('Persistent storage:',granted);
+  });
+}
+
+async function loadState(){
+  await idbStorage.init();
+  const raw=await idbStorage.getItem('ccc_v5');
   if(raw){const l=JSON.parse(raw);D={...D,...l};if(!D.inputs)D.inputs={home:{},shift:{},machines:{}};if(!D.exchanges)D.exchanges=[];if(!D.cashpoints)D.cashpoints=[];}
 }
-function saveState(){localStorage.setItem('ccc_v5',JSON.stringify(D));}
+async function saveState(){await idbStorage.setItem('ccc_v5',JSON.stringify(D));}
 
 // ── Custom Modal ──
 function showModal({icon='',title='',msg='',buttons=[]}){
@@ -24,7 +63,6 @@ function showModal({icon='',title='',msg='',buttons=[]}){
   document.getElementById('modal-overlay').classList.add('show');
 }
 function closeModal(){document.getElementById('modal-overlay').classList.remove('show');}
-// Close on overlay click
 document.addEventListener('DOMContentLoaded',()=>{
   document.getElementById('modal-overlay').addEventListener('click',e=>{
     if(e.target===document.getElementById('modal-overlay'))closeModal();
@@ -56,7 +94,6 @@ function getExpected(){
   let coin=D.shift.coin,cash=D.shift.cash,pc=D.shift.pc,bank=D.shift.bank;
   D.additions.forEach(a=>{if(a.type==='cash')cash+=a.amount;else if(a.type==='playcoin')pc+=a.amount;});
   D.exchanges.forEach(e=>{
-    // Money coming IN from customer — split cash/bank into cash (floor 50) + coin (remainder)
     if(e.from==='cash'){
       const cashPart=Math.floor(e.amount/50)*50;
       const coinPart=e.amount-cashPart;
@@ -65,7 +102,6 @@ function getExpected(){
     if(e.from==='bank')bank+=e.amount;
     if(e.from==='pc')pc+=e.amount;
     if(e.from==='coin')coin+=e.amount;
-    // Money going OUT to customer
     if(e.to==='cash')cash-=e.amount;if(e.to==='pc')pc-=e.amount;
     if(e.to==='coin')coin-=e.amount;if(e.to==='bank')bank-=e.amount;
   });
@@ -73,13 +109,11 @@ function getExpected(){
     if(cp.from==='bank') bank+=cp.amount;
     if(cp.from==='cash'){
       if(cp.amount>=0){
-        // Split: cash rounds down to nearest 50, remainder goes to mønt coins
         const cashPart=Math.floor(cp.amount/50)*50;
         const coinPart=cp.amount-cashPart;
         cash+=cashPart;
         coin+=coinPart;
       } else {
-        // Withdrawal: subtract from cash only
         cash+=cp.amount;
       }
     }
@@ -183,9 +217,8 @@ function recalc(){
     if(updBtn){updBtn.style.display='none';}
     return;
   }
-  // Fridge revenue is physically in the drawer but shouldn't count as imbalance
   const diffRaw=current-expected;
-  const diffNoFridge=diffRaw-fridge; // remove fridge from diff
+  const diffNoFridge=diffRaw-fridge;
   const absDiff=Math.abs(Math.round(diffNoFridge));
   const fridgeBracket=fridge>0?` <span style="color:var(--green);font-size:.8rem">(+${fridge.toLocaleString('no-NO')} kr fridge)</span>`:'';
   if(absDiff<1){
@@ -211,20 +244,16 @@ function updateExpectedFromCount(){
   if(!D.shift||!hasCurrent)return;
   const exp=getExpected(),fridge=getFridgeTotal(),diff=Math.abs(Math.round((coin+cash+pc+bank)-exp.total-fridge));
   if(diff>=1)return;
-  // Update shift to match current physical count
   D.shift.coin=coin;D.shift.cash=cash;D.shift.pc=pc;D.shift.bank=bank;
   D.shift.total=coin+cash+pc+bank;
-  // Clear all transactions since they're now baked into the new start
   D.exchanges=[];D.cashpoints=[];D.fillups=[];D.additions=[];
   saveState();
-  // Clear count inputs
   ['h-coin','h-cash','h-pc','h-bank'].forEach(id=>document.getElementById(id).value='');
   D.inputs.home={};
   saveState();
   document.getElementById('update-expected-btn').style.display='none';
   renderHomeLog();renderKFLog();renderAddList();
   recalc();updateEstCalc();updateHomeEst();
-  // Flash confirmation
   const btn=document.getElementById('update-expected-btn');
   btn.innerHTML='✓ Updated!';btn.disabled=true;btn.style.display='';
   setTimeout(()=>{btn.style.display='none';btn.innerHTML='↺ Update Expected to Current Count';},1800);
@@ -375,7 +404,6 @@ function cpCalc(){
   const raw=document.getElementById('cp-amt').value;
   const amt=parseFloat(raw)||0;
   const hint=document.getElementById('cp-hint'),saveBtn=document.getElementById('cp-save-btn');
-  // Negative only allowed for cash
   if(amt<0 && _cpFrom==='bank'){
     hint.className='hint error';hint.innerHTML='<b>Cannot withdraw from bank</b> — switch to Cash to record a withdrawal.';hint.style.display='';
     saveBtn.disabled=true;return;
@@ -489,7 +517,7 @@ function kfCalc(){
   document.getElementById('kfr-val').textContent=fmt(paidOut);
   res.style.display='';saveBtn.disabled=false;stashInputs();
 }
-// Checkbox states — persisted in localStorage
+
 const _checkStates=JSON.parse(localStorage.getItem('ccc_checks')||'{}');
 function _saveChecks(){localStorage.setItem('ccc_checks',JSON.stringify(_checkStates));}
 
@@ -558,6 +586,29 @@ function renderShiftInfo(){
   if(D.shift){el.textContent=fmt(D.shift.total);el.className='ssv';date.textContent='Set: '+D.shift.date;}
   else{el.textContent='Not set';el.className='ssv idle';date.textContent='';}
 }
+
+// ── Export / Import ──
+function exportData(){
+  const blob=new Blob([JSON.stringify(D,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download=`casino-backup-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+function importData(file){
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      D=JSON.parse(e.target.result);
+      saveState();
+      location.reload();
+    }catch(err){showModal({icon:'⚠️',title:'Invalid File',msg:'Could not read this backup file. Please select a valid .json export.',buttons:[{label:'OK',style:'modal-btn-primary'}]});}
+  };
+  reader.readAsText(file);
+}
+
 function generateShiftPDF(){
   const f=fmt,now=nowFull();
   const exp=getExpected();
@@ -565,7 +616,6 @@ function generateShiftPDF(){
   const fridgeCash=Math.floor(fridge/50)*50;
   const fridgeCoin=fridge-fridgeCash;
 
-  // Build log entries sorted by time
   const all=[
     ...D.fillups.map((x,i)=>({type:'fillup',ts:x.ts||0,data:x})),
     ...D.additions.map((x,i)=>({type:'addition',ts:x.ts||0,data:x})),
@@ -593,7 +643,6 @@ function generateShiftPDF(){
     logRows+=`<tr><td>${d.date||''}</td><td>${label}</td><td>${detail}</td><td style="text-align:right;font-family:monospace">${amount}</td></tr>`;
   });
 
-  // Fridge summary
   let fridgeRows='';
   if(D.shop&&D.shop.sold){
     const products={sodavand:{n:'Sodavand',p:10},redbull:{n:'Redbull',p:20},vand:{n:'Vand',p:5},bounty:{n:'Bounty',p:10},bueno:{n:'Bueno',p:10},mars:{n:'Mars',p:10},snickers:{n:'Snickers',p:10},pringles:{n:'Pringles',p:10},lighter:{n:'Lighter',p:10}};
@@ -756,7 +805,6 @@ function renderShopItems(){
   });
   renderShopSummary();
   updateHomeEst();
-  // update home breakdown if visible
   const coin=g('h-coin'),cash=g('h-cash'),pc=g('h-pc'),bank=g('h-bank');
   if(coin||cash||pc||bank) recalc();
 }
@@ -765,7 +813,6 @@ function setShopStart(id, val){
   initShop();
   D.shop.starts[id]=parseInt(val)||0;
   saveState();
-  // Update only the affected item's display without full re-render
   const sold=D.shop.sold[id]||0;
   const start=D.shop.starts[id]||0;
   const end=start-sold;
@@ -822,9 +869,6 @@ function renderShopSummary(){
     return;
   }
   if(labelEl)labelEl.textContent='Total revenue breakdown';
-  // Split into coin (under 50kr per denomination) and cash
-  // Rule: per product type, coin = 5kr/10kr/20kr items → coin
-  // Overall total: multiples of 50 = cash, remainder = coin
   const cashPart=Math.floor(totalRevenue/50)*50;
   const coinPart=totalRevenue-cashPart;
   let html='';
@@ -832,7 +876,6 @@ function renderShopSummary(){
     const sold=D.shop.sold[p.id]||0;
     if(sold===0)return;
     const rev=sold*p.price;
-    // Show coin breakdown
     const pCash=Math.floor(rev/50)*50;
     const pCoin=rev-pCash;
     let breakdown='';
@@ -853,7 +896,6 @@ function renderShopSummary(){
       </div>
     </div>`;
   });
-  // totals
   html+=`<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border2);display:flex;justify-content:space-between;align-items:center">
     <span style="font-size:.78rem;font-weight:700;color:var(--green)">Total revenue</span>
     <span style="font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--green)">${totalRevenue.toLocaleString('no-NO')} kr</span>
@@ -927,11 +969,11 @@ const CHECKLIST={
   ]
 };
 
-function loadChecklistState(){return JSON.parse(localStorage.getItem('ccc_checklist')||'{}');}
-function saveChecklistState(state){localStorage.setItem('ccc_checklist',JSON.stringify(state));}
+async function loadChecklistState(){const raw=await idbStorage.getItem('ccc_checklist');return raw?JSON.parse(raw):{};}
+async function saveChecklistState(state){await idbStorage.setItem('ccc_checklist',JSON.stringify(state));}
 
-function renderChecklist(){
-  const state=loadChecklistState();
+async function renderChecklist(){
+  const state=await loadChecklistState();
   const groups={opening:'cl-opening',day:'cl-day',closing:'cl-closing'};
   const counts={opening:'cl-opening-count',day:'cl-day-count',closing:'cl-closing-count'};
 
@@ -942,7 +984,6 @@ function renderChecklist(){
     let done=0;
 
     if(group==='day'){
-      // No checkboxes for throughout the day — just a reminder list
       items.forEach(item=>{
         const div=document.createElement('div');
         div.className='cl-item';
@@ -973,11 +1014,10 @@ function renderChecklist(){
   checkBetbooksAlert();
 }
 
-function toggleCheck(id,checked){
-  const state=loadChecklistState();
+async function toggleCheck(id,checked){
+  const state=await loadChecklistState();
   state[id]=checked;
-  saveChecklistState(state);
-  // Update item style without full re-render
+  await saveChecklistState(state);
   const labels=document.querySelectorAll('.cl-item');
   labels.forEach(l=>{
     const cb=l.querySelector('input[type=checkbox]');
@@ -985,12 +1025,11 @@ function toggleCheck(id,checked){
       l.classList.toggle('done',checked);
     }
   });
-  // Update counts
   renderChecklistCounts();
 }
 
-function renderChecklistCounts(){
-  const state=loadChecklistState();
+async function renderChecklistCounts(){
+  const state=await loadChecklistState();
   const groups={opening:'cl-opening-count',day:'cl-day-count',closing:'cl-closing-count'};
   Object.entries(CHECKLIST).forEach(([group,items])=>{
     const done=items.filter(i=>state[i.id]).length;
@@ -1006,8 +1045,8 @@ function clearChecklist(){
     msg:'Reset all checkboxes for today?',
     buttons:[
       {label:'Cancel',style:'modal-btn-ghost'},
-      {label:'Clear All',style:'modal-btn-danger',action:()=>{
-        saveChecklistState({});
+      {label:'Clear All',style:'modal-btn-danger',action:async ()=>{
+        await saveChecklistState({});
         renderChecklist();
       }}
     ]
@@ -1018,7 +1057,7 @@ function checkBetbooksAlert(){
   const el=document.getElementById('betbooks-alert');
   if(!el)return;
   const now=new Date();
-  const day=now.getDay(); // 1=Monday
+  const day=now.getDay();
   const date=now.getDate();
   const lastDay=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
   const isMonday=day===1;
@@ -1030,35 +1069,33 @@ function checkBetbooksAlert(){
 let _coffeeInterval=null;
 let _coffeeEnd=null;
 
-function loadCoffeeTimer(){
-  const saved=localStorage.getItem('ccc_coffee');
+async function loadCoffeeTimer(){
+  const saved=await idbStorage.getItem('ccc_coffee');
   if(saved){
     const data=JSON.parse(saved);
     if(data.end&&Date.now()<data.end){
       _coffeeEnd=data.end;
       startCoffeeInterval();
     } else {
-      localStorage.removeItem('ccc_coffee');
+      await idbStorage.setItem('ccc_coffee',null);
     }
   }
   updateCoffeeDisplay();
 }
 
-function coffeeTimerToggle(){
+async function coffeeTimerToggle(){
   if(_coffeeInterval){
-    // Stop
     clearInterval(_coffeeInterval);
     _coffeeInterval=null;
     _coffeeEnd=null;
-    localStorage.removeItem('ccc_coffee');
+    await idbStorage.setItem('ccc_coffee',null);
     document.getElementById('coffee-start-btn').textContent='Start Timer';
     document.getElementById('coffee-timer-status').textContent='Stopped';
     document.getElementById('coffee-timer-display').style.color='var(--accent)';
     updateCoffeeDisplay();
   } else {
-    // Start 2 hours
     _coffeeEnd=Date.now()+(2*60*60*1000);
-    localStorage.setItem('ccc_coffee',JSON.stringify({end:_coffeeEnd}));
+    await idbStorage.setItem('ccc_coffee',JSON.stringify({end:_coffeeEnd}));
     startCoffeeInterval();
     document.getElementById('coffee-start-btn').textContent='Stop Timer';
     document.getElementById('coffee-timer-status').textContent='Coffee started!';
@@ -1073,12 +1110,11 @@ function startCoffeeInterval(){
       clearInterval(_coffeeInterval);
       _coffeeInterval=null;
       _coffeeEnd=null;
-      localStorage.removeItem('ccc_coffee');
+      idbStorage.setItem('ccc_coffee',null);
       document.getElementById('coffee-timer-display').textContent='Done!';
       document.getElementById('coffee-timer-display').style.color='var(--green)';
       document.getElementById('coffee-timer-status').textContent='Coffee is ready!';
       document.getElementById('coffee-start-btn').textContent='Start Timer';
-      // Show modal notification
       showModal({icon:'☕',title:'Coffee Ready!',msg:'2 hours have passed. Time to make fresh coffee!',buttons:[{label:'Got it',style:'modal-btn-primary'}]});
       return;
     }
@@ -1106,16 +1142,15 @@ function updateCoffeeDisplay(){
   if(st)st.textContent=`Coffee will be ready in ${h}h ${m}m`;
 }
 
-function coffeeTimerReset(){
+async function coffeeTimerReset(){
   if(_coffeeInterval){clearInterval(_coffeeInterval);_coffeeInterval=null;}
   _coffeeEnd=null;
-  localStorage.removeItem('ccc_coffee');
+  await idbStorage.setItem('ccc_coffee',null);
   document.getElementById('coffee-start-btn').textContent='Start Timer';
   document.getElementById('coffee-timer-status').textContent='Ready to start';
   document.getElementById('coffee-timer-display').style.color='var(--accent)';
   updateCoffeeDisplay();
 }
-
 
 if(D.kfType){
   _kfType=D.kfType;
