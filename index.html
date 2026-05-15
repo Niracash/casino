@@ -382,6 +382,46 @@
 
 </div>
 
+<!-- ════ CHECKLIST ════ -->
+<div class="page" id="page-checklist">
+
+  <div id="betbooks-alert" style="display:none;background:var(--red-dim);border:1px solid var(--red-mid);border-radius:var(--r);padding:14px 16px;margin-bottom:14px">
+    <div style="font-size:.75rem;font-weight:700;color:var(--red);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">⚠️ Important Reminder</div>
+    <div style="font-size:.84rem;color:var(--text);line-height:1.6">Do not forget to <b>print and delete</b> on <b>Betbooks</b> and <b>GWT machine</b></div>
+  </div>
+
+  <!-- Coffee Timer -->
+  <div class="sec">Coffee Timer</div>
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px;margin-bottom:10px">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+      <div>
+        <div style="font-size:.82rem;font-weight:600;color:var(--text);margin-bottom:2px">☕ Coffee Timer</div>
+        <div id="coffee-timer-display" style="font-family:'JetBrains Mono',monospace;font-size:1.4rem;font-weight:700;color:var(--accent)">2:00:00</div>
+        <div id="coffee-timer-status" style="font-size:.72rem;color:var(--sub);margin-top:2px">Ready to start</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <button class="btn btn-primary" id="coffee-start-btn" onclick="coffeeTimerToggle()" style="width:120px;padding:10px">Start Timer</button>
+        <button class="btn btn-ghost" onclick="coffeeTimerReset()" style="width:120px;padding:8px;font-size:.76rem">Reset</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Opening -->
+  <div class="sec">Opening <span class="sec-side" id="cl-opening-count"></span></div>
+  <div class="checklist-group" id="cl-opening"></div>
+
+  <!-- Throughout the day -->
+  <div class="sec" style="margin-top:18px">Throughout the Day <span class="sec-side" id="cl-day-count"></span></div>
+  <div class="checklist-group" id="cl-day"></div>
+
+  <!-- Closing -->
+  <div class="sec" style="margin-top:18px">Closing <span class="sec-side" id="cl-closing-count"></span></div>
+  <div class="checklist-group" id="cl-closing"></div>
+
+  <button class="btn btn-ghost" onclick="clearChecklist()" style="margin-top:18px;margin-bottom:4px">↺ Clear All Checkboxes</button>
+
+</div>
+
 <nav class="nav">
   <button class="nb on" onclick="goPage('home',this)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
@@ -398,6 +438,10 @@
   <button class="nb" onclick="goPage('shop',this)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="5" y1="10" x2="19" y2="10"/><line x1="9" y1="6" x2="9" y2="8"/><line x1="9" y1="14" x2="9" y2="18"/></svg>
     Fridge
+  </button>
+  <button class="nb" onclick="goPage('checklist',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+    Checklist
   </button>
 </nav>
 <!-- Custom Modal -->
