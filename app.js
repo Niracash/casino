@@ -1,109 +1,56 @@
 let D={shift:null,exchanges:[],cashpoints:[],fillups:[],additions:[],inputs:{home:{},shift:{},machines:{}},kfType:‘kr’};
 
-// ── IndexedDB Storage (persists across PWA restarts, per-device) ──
-const DB_NAME=‘CasinoAppDB’, DB_VERSION=1, STORE=‘kv’;
-let _db=null;
+// ── IndexedDB backup (survives PWA restarts on iOS when localStorage gets wiped) ──
+let __db=null;
+function __openDB(){return new Promise(r=>{try{const q=indexedDB.open(‘CasinoDB’,1);q.onupgradeneeded=e=>e.target.result.createObjectStore(‘kv’);q.onsuccess=e=>{__db=e.target.result;r(__db);};q.onerror=()=>r(null);}catch(e){r(null);}});}
+function __dbGet(k){return __openDB().then(db=>{if(!db)return null;return new Promise(r=>{try{const q=db.transaction(‘kv’,‘readonly’).objectStore(‘kv’).get(k);q.onsuccess=()=>r(q.result);q.onerror=()=>r(null);}catch(e){r(null);}});});}
+function __dbSet(k,v){return __openDB().then(db=>{if(!db)return;try{db.transaction(‘kv’,‘readwrite’).objectStore(‘kv’).put(v,k);}catch(e){}});}
 
-function openDB(){
-return new Promise((resolve,reject)=>{
-if(_db){resolve(_db);return;}
-if(!(‘indexedDB’ in window)){reject(new Error(‘No IndexedDB’));return;}
-const req=indexedDB.open(DB_NAME,DB_VERSION);
-req.onupgradeneeded=e=>{e.target.result.createObjectStore(STORE);};
-req.onsuccess=e=>{_db=e.target.result;resolve(_db);};
-req.onerror=e=>{reject(e.target.error);};
-});
+function loadState(){
+const raw=localStorage.getItem(‘ccc_v5’);
+if(raw){const l=JSON.parse(raw);D={…D,…l};if(!D.inputs)D.inputs={home:{},shift:{},machines:{}};if(!D.exchanges)D.exchanges=[];if(!D.cashpoints)D.cashpoints=[];}
 }
-function dbGet(key){
-return openDB().then(db=>new Promise((resolve,reject)=>{
-const tx=db.transaction(STORE,‘readonly’);
-const req=tx.objectStore(STORE).get(key);
-req.onsuccess=()=>resolve(req.result);
-req.onerror=e=>reject(e.target.error);
-}));
-}
-function dbSet(key,val){
-return openDB().then(db=>new Promise((resolve,reject)=>{
-const tx=db.transaction(STORE,‘readwrite’);
-const req=tx.objectStore(STORE).put(val,key);
-req.onsuccess=()=>resolve();
-req.onerror=e=>reject(e.target.error);
-}));
-}
-function dbDel(key){
-return openDB().then(db=>new Promise((resolve,reject)=>{
-const tx=db.transaction(STORE,‘readwrite’);
-const req=tx.objectStore(STORE).delete(key);
-req.onsuccess=()=>resolve();
-req.onerror=e=>reject(e.target.error);
-}));
-}
-
-// Save: write through to IndexedDB AND keep a localStorage mirror as backup/fast-read
 function saveState(){
 const s=JSON.stringify(D);
 try{localStorage.setItem(‘ccc_v5’,s);}catch(e){}
-dbSet(‘ccc_v5’,s).catch(()=>{});
+__dbSet(‘ccc_v5’,s);
 }
 
-// Synchronous load from localStorage (fast path used by browsers that keep LS),
-// then async-overlay any newer data from IndexedDB (the durable store)
-function loadState(){
-try{
-const raw=localStorage.getItem(‘ccc_v5’);
-if(raw){const l=JSON.parse(raw);D={…D,…l};if(!D.inputs)D.inputs={home:{},shift:{},machines:{}};if(!D.exchanges)D.exchanges=[];if(!D.cashpoints)D.cashpoints=[];}
-}catch(e){}
-}
-
-// After the UI boots synchronously, hydrate from IndexedDB if it has data
-// (IndexedDB survives PWA restarts on iOS even when localStorage is wiped)
-function hydrateFromDB(){
-dbGet(‘ccc_v5’).then(raw=>{
-if(raw){
+// On startup: if localStorage is empty but IndexedDB has data, restore it and re-render.
+// This is what makes data persist across PWA reopens.
+function __restoreFromDB(){
+if(localStorage.getItem(‘ccc_v5’))return; // localStorage still has data, nothing to do
+__dbGet(‘ccc_v5’).then(raw=>{
+if(!raw)return;
+try{localStorage.setItem(‘ccc_v5’,raw);}catch(e){}
 try{
 const l=JSON.parse(raw);
-// Only overlay if DB has data and localStorage was empty/older
-// Simple rule: if we have no shift loaded yet, take everything from DB
-const lsEmpty=!D.shift && (!D.exchanges||D.exchanges.length===0) && (!D.fillups||D.fillups.length===0);
-if(lsEmpty){
 D={…D,…l};
 if(!D.inputs)D.inputs={home:{},shift:{},machines:{}};
 if(!D.exchanges)D.exchanges=[];
 if(!D.cashpoints)D.cashpoints=[];
 // Re-render everything
-if(D.kfType){_kfType=D.kfType;}
-renderShiftInfo();renderHomeLog();renderExchangeList();renderCashpointList();
-renderAddList();renderKFLog();renderShopItems();renderShopLog();
-recalc();updateEstCalc();updateHomeEst();
-restoreInputs();
-} else {
-// localStorage had data — make sure DB matches by writing through next save
-saveState();
-}
-}catch(e){console.warn(‘hydrate parse err’,e);}
-} else {
-// DB was empty — push current state to DB so it persists
-saveState();
-}
-}).catch(e=>console.warn(‘hydrate err’,e));
-
-// Same overlay for the other keys
-dbGet(‘ccc_checks’).then(raw=>{
-if(raw){try{Object.assign(_checkStates,JSON.parse(raw));}catch(e){}}
-}).catch(()=>{});
-dbGet(‘ccc_checklist’).then(raw=>{
-if(raw){try{_checklistMemo=JSON.parse(raw);renderChecklist&&renderChecklist();}catch(e){}}
-}).catch(()=>{});
-dbGet(‘ccc_coffee’).then(raw=>{
-if(raw){try{
-const data=JSON.parse(raw);
-if(data&&data.end&&Date.now()<data.end&&!_coffeeInterval){
-_coffeeEnd=data.end;
+if(typeof renderShiftInfo===‘function’)renderShiftInfo();
+if(typeof renderHomeLog===‘function’)renderHomeLog();
+if(typeof renderExchangeList===‘function’)renderExchangeList();
+if(typeof renderCashpointList===‘function’)renderCashpointList();
+if(typeof renderAddList===‘function’)renderAddList();
+if(typeof renderKFLog===‘function’)renderKFLog();
+if(typeof renderShopItems===‘function’)renderShopItems();
+if(typeof renderShopLog===‘function’)renderShopLog();
+if(typeof recalc===‘function’)recalc();
+if(typeof updateEstCalc===‘function’)updateEstCalc();
+if(typeof updateHomeEst===‘function’)updateHomeEst();
+}catch(e){console.warn(‘restore err’,e);}
+});
+// Also restore checklist/coffee/checks
+__dbGet(‘ccc_checks’).then(raw=>{if(raw)try{localStorage.setItem(‘ccc_checks’,raw);}catch(e){}});
+__dbGet(‘ccc_checklist’).then(raw=>{if(raw){try{localStorage.setItem(‘ccc_checklist’,raw);}catch(e){}if(typeof renderChecklist===‘function’)renderChecklist();}});
+__dbGet(‘ccc_coffee’).then(raw=>{
+if(!raw)return;
 try{localStorage.setItem(‘ccc_coffee’,raw);}catch(e){}
-startCoffeeInterval();
-}
-}catch(e){}}
-}).catch(()=>{});
+try{const d=JSON.parse(raw);if(d.end&&Date.now()<d.end&&typeof loadCoffeeTimer===‘function’)loadCoffeeTimer();}catch(e){}
+});
 }
 
 // ── Custom Modal ──
@@ -573,7 +520,7 @@ res.style.display=’’;saveBtn.disabled=false;stashInputs();
 }
 // Checkbox states — persisted in localStorage
 const _checkStates=JSON.parse(localStorage.getItem(‘ccc_checks’)||’{}’);
-function _saveChecks(){const s=JSON.stringify(_checkStates);try{localStorage.setItem(‘ccc_checks’,s);}catch(e){}dbSet(‘ccc_checks’,s).catch(()=>{});}
+function _saveChecks(){const s=JSON.stringify(_checkStates);try{localStorage.setItem(‘ccc_checks’,s);}catch(e){}__dbSet(‘ccc_checks’,s);}
 
 function buildSteps(total){const MAX=200,steps=[];let rem=total;while(rem>0){const fill=Math.min(rem,MAX);steps.push({fill});rem-=fill;}return steps;}
 function saveKF(){
@@ -971,9 +918,8 @@ closing:[
 ]
 };
 
-let _checklistMemo=null;
-function loadChecklistState(){if(_checklistMemo)return _checklistMemo;try{_checklistMemo=JSON.parse(localStorage.getItem(‘ccc_checklist’)||’{}’);}catch(e){_checklistMemo={};}return _checklistMemo;}
-function saveChecklistState(state){_checklistMemo=state;const s=JSON.stringify(state);try{localStorage.setItem(‘ccc_checklist’,s);}catch(e){}dbSet(‘ccc_checklist’,s).catch(()=>{});}
+function loadChecklistState(){return JSON.parse(localStorage.getItem(‘ccc_checklist’)||’{}’);}
+function saveChecklistState(state){const s=JSON.stringify(state);try{localStorage.setItem(‘ccc_checklist’,s);}catch(e){}__dbSet(‘ccc_checklist’,s);}
 
 function renderChecklist(){
 const state=loadChecklistState();
@@ -1086,7 +1032,7 @@ if(data.end&&Date.now()<data.end){
 _coffeeEnd=data.end;
 startCoffeeInterval();
 } else {
-{try{localStorage.removeItem(‘ccc_coffee’);}catch(e){}dbDel(‘ccc_coffee’).catch(()=>{});}
+{try{localStorage.removeItem(‘ccc_coffee’);}catch(e){}__openDB().then(db=>{if(db)try{db.transaction(‘kv’,‘readwrite’).objectStore(‘kv’).delete(‘ccc_coffee’);}catch(e){}});}
 }
 }
 updateCoffeeDisplay();
@@ -1098,7 +1044,7 @@ if(_coffeeInterval){
 clearInterval(_coffeeInterval);
 _coffeeInterval=null;
 _coffeeEnd=null;
-{try{localStorage.removeItem(‘ccc_coffee’);}catch(e){}dbDel(‘ccc_coffee’).catch(()=>{});}
+{try{localStorage.removeItem(‘ccc_coffee’);}catch(e){}__openDB().then(db=>{if(db)try{db.transaction(‘kv’,‘readwrite’).objectStore(‘kv’).delete(‘ccc_coffee’);}catch(e){}});}
 document.getElementById(‘coffee-start-btn’).textContent=‘Start Timer’;
 document.getElementById(‘coffee-timer-status’).textContent=‘Stopped’;
 document.getElementById(‘coffee-timer-display’).style.color=‘var(–accent)’;
@@ -1106,7 +1052,7 @@ updateCoffeeDisplay();
 } else {
 // Start 2 hours
 _coffeeEnd=Date.now()+(2*60*60*1000);
-{const s=JSON.stringify({end:_coffeeEnd});try{localStorage.setItem(‘ccc_coffee’,s);}catch(e){}dbSet(‘ccc_coffee’,s).catch(()=>{});}
+{const s=JSON.stringify({end:_coffeeEnd});try{localStorage.setItem(‘ccc_coffee’,s);}catch(e){}__dbSet(‘ccc_coffee’,s);}
 startCoffeeInterval();
 document.getElementById(‘coffee-start-btn’).textContent=‘Stop Timer’;
 document.getElementById(‘coffee-timer-status’).textContent=‘Coffee started!’;
@@ -1121,7 +1067,7 @@ if(remaining<=0){
 clearInterval(_coffeeInterval);
 _coffeeInterval=null;
 _coffeeEnd=null;
-{try{localStorage.removeItem(‘ccc_coffee’);}catch(e){}dbDel(‘ccc_coffee’).catch(()=>{});}
+{try{localStorage.removeItem(‘ccc_coffee’);}catch(e){}__openDB().then(db=>{if(db)try{db.transaction(‘kv’,‘readwrite’).objectStore(‘kv’).delete(‘ccc_coffee’);}catch(e){}});}
 document.getElementById(‘coffee-timer-display’).textContent=‘Done!’;
 document.getElementById(‘coffee-timer-display’).style.color=‘var(–green)’;
 document.getElementById(‘coffee-timer-status’).textContent=‘Coffee is ready!’;
@@ -1157,7 +1103,7 @@ if(st)st.textContent=`Coffee will be ready in ${h}h ${m}m`;
 function coffeeTimerReset(){
 if(_coffeeInterval){clearInterval(_coffeeInterval);_coffeeInterval=null;}
 _coffeeEnd=null;
-{try{localStorage.removeItem(‘ccc_coffee’);}catch(e){}dbDel(‘ccc_coffee’).catch(()=>{});}
+{try{localStorage.removeItem(‘ccc_coffee’);}catch(e){}__openDB().then(db=>{if(db)try{db.transaction(‘kv’,‘readwrite’).objectStore(‘kv’).delete(‘ccc_coffee’);}catch(e){}});}
 document.getElementById(‘coffee-start-btn’).textContent=‘Start Timer’;
 document.getElementById(‘coffee-timer-status’).textContent=‘Ready to start’;
 document.getElementById(‘coffee-timer-display’).style.color=‘var(–accent)’;
@@ -1169,15 +1115,13 @@ if(D.kfType){
 _kfType=D.kfType;
 document.querySelectorAll(’#page-machines .type-sel.cols-3 .tsb’).forEach(b=>b.classList.remove(‘on’));
 const ab=document.getElementById(‘type-’+D.kfType);if(ab)ab.classList.add(‘on’);
-document.getElementById(‘kf-input-label’).textContent={kr:‘Win amount (kr)’,‘1cr’:‘Credits on display’,‘05cr’:‘Credits on display’}[D.kfType]||‘Win amount (kr)’;
+const kfLbl=document.getElementById(‘kf-input-label’);if(kfLbl)kfLbl.textContent={kr:‘Win amount (kr)’,‘1cr’:‘Credits on display’,‘05cr’:‘Credits on display’}[D.kfType]||‘Win amount (kr)’;
 }
 selExFrom(‘cash’);
 renderShiftInfo();renderHomeLog();renderExchangeList();renderCashpointList();renderAddList();renderKFLog();
 renderShopItems();renderShopLog();
 recalc();updateEstCalc();updateHomeEst();
-restoreInputs();
 loadCoffeeTimer();
 checkBetbooksAlert();
-
-// Pull any persisted IndexedDB data (survives PWA restarts even when localStorage is cleared)
-hydrateFromDB();
+// Restore from IndexedDB backup if localStorage was cleared
+__restoreFromDB();
