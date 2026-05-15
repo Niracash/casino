@@ -89,17 +89,11 @@ function updateHomeEst(){
 
 function updateHomeHints(){
   const exp=getExpected();
-  const fridge=getFridgeTotal();
-  const fridgeCash=fridge>0?Math.floor(fridge/50)*50:0;
-  const fridgeCoin=fridge>0?fridge-fridgeCash:0;
   const setH=(id,v)=>{
     const el=document.getElementById(id);if(!el)return;
     el.innerHTML=D.shift?`Expected: <span>${Math.round(v).toLocaleString('no-NO')} kr</span>`:'';
   };
-  setH('h-coin-hint',exp.coin+fridgeCoin);
-  setH('h-cash-hint',exp.cash+fridgeCash);
-  setH('h-pc-hint',exp.pc);
-  setH('h-bank-hint',exp.bank);
+  setH('h-coin-hint',exp.coin);setH('h-cash-hint',exp.cash);setH('h-pc-hint',exp.pc);setH('h-bank-hint',exp.bank);
 }
 
 function recalc(){
@@ -474,7 +468,6 @@ function renderKFLog(){
 
 function sPreview(){
   const coin=g('s-coin'),cash=g('s-cash'),pc=g('s-pc'),bank=g('s-bank');
-  document.getElementById('s-coin-sub').textContent=coin>0?fmt(coin):'';
   document.getElementById('s-preview').textContent=fmt(coin+cash+pc+bank);stashInputs();
 }
 function setShift(){
@@ -553,7 +546,7 @@ function renderShopItems(){
         </div>
       </div>
       <div class="shop-item-row"><span class="sl">Sold</span><span class="sv">${sold} pcs</span></div>
-      <div class="shop-item-row"><span class="sl">End count</span><span class="sv" style="color:${end<0?'var(--red)':'var(--text)'}">${end}</span></div>
+      <div class="shop-item-row"><span class="sl">End count</span><span class="sv" id="shop-end-${p.id}" style="color:${end<0?'var(--red)':'var(--text)'}">${end}</span></div>
       <div class="shop-item-row"><span class="sl">Revenue</span><span class="sv" style="color:var(--green)">${revenue>0?revenue.toLocaleString('no-NO')+' kr':'—'}</span></div>`;
     el.appendChild(div);
   });
@@ -568,7 +561,14 @@ function setShopStart(id, val){
   initShop();
   D.shop.starts[id]=parseInt(val)||0;
   saveState();
-  renderShopItems();
+  // Update only the affected item's display without full re-render
+  const sold=D.shop.sold[id]||0;
+  const start=D.shop.starts[id]||0;
+  const end=start-sold;
+  const endEl=document.getElementById('shop-end-'+id);
+  if(endEl){endEl.textContent=end;endEl.style.color=end<0?'var(--red)':'var(--text)';}
+  renderShopSummary();
+  updateHomeEst();
 }
 
 function shopSell(id, delta){
