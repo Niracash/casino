@@ -6,6 +6,31 @@ function loadState(){
 }
 function saveState(){localStorage.setItem('ccc_v5',JSON.stringify(D));}
 
+// ── Custom Modal ──
+function showModal({icon='',title='',msg='',buttons=[]}){
+  document.getElementById('modal-icon').textContent=icon;
+  document.getElementById('modal-icon').style.display=icon?'block':'none';
+  document.getElementById('modal-title').textContent=title;
+  document.getElementById('modal-msg').textContent=msg;
+  const btnsEl=document.getElementById('modal-btns');
+  btnsEl.innerHTML='';
+  buttons.forEach(b=>{
+    const btn=document.createElement('button');
+    btn.className='modal-btn '+(b.style||'modal-btn-ghost');
+    btn.textContent=b.label;
+    btn.onclick=()=>{closeModal();b.action&&b.action();};
+    btnsEl.appendChild(btn);
+  });
+  document.getElementById('modal-overlay').classList.add('show');
+}
+function closeModal(){document.getElementById('modal-overlay').classList.remove('show');}
+// Close on overlay click
+document.addEventListener('DOMContentLoaded',()=>{
+  document.getElementById('modal-overlay').addEventListener('click',e=>{
+    if(e.target===document.getElementById('modal-overlay'))closeModal();
+  });
+});
+
 function goPage(id,btn){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
   document.querySelectorAll('.nb').forEach(b=>b.classList.remove('on'));
@@ -504,7 +529,10 @@ function sPreview(){
 }
 function setShift(){
   const coin=g('s-coin'),cash=g('s-cash'),pc=g('s-pc'),bank=g('s-bank');
-  if(!coin&&!cash&&!pc&&!bank){alert('Enter at least one value.');return;}
+  if(!coin&&!cash&&!pc&&!bank){
+    showModal({icon:'⚠️',title:'No values entered',msg:'Enter at least one value before setting the start total.',buttons:[{label:'OK',style:'modal-btn-primary'}]});
+    return;
+  }
   D.shift={coin,cash,pc,bank,total:coin+cash+pc+bank,date:nowFull()};
   saveState();renderShiftInfo();recalc();updateEstCalc();updateHomeEst();
   const btn=event.currentTarget;btn.innerHTML='✓ Done!';btn.style.opacity='.7';
@@ -583,17 +611,17 @@ function generateShiftPDF(){
     .footer{margin-top:32px;font-size:11px;color:#aaa;text-align:center;border-top:1px solid #eee;padding-top:12px}
     @media print{body{padding:10px}}
   </style></head><body>
-  <h1>🎰 Casino — Shift Report</h1>
+  <h1>Casino — Shift Report</h1>
   <div class="meta">Generated: ${now}${D.shift?` &nbsp;|&nbsp; Shift started: ${D.shift.date}`:''}</div>
 
   <h2>Summary</h2>
   <div class="summary-grid">
     <div class="summary-box"><div class="label">Start Total</div><div class="value">${D.shift?f(D.shift.total):'—'}</div></div>
     <div class="summary-box"><div class="label">Expected Total</div><div class="value">${f(exp.total)}</div></div>
-    <div class="summary-box"><div class="label">💰 Mønt Expected</div><div class="value">${f(exp.coin)}</div>${fridgeCoin>0?`<div class="sub">incl. +${f(fridgeCoin)} fridge</div>`:''}</div>
-    <div class="summary-box"><div class="label">💵 Cash Expected</div><div class="value">${f(exp.cash)}</div>${fridgeCash>0?`<div class="sub">incl. +${f(fridgeCash)} fridge</div>`:''}</div>
-    <div class="summary-box"><div class="label">🪙 Playcoins Expected</div><div class="value">${f(exp.pc)}</div></div>
-    <div class="summary-box"><div class="label">💳 Bank Expected</div><div class="value">${f(exp.bank)}</div></div>
+    <div class="summary-box"><div class="label">Mont Expected</div><div class="value">${f(exp.coin)}</div>${fridgeCoin>0?`<div class="sub">incl. +${f(fridgeCoin)} fridge</div>`:''}</div>
+    <div class="summary-box"><div class="label">Cash Expected</div><div class="value">${f(exp.cash)}</div>${fridgeCash>0?`<div class="sub">incl. +${f(fridgeCash)} fridge</div>`:''}</div>
+    <div class="summary-box"><div class="label">Playcoins Expected</div><div class="value">${f(exp.pc)}</div></div>
+    <div class="summary-box"><div class="label">Bank Expected</div><div class="value">${f(exp.bank)}</div></div>
   </div>
 
   ${fridge>0?`<h2>Fridge Revenue — ${f(fridge)}</h2>
@@ -618,14 +646,33 @@ function generateShiftPDF(){
 }
 
 function confirmReset(){
-  if(!confirm('Reset shift? This clears all data for the day.'))return;
+  showModal({
+    icon:'🗑️',
+    title:'Reset Shift',
+    msg:'This clears all data for the day. Are you sure?',
+    buttons:[
+      {label:'Cancel',style:'modal-btn-ghost'},
+      {label:'Reset',style:'modal-btn-danger',action:()=>{
+        const hasData=D.shift||(D.fillups&&D.fillups.length)||(D.cashpoints&&D.cashpoints.length)||(D.exchanges&&D.exchanges.length)||(D.additions&&D.additions.length);
+        if(hasData){
+          showModal({
+            icon:'📄',
+            title:"Download Today's Report?",
+            msg:"Save a copy of today's shift log before resetting.",
+            buttons:[
+              {label:'Skip & Reset',style:'modal-btn-ghost',action:doReset},
+              {label:'Download & Reset',style:'modal-btn-green',action:()=>{generateShiftPDF();doReset();}},
+            ]
+          });
+        } else {
+          doReset();
+        }
+      }}
+    ]
+  });
+}
 
-  // Only ask about PDF if there's actual data
-  const hasData=D.shift||(D.fillups&&D.fillups.length)||(D.cashpoints&&D.cashpoints.length)||(D.exchanges&&D.exchanges.length)||(D.additions&&D.additions.length);
-  if(hasData&&confirm("Download today's shift report before resetting?")){
-    generateShiftPDF();
-  }
-
+function doReset(){
   D={shift:null,exchanges:[],cashpoints:[],fillups:[],additions:[],shop:{starts:{},sold:{},log:[]},inputs:{home:{},shift:{},machines:{}},kfType:'kr'};
   Object.keys(_checkStates).forEach(k=>delete _checkStates[k]);
   _saveChecks();
@@ -713,19 +760,13 @@ function setShopStart(id, val){
   updateHomeEst();
 }
 
-function shopSell(id, delta){
+function _doShopSell(id, delta){
   initShop();
-  if(delta<0){
-    if(D.shop.sold[id]<=0)return;
-    if(!confirm('Undo 1 sale of '+SHOP_PRODUCTS.find(p=>p.id===id).name+'?'))return;
-  }
   D.shop.sold[id]=Math.max(0,(D.shop.sold[id]||0)+delta);
   if(delta>0){
-    // log the sale
     if(!D.shop.log)D.shop.log=[];
     D.shop.log.push({id,name:SHOP_PRODUCTS.find(p=>p.id===id).name,price:SHOP_PRODUCTS.find(p=>p.id===id).price,ts:Date.now(),date:nowFull()});
   } else {
-    // remove last log entry for this product
     if(D.shop.log){
       const idx=[...D.shop.log].map((l,i)=>({l,i})).reverse().find(x=>x.l.id===id);
       if(idx)D.shop.log.splice(idx.i,1);
@@ -734,6 +775,25 @@ function shopSell(id, delta){
   saveState();
   renderShopItems();
   renderShopLog();
+}
+
+function shopSell(id, delta){
+  initShop();
+  if(delta<0){
+    if(D.shop.sold[id]<=0)return;
+    const productName=SHOP_PRODUCTS.find(p=>p.id===id).name;
+    showModal({
+      icon:'↩️',
+      title:'Undo Sale',
+      msg:`Remove 1 sale of ${productName}?`,
+      buttons:[
+        {label:'Cancel',style:'modal-btn-ghost'},
+        {label:'Undo',style:'modal-btn-danger',action:()=>_doShopSell(id,delta)}
+      ]
+    });
+    return;
+  }
+  _doShopSell(id,delta);
 }
 
 function renderShopSummary(){
