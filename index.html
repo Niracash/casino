@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -13,123 +14,121 @@
   <link rel="apple-touch-icon" href="icon-192.png">
   <style>
     /* Hide app content instantly on mobile non-standalone */
-    body.gate-active > *:not(#install-gate) { display: none !important; }
+    /* Gate is just a banner now - app stays usable */
 
-    #install-gate{
-      position:fixed;inset:0;z-index:9999;
-      background:#13141a;
-      display:none;
-      flex-direction:column;align-items:center;justify-content:center;
-      padding:40px 28px;text-align:center;
-      overflow:hidden;
-    }
-    #install-gate.show{display:flex}
+```
+#install-gate{
+  position:fixed;inset:0;z-index:9999;
+  background:#13141a;
+  display:none;
+  flex-direction:column;align-items:center;justify-content:center;
+  padding:40px 28px;text-align:center;
+  overflow:hidden;
+}
+#install-gate.show{display:flex}
 
-    .ig-card{
-      width:100%;max-width:340px;
-      display:flex;flex-direction:column;align-items:center;
-    }
-    .ig-emoji{
-      font-size:52px;
-      margin-bottom:24px;
-      line-height:1;
-    }
-    .ig-title{
-      font-size:1.45rem;font-weight:800;
-      color:#ffffff;
-      margin-bottom:10px;
-      letter-spacing:-.4px;
-      line-height:1.2;
-    }
-    .ig-sub{
-      font-size:.88rem;
-      color:#9196b0;
-      line-height:1.65;
-      margin-bottom:36px;
-      max-width:260px;
-    }
-    .ig-steps{
-      width:100%;
-      display:flex;flex-direction:column;
-      gap:10px;
-      margin-bottom:32px;
-    }
-    .ig-step{
-      display:flex;align-items:center;gap:14px;
-      background:#1e2029;
-      border:1px solid #2a2d3e;
-      border-radius:14px;
-      padding:14px 16px;
-      text-align:left;
-    }
-    .ig-step-num{
-      width:30px;height:30px;border-radius:50%;
-      background:rgba(124,140,255,.15);
-      color:#7c8cff;
-      border:1.5px solid rgba(124,140,255,.3);
-      font-size:.75rem;font-weight:700;
-      display:flex;align-items:center;justify-content:center;
-      flex-shrink:0;
-    }
-    .ig-step-text{
-      font-size:.84rem;
-      color:#c8cbe0;
-      line-height:1.5;
-      font-weight:500;
-    }
-    .ig-step-text b{
-      color:#ffffff;
-      font-weight:700;
-    }
-    .ig-install-btn{
-      width:100%;
-      background:#7c8cff;
-      color:#fff;
-      border:none;
-      border-radius:14px;
-      padding:16px;
-      font-size:.95rem;
-      font-weight:700;
-      cursor:pointer;
-      font-family:inherit;
-      letter-spacing:-.1px;
-      transition:opacity .15s,transform .1s;
-    }
-    .ig-install-btn:active{transform:scale(.97);opacity:.9}
-    /* ── Custom Modal ── */
-    #modal-overlay{
-      position:fixed;inset:0;z-index:10000;
-      background:rgba(0,0,0,.6);
-      display:none;align-items:center;justify-content:center;
-      padding:24px;
-      backdrop-filter:blur(4px);
-    }
-    #modal-overlay.show{display:flex}
-    #modal-box{
-      background:#1e2029;
-      border:1px solid #2a2d3e;
-      border-radius:18px;
-      padding:28px 24px 20px;
-      width:100%;max-width:320px;
-      animation:modalIn .2s cubic-bezier(.2,.8,.2,1);
-    }
-    @keyframes modalIn{from{opacity:0;transform:scale(.93)}to{opacity:1;transform:scale(1)}}
-    #modal-icon{font-size:2rem;margin-bottom:14px;text-align:center}
-    #modal-title{font-size:1rem;font-weight:700;color:#fff;margin-bottom:8px;text-align:center;line-height:1.3}
-    #modal-msg{font-size:.84rem;color:#9196b0;line-height:1.6;text-align:center;margin-bottom:22px}
-    #modal-btns{display:flex;flex-direction:column;gap:8px}
-    .modal-btn{width:100%;padding:13px;border-radius:12px;font-size:.88rem;font-weight:600;cursor:pointer;font-family:inherit;border:none;transition:opacity .15s,transform .1s}
-    .modal-btn:active{transform:scale(.97);opacity:.85}
-    .modal-btn-primary{background:#7c8cff;color:#fff}
-    .modal-btn-danger{background:#f06b6b22;color:#f06b6b;border:1px solid #f06b6b44}
-    .modal-btn-ghost{background:#ffffff0f;color:#9196b0;border:1px solid #2a2d3e}
-    .modal-btn-green{background:#3ecf8e22;color:#3ecf8e;border:1px solid #3ecf8e44}
-    /* Backup/Import */
-    .backup-row{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:10px}
-    .file-input-wrapper{position:relative;overflow:hidden;display:inline-block;width:100%}
-    .file-input-wrapper input[type=file]{position:absolute;left:0;top:0;opacity:0;width:100%;height:100%;cursor:pointer}
+.ig-card{
+  width:100%;max-width:340px;
+  display:flex;flex-direction:column;align-items:center;
+}
+.ig-emoji{
+  font-size:52px;
+  margin-bottom:24px;
+  line-height:1;
+}
+.ig-title{
+  font-size:1.45rem;font-weight:800;
+  color:#ffffff;
+  margin-bottom:10px;
+  letter-spacing:-.4px;
+  line-height:1.2;
+}
+.ig-sub{
+  font-size:.88rem;
+  color:#9196b0;
+  line-height:1.65;
+  margin-bottom:36px;
+  max-width:260px;
+}
+.ig-steps{
+  width:100%;
+  display:flex;flex-direction:column;
+  gap:10px;
+  margin-bottom:32px;
+}
+.ig-step{
+  display:flex;align-items:center;gap:14px;
+  background:#1e2029;
+  border:1px solid #2a2d3e;
+  border-radius:14px;
+  padding:14px 16px;
+  text-align:left;
+}
+.ig-step-num{
+  width:30px;height:30px;border-radius:50%;
+  background:rgba(124,140,255,.15);
+  color:#7c8cff;
+  border:1.5px solid rgba(124,140,255,.3);
+  font-size:.75rem;font-weight:700;
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;
+}
+.ig-step-text{
+  font-size:.84rem;
+  color:#c8cbe0;
+  line-height:1.5;
+  font-weight:500;
+}
+.ig-step-text b{
+  color:#ffffff;
+  font-weight:700;
+}
+.ig-install-btn{
+  width:100%;
+  background:#7c8cff;
+  color:#fff;
+  border:none;
+  border-radius:14px;
+  padding:16px;
+  font-size:.95rem;
+  font-weight:700;
+  cursor:pointer;
+  font-family:inherit;
+  letter-spacing:-.1px;
+  transition:opacity .15s,transform .1s;
+}
+.ig-install-btn:active{transform:scale(.97);opacity:.9}
+/* ── Custom Modal ── */
+#modal-overlay{
+  position:fixed;inset:0;z-index:10000;
+  background:rgba(0,0,0,.6);
+  display:none;align-items:center;justify-content:center;
+  padding:24px;
+  backdrop-filter:blur(4px);
+}
+#modal-overlay.show{display:flex}
+#modal-box{
+  background:#1e2029;
+  border:1px solid #2a2d3e;
+  border-radius:18px;
+  padding:28px 24px 20px;
+  width:100%;max-width:320px;
+  animation:modalIn .2s cubic-bezier(.2,.8,.2,1);
+}
+@keyframes modalIn{from{opacity:0;transform:scale(.93)}to{opacity:1;transform:scale(1)}}
+#modal-icon{font-size:2rem;margin-bottom:14px;text-align:center}
+#modal-title{font-size:1rem;font-weight:700;color:#fff;margin-bottom:8px;text-align:center;line-height:1.3}
+#modal-msg{font-size:.84rem;color:#9196b0;line-height:1.6;text-align:center;margin-bottom:22px}
+#modal-btns{display:flex;flex-direction:column;gap:8px}
+.modal-btn{width:100%;padding:13px;border-radius:12px;font-size:.88rem;font-weight:600;cursor:pointer;font-family:inherit;border:none;transition:opacity .15s,transform .1s}
+.modal-btn:active{transform:scale(.97);opacity:.85}
+.modal-btn-primary{background:#7c8cff;color:#fff}
+.modal-btn-danger{background:#f06b6b22;color:#f06b6b;border:1px solid #f06b6b44}
+.modal-btn-ghost{background:#ffffff0f;color:#9196b0;border:1px solid #2a2d3e}
+.modal-btn-green{background:#3ecf8e22;color:#3ecf8e;border:1px solid #3ecf8e44}
+```
+
   </style>
-<base target="_blank">
 </head>
 <body>
 
@@ -140,6 +139,7 @@
 </header>
 
 <!-- ════ HOME ════ -->
+
 <div class="page on" id="page-home">
 
   <div class="sec">Expected Amounts</div>
@@ -204,6 +204,7 @@
 </div>
 
 <!-- ════ MACHINES ════ -->
+
 <div class="page" id="page-machines">
 
   <div class="sec">Key Fillup</div>
@@ -254,6 +255,7 @@
 </div>
 
 <!-- ════ SHIFT ════ -->
+
 <div class="page" id="page-shift">
 
   <div class="sec">Start of Shift</div>
@@ -297,18 +299,6 @@
 
   <div class="divider"></div>
 
-  <div class="sec">Backup & Restore</div>
-  <div class="hint">Export your shift data to a file, or restore from a previous backup.</div>
-  <div class="backup-row">
-    <button class="btn btn-ghost" onclick="exportData()">⬇ Export Backup</button>
-    <div class="file-input-wrapper">
-      <button class="btn btn-ghost" style="width:100%">⬆ Import Backup</button>
-      <input type="file" accept=".json" onchange="importData(this.files[0])">
-    </div>
-  </div>
-
-  <div class="divider"></div>
-
   <div class="sec">Exchange</div>
   <div class="hint">Record customer transactions — what they give, then what we give back.</div>
 
@@ -334,7 +324,7 @@
     <button class="tsb on" id="ex-to-pc" onclick="selExTo('pc')"><span class="tsi">🪙</span>Playcoins</button>
   </div>
 
-  <button class="btn btn-blue" id="ex-save-btn" onclick="saveExchange()" style="margin-top:8px" disabled>Save Exchange</button>
+<button class="btn btn-blue" id="ex-save-btn" onclick="saveExchange()" style="margin-top:8px" disabled>Save Exchange</button>
 
   <div class="sec" style="margin-top:18px">Exchange Log <span class="sec-side" id="ex-count-label"></span></div>
   <div class="log-list" id="ex-list">
@@ -367,11 +357,10 @@
     <div class="empty" id="cp-empty"><div class="empty-ico">🎲</div>No cashpoint entries</div>
   </div>
 
-
-
 </div>
 
 <!-- ════ SHOP ════ -->
+
 <div class="page" id="page-shop">
 
   <div class="sec">Products</div>
@@ -400,6 +389,7 @@
 </div>
 
 <!-- ════ CHECKLIST ════ -->
+
 <div class="page" id="page-checklist">
 
   <div id="betbooks-alert" style="display:none;background:var(--red-dim);border:1px solid var(--red-mid);border-radius:var(--r);padding:14px 16px;margin-bottom:14px">
@@ -408,6 +398,7 @@
   </div>
 
   <!-- Coffee Timer -->
+
   <div class="sec">Coffee Timer</div>
   <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px;margin-bottom:10px">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
@@ -424,18 +415,21 @@
   </div>
 
   <!-- Opening -->
+
   <div class="sec">Opening <span class="sec-side" id="cl-opening-count"></span></div>
   <div class="checklist-group" id="cl-opening"></div>
 
   <!-- Throughout the day -->
+
   <div class="sec" style="margin-top:18px">Throughout the Day <span class="sec-side" id="cl-day-count"></span></div>
   <div class="checklist-group" id="cl-day"></div>
 
   <!-- Closing -->
+
   <div class="sec" style="margin-top:18px">Closing <span class="sec-side" id="cl-closing-count"></span></div>
   <div class="checklist-group" id="cl-closing"></div>
 
-  <button class="btn btn-ghost" onclick="clearChecklist()" style="margin-top:18px;margin-bottom:4px">↺ Clear All Checkboxes</button>
+<button class="btn btn-ghost" onclick="clearChecklist()" style="margin-top:18px;margin-bottom:4px">↺ Clear All Checkboxes</button>
 
 </div>
 
@@ -472,7 +466,9 @@
 </div>
 
 <!-- Install Gate -->
+
 <div id="install-gate">
+  <button onclick="dismissGate()" style="position:absolute;top:18px;right:18px;background:none;border:none;color:#9196b0;font-size:28px;cursor:pointer;padding:8px;line-height:1">✕</button>
   <div class="ig-card">
     <div class="ig-emoji">🎰</div>
     <div class="ig-title">Install Casino</div>
@@ -483,6 +479,7 @@
 </div>
 
 <script src="app.js"></script>
+
 <script>
   const isStandalone = window.navigator.standalone === true ||
     window.matchMedia('(display-mode: standalone)').matches;
@@ -492,8 +489,9 @@
   const isAndroid = /android/i.test(navigator.userAgent);
   let deferredPrompt = null;
 
-  if (!isStandalone && isMobile) {
-    document.body.classList.add('gate-active');
+  // Show install prompt only if not already in standalone mode AND user hasn't dismissed it
+  const gateDismissed = sessionStorage.getItem('gate_dismissed')==='1';
+  if (!isStandalone && isMobile && !gateDismissed) {
     document.getElementById('install-gate').classList.add('show');
     if (isIOS && isSafari) {
       showIOSGate();
@@ -501,6 +499,11 @@
       showAndroidFallbackGate();
     }
   }
+  function dismissGate(){
+    sessionStorage.setItem('gate_dismissed','1');
+    document.getElementById('install-gate').classList.remove('show');
+  }
+  window.dismissGate=dismissGate;
 
   function showIOSGate() {
     document.getElementById('ig-sub').textContent = 'Follow these steps in Safari:';
@@ -532,6 +535,7 @@
         deferredPrompt.prompt();
         const result = await deferredPrompt.userChoice;
         deferredPrompt = null;
+        // Don't hide gate — user must open from home screen
         if (result.outcome === 'accepted') {
           document.getElementById('ig-sub').textContent = 'App installed! Open Casino from your home screen.';
           document.getElementById('ig-steps').innerHTML = '';
@@ -559,6 +563,7 @@
       </div>`;
   }
 
+  // When Chrome fires install prompt, swap to install button
   window.addEventListener('beforeinstallprompt', e => {
     e.preventDefault();
     deferredPrompt = e;
@@ -569,5 +574,6 @@
     navigator.serviceWorker.register('/casino/sw.js', {scope: '/casino/'}).catch(()=>{});
   }
 </script>
+
 </body>
 </html>
