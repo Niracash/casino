@@ -4,10 +4,6 @@
   "start_url": "/casino/index.html",
   "scope": "/casino/",
   "display": "standalone",
-  "display_override": [
-    "fullscreen",
-    "standalone"
-  ],
   "background_color": "#0e0f14",
   "theme_color": "#0e0f14",
   "orientation": "portrait",
