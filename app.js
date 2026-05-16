@@ -43,7 +43,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   selExFrom(_exFrom);
   renderShiftInfo();renderHomeLog();renderExchangeList();renderCashpointList();renderAddList();renderKFLog();
   renderShopItems();renderShopLog();
-  recalc();updateEstCalc();updateHomeEst();renderHomeFridgeMini();
+  recalc();updateEstCalc();updateHomeEst();renderShopSummary();
   loadCoffeeTimer();
   checkBetbooksAlert();
 });
@@ -52,7 +52,7 @@ function goPage(id,btn){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
   document.querySelectorAll('.nb').forEach(b=>b.classList.remove('on'));
   document.getElementById('page-'+id).classList.add('on');btn.classList.add('on');
-  if(id==='home'){recalc();renderHomeLog();renderExchangeList();renderHomeFridgeMini();}
+  if(id==='home'){recalc();renderHomeLog();renderExchangeList();renderShopSummary();}
   if(id==='machines'){renderKFLog();renderAddList();}
   if(id==='shift'){renderShiftInfo();sPreview();renderCashpointList();updateEstCalc();}
   if(id==='shop'){renderShopItems();renderShopLog();}
@@ -154,7 +154,7 @@ function updateHomeEst(){
 
   const lbl=document.getElementById('est-home-label');
   if(lbl)lbl.textContent=D.shift?'Based on start total + all transactions':'Set start of shift to see expected amounts';
-  renderHomeFridgeMini();
+  renderShopSummary();
 }
 
 function updateHomeHints(){
@@ -701,7 +701,7 @@ function sPreview(){
 function setShift(){
   const coin=g('s-coin'),cash=g('s-cash'),pc=g('s-pc'),bank=g('s-bank');
   if(!coin&&!cash&&!pc&&!bank){
-    showModal({icon:'⚠️',title:'No values entered',msg:'Enter at least one value before setting the start total.',buttons:[{label:'OK',style:'modal-btn-primary'}]});
+    showModal({title:'No values entered',msg:'Enter at least one value before setting the start total.',buttons:[{label:'OK',style:'modal-btn-primary'}]});
     return;
   }
   D.shift={coin,cash,pc,bank,total:coin+cash+pc+bank,date:nowFull()};
@@ -709,10 +709,29 @@ function setShift(){
   const btn=event.currentTarget;btn.innerHTML='✓ Done!';btn.style.opacity='.7';
   setTimeout(()=>{btn.innerHTML='✓ Set as Start Total';btn.style.opacity='';},2000);
 }
+function lockShiftInputs(locked){
+  ['s-coin','s-cash','s-pc','s-bank'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(!el)return;
+    el.readOnly=locked;
+    el.style.opacity=locked?'0.4':'1';
+    el.style.cursor=locked?'not-allowed':'';
+    el.style.pointerEvents=locked?'none':'';
+  });
+  const btn=document.querySelector('#page-shift .btn-primary');
+  if(btn){btn.disabled=locked;btn.style.opacity=locked?'0.3':'';}
+  const preview=document.getElementById('s-preview');
+  if(preview)preview.style.opacity=locked?'0.4':'1';
+}
 function renderShiftInfo(){
   const el=document.getElementById('shift-total-display'),date=document.getElementById('shift-date-display');
-  if(D.shift){el.textContent=fmt(D.shift.total);el.className='ssv';date.textContent='Set: '+D.shift.date;}
-  else{el.textContent='Not set';el.className='ssv idle';date.textContent='';}
+  if(D.shift){
+    el.textContent=fmt(D.shift.total);el.className='ssv';date.textContent='Set: '+D.shift.date;
+    lockShiftInputs(true);
+  } else {
+    el.textContent='Not set';el.className='ssv idle';date.textContent='';
+    lockShiftInputs(false);
+  }
 }
 function generateShiftPDF(){
   const f=fmt,now=nowFull();
@@ -963,7 +982,6 @@ function renderShopSummary(){
   initShop();
   const totalRevenue=SHOP_PRODUCTS.reduce((s,p)=>s+(D.shop.sold[p.id]||0)*p.price,0);
 
-  // Targets: fridge page + home page
   const targets=[
     {summaryEl:document.getElementById('shop-summary-rows'), labelEl:document.querySelector('#shop-summary .est-home-label')},
     {summaryEl:document.getElementById('home-shop-summary-rows'), labelEl:document.getElementById('home-shop-summary-label')},
@@ -987,9 +1005,9 @@ function renderShopSummary(){
     const pCash=Math.floor(rev/50)*50;
     const pCoin=rev-pCash;
     let breakdown='';
-    if(pCash>0&&pCoin>0) breakdown=` <span style="color:var(--sub);font-size:.68rem">(Cash: ${pCash.toLocaleString('no-NO')} kr + Coin: ${pCoin.toLocaleString('no-NO')} kr)</span>`;
-    else if(pCash>0)      breakdown=` <span style="color:var(--sub);font-size:.68rem">(Cash: ${pCash.toLocaleString('no-NO')} kr)</span>`;
-    else                  breakdown=` <span style="color:var(--sub);font-size:.68rem">(Coin: ${pCoin.toLocaleString('no-NO')} kr)</span>`;
+    if(pCash>0&&pCoin>0) breakdown=`Cash: ${pCash.toLocaleString('no-NO')} kr + Coin: ${pCoin.toLocaleString('no-NO')} kr`;
+    else if(pCash>0)      breakdown=`Cash: ${pCash.toLocaleString('no-NO')} kr`;
+    else                  breakdown=`Coin: ${pCoin.toLocaleString('no-NO')} kr`;
     const start=D.shop.starts[p.id]||0;
     const end=start-sold;
     const endColor=end<0?'var(--red)':'var(--muted)';
@@ -1000,7 +1018,7 @@ function renderShopSummary(){
       </div>
       <div style="text-align:right;flex-shrink:0">
         <div style="font-family:'JetBrains Mono',monospace;font-weight:600;font-size:.84rem;color:var(--text)">${rev.toLocaleString('no-NO')} kr</div>
-        <div style="font-size:.67rem;color:var(--sub);margin-top:1px">${breakdown.replace(/<[^>]+>/g,'').replace(/[()]/g,'').trim()}</div>
+        <div style="font-size:.67rem;color:var(--sub);margin-top:1px">${breakdown}</div>
       </div>
     </div>`;
   });
