@@ -129,21 +129,7 @@ function getFridgeTotal(){
 }
 
 function renderHomeFridgeMini(){
-  const el=document.getElementById('home-fridge-mini');
-  if(!el)return;
-  if(!D.shop||!D.shop.sold){el.innerHTML='<div class="fridge-mini-empty">No sales recorded yet</div>';return;}
-  const products={sodavand:{n:'Sodavand',p:10},redbull:{n:'Redbull',p:20},vand:{n:'Vand',p:5},bounty:{n:'Bounty',p:10},bueno:{n:'Bueno',p:10},mars:{n:'Mars',p:10},snickers:{n:'Snickers',p:10},pringles:{n:'Pringles',p:10},lighter:{n:'Lighter',p:10}};
-  const ICONS={sodavand:'🥤',redbull:'⚡',vand:'💧',bounty:'🍫',bueno:'🍫',mars:'🍫',snickers:'🍫',pringles:'🍟',lighter:'🔥'};
-  let total=0,html='';
-  Object.entries(products).forEach(([id,{n,p}])=>{
-    const sold=D.shop.sold[id]||0;
-    if(!sold)return;
-    const rev=sold*p;total+=rev;
-    html+=`<div class="fridge-mini-row"><span class="fridge-mini-l">${ICONS[id]} ${n} ×${sold}</span><span class="fridge-mini-v">${rev.toLocaleString('no-NO')} kr</span></div>`;
-  });
-  if(total===0){el.innerHTML='<div class="fridge-mini-empty">No sales recorded yet</div>';return;}
-  html+=`<div class="fridge-mini-total"><span style="color:var(--green)">Total</span><span style="font-family:'JetBrains Mono',monospace;color:var(--green)">${total.toLocaleString('no-NO')} kr</span></div>`;
-  el.innerHTML=html;
+  renderShopSummary();
 }
 
 function updateHomeEst(){
@@ -976,14 +962,21 @@ function shopSell(id, delta){
 function renderShopSummary(){
   initShop();
   const totalRevenue=SHOP_PRODUCTS.reduce((s,p)=>s+(D.shop.sold[p.id]||0)*p.price,0);
-  const summaryEl=document.getElementById('shop-summary-rows');
-  const labelEl=document.querySelector('#shop-summary .est-home-label');
+
+  // Targets: fridge page + home page
+  const targets=[
+    {summaryEl:document.getElementById('shop-summary-rows'), labelEl:document.querySelector('#shop-summary .est-home-label')},
+    {summaryEl:document.getElementById('home-shop-summary-rows'), labelEl:document.getElementById('home-shop-summary-label')},
+  ];
+
   if(totalRevenue===0){
-    if(labelEl)labelEl.textContent='No sales recorded yet';
-    if(summaryEl)summaryEl.innerHTML='';
+    targets.forEach(({summaryEl,labelEl})=>{
+      if(labelEl)labelEl.textContent='No sales recorded yet';
+      if(summaryEl)summaryEl.innerHTML='';
+    });
     return;
   }
-  if(labelEl)labelEl.textContent='Total revenue breakdown';
+
   const cashPart=Math.floor(totalRevenue/50)*50;
   const coinPart=totalRevenue-cashPart;
   let html='';
@@ -1021,7 +1014,11 @@ function renderShopSummary(){
     if(coinPart>0) parts.push(`💰 ${coinPart.toLocaleString('no-NO')} kr coin`);
     html+=`<div style="margin-top:6px;font-size:.72rem;color:var(--sub);text-align:right">${parts.join(' + ')}</div>`;
   }
-  if(summaryEl)summaryEl.innerHTML=html;
+
+  targets.forEach(({summaryEl,labelEl})=>{
+    if(labelEl)labelEl.textContent='Total revenue breakdown';
+    if(summaryEl)summaryEl.innerHTML=html;
+  });
 }
 
 let _shopLogPage=0;
