@@ -6,6 +6,9 @@ function loadState(){
 }
 function saveState(){localStorage.setItem('ccc_v5',JSON.stringify(D));}
 
+// Load state immediately on script execution
+loadState();
+
 // ── Custom Modal ──
 function showModal({icon='',title='',msg='',buttons=[]}){
   document.getElementById('modal-icon').textContent=icon;
@@ -24,18 +27,32 @@ function showModal({icon='',title='',msg='',buttons=[]}){
   document.getElementById('modal-overlay').classList.add('show');
 }
 function closeModal(){document.getElementById('modal-overlay').classList.remove('show');}
-// Close on overlay click
 document.addEventListener('DOMContentLoaded',()=>{
   document.getElementById('modal-overlay').addEventListener('click',e=>{
     if(e.target===document.getElementById('modal-overlay'))closeModal();
   });
+  // Restore inputs after DOM is ready
+  restoreInputs();
+  // Re-init UI state
+  if(D.kfType){
+    _kfType=D.kfType;
+    document.querySelectorAll('#page-machines .type-sel.cols-3 .tsb').forEach(b=>b.classList.remove('on'));
+    const ab=document.getElementById('type-'+D.kfType);if(ab)ab.classList.add('on');
+    document.getElementById('kf-input-label').textContent={kr:'Win amount (kr)','1cr':'Credits on display','05cr':'Credits on display'}[D.kfType]||'Win amount (kr)';
+  }
+  selExFrom(_exFrom);
+  renderShiftInfo();renderHomeLog();renderExchangeList();renderCashpointList();renderAddList();renderKFLog();
+  renderShopItems();renderShopLog();
+  recalc();updateEstCalc();updateHomeEst();
+  loadCoffeeTimer();
+  checkBetbooksAlert();
 });
 
 function goPage(id,btn){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
   document.querySelectorAll('.nb').forEach(b=>b.classList.remove('on'));
   document.getElementById('page-'+id).classList.add('on');btn.classList.add('on');
-  if(id==='home'){recalc();renderHomeLog();}
+  if(id==='home'){recalc();renderHomeLog();renderExchangeList();}
   if(id==='machines'){renderKFLog();renderAddList();}
   if(id==='shift'){renderShiftInfo();sPreview();renderExchangeList();renderCashpointList();updateEstCalc();exCalc();}
   if(id==='shop'){renderShopItems();renderShopLog();}
@@ -56,8 +73,13 @@ function getExpected(){
   let coin=D.shift.coin,cash=D.shift.cash,pc=D.shift.pc,bank=D.shift.bank;
   D.additions.forEach(a=>{if(a.type==='cash')cash+=a.amount;else if(a.type==='playcoin')pc+=a.amount;});
   D.exchanges.forEach(e=>{
-    // Money coming IN from customer — split cash/bank into cash (floor 50) + coin (remainder)
     if(e.from==='cash'){
+      // cash→mønt: all goes to coin
+      if(e.to==='coin'){
+        coin+=e.amount;
+        cash-=e.amount;
+        return;
+      }
       const cashPart=Math.floor(e.amount/50)*50;
       const coinPart=e.amount-cashPart;
       cash+=cashPart;coin+=coinPart;
@@ -65,21 +87,19 @@ function getExpected(){
     if(e.from==='bank')bank+=e.amount;
     if(e.from==='pc')pc+=e.amount;
     if(e.from==='coin')coin+=e.amount;
-    // Money going OUT to customer
+    if(e.from==='cash'&&e.to!=='coin'){/* handled above */}
     if(e.to==='cash')cash-=e.amount;if(e.to==='pc')pc-=e.amount;
-    if(e.to==='coin')coin-=e.amount;if(e.to==='bank')bank-=e.amount;
+    if(e.to==='coin'&&e.from!=='cash')coin-=e.amount;if(e.to==='bank')bank-=e.amount;
   });
   D.cashpoints.forEach(cp=>{
     if(cp.from==='bank') bank+=cp.amount;
     if(cp.from==='cash'){
       if(cp.amount>=0){
-        // Split: cash rounds down to nearest 50, remainder goes to mønt coins
         const cashPart=Math.floor(cp.amount/50)*50;
         const coinPart=cp.amount-cashPart;
         cash+=cashPart;
         coin+=coinPart;
       } else {
-        // Withdrawal: subtract from cash only
         cash+=cp.amount;
       }
     }
@@ -96,7 +116,7 @@ function stashInputs(){
 }
 
 function restoreInputs(){
-  const set=(id,v)=>{if(v!=null&&v!=='')document.getElementById(id).value=v;};
+  const set=(id,v)=>{const el=document.getElementById(id);if(el&&v!=null&&v!=='')el.value=v;};
   if(D.inputs.home){set('h-coin',D.inputs.home.coin);set('h-cash',D.inputs.home.cash);set('h-pc',D.inputs.home.pc);set('h-bank',D.inputs.home.bank);}
   if(D.inputs.shift){set('s-coin',D.inputs.shift.coin);set('s-cash',D.inputs.shift.cash);set('s-pc',D.inputs.shift.pc);set('s-bank',D.inputs.shift.bank);}
   if(D.inputs.machines){set('kf-machine',D.inputs.machines.machine);set('kf-val',D.inputs.machines.val);}
@@ -156,14 +176,19 @@ function recalc(){
   const db=document.getElementById('diff-block'),dv=document.getElementById('diff-val'),ds=document.getElementById('diff-sub');
   const hp=document.getElementById('hdr-pill'),br=document.getElementById('diff-breakdown');
   const bp=document.getElementById('db-phys'),ba=document.getElementById('db-adj'),bf=document.getElementById('db-fridge');
+  const updBtn=document.getElementById('update-expected-btn');
 
   if(!D.shift){
-    db.className='diff idle';dv.textContent='—';ds.textContent='Set start of shift first →';
-    hp.className='hdr-pill idle';hp.textContent='No shift';br.classList.remove('on');return;
+    db.className='diff idle';dv.textContent='—';ds.textContent='Set your start of shift first';
+    hp.className='hdr-pill idle';hp.textContent='No shift';br.classList.remove('on');
+    if(updBtn)updBtn.style.display='none';
+    return;
   }
+
   const exp=getExpected(),expected=exp.total,hasCurrent=coin>0||cash>0||pc>0||bank>0;
   const fridge=getFridgeTotal();
   br.classList.add('on');
+
   const physDiff=current-D.shift.total;
   const physStr=Math.abs(Math.round(physDiff))<1?'0 kr':(physDiff>0?'+':'−')+fmt(physDiff);
   const fridgeCounterStr=fridge>0?` <span style="color:var(--green);font-size:.75rem">(fridge: +${fridge.toLocaleString('no-NO')} kr)</span>`:'';
@@ -175,7 +200,6 @@ function recalc(){
     else{bf.textContent=fridge.toLocaleString('no-NO')+' kr';bf.className='bv green';}
   }
 
-  const updBtn=document.getElementById('update-expected-btn');
   if(!hasCurrent){
     ba.textContent='—';ba.className='bv muted';db.className='diff idle';dv.textContent='—';
     ds.textContent='Expected: '+fmt(expected)+' · Count your drawer';
@@ -183,24 +207,55 @@ function recalc(){
     if(updBtn){updBtn.style.display='none';}
     return;
   }
-  // Fridge revenue is physically in the drawer but shouldn't count as imbalance
-  const diffRaw=current-expected;
-  const diffNoFridge=diffRaw-fridge; // remove fridge from diff
-  const absDiff=Math.abs(Math.round(diffNoFridge));
-  const fridgeBracket=fridge>0?` <span style="color:var(--green);font-size:.8rem">(+${fridge.toLocaleString('no-NO')} kr fridge)</span>`:'';
-  if(absDiff<1){
+
+  // diff WITHOUT fridge (pure accounting diff)
+  const diffNoFridge=current-expected;
+  // diff WITH fridge baked in (what you'd expect if fridge revenue is in drawer)
+  const diffWithFridge=current-expected-fridge;
+  const absDiffNoFridge=Math.abs(Math.round(diffNoFridge));
+  const absDiffWithFridge=Math.abs(Math.round(diffWithFridge));
+
+  // Determine display state
+  // Primary: show diff without fridge (pure accounting)
+  // Secondary info: show that with fridge it's balanced
+  const bothBalanced=absDiffNoFridge<1&&absDiffWithFridge<1;
+  const onlyWithFridgeBalanced=absDiffWithFridge<1&&absDiffNoFridge>=1;
+  const noFridgeBalanced=absDiffNoFridge<1&&absDiffWithFridge>=1;
+  const neitherBalanced=absDiffNoFridge>=1&&absDiffWithFridge>=1;
+
+  if(absDiffNoFridge<1){
+    // Pure accounting match (no fridge needed) - allow update
     db.className='diff ok';
-    dv.innerHTML='0 kr'+fridgeBracket;
-    ds.textContent='Drawer matches perfectly';
-    hp.className='hdr-pill ok';hp.textContent='Balanced ✓';ba.textContent='0 kr ✓';ba.className='bv green';
+    if(fridge>0){
+      dv.innerHTML='0 kr <span style="color:var(--sub);font-size:.75rem">w/o fridge</span>';
+      ds.textContent='Drawer matches expected (excluding fridge revenue)';
+    } else {
+      dv.innerHTML='0 kr';
+      ds.textContent='Drawer matches perfectly';
+    }
+    hp.className='hdr-pill ok';hp.textContent='Balanced ✓';
+    ba.textContent='0 kr ✓';ba.className='bv green';
     if(updBtn){updBtn.style.display='';updBtn.disabled=false;}
+  } else if(absDiffWithFridge<1){
+    // Only matches when including fridge revenue - show "balanced with fridge" but warn
+    db.className='diff ok';
+    dv.innerHTML=`<span style="font-size:1.3rem">0 kr</span> <span style="color:var(--green);font-size:.72rem">w/ fridge</span>`;
+    ds.textContent=`Off by ${fmt(absDiffNoFridge)} without fridge · +${fridge.toLocaleString('no-NO')} kr fridge brings it to zero`;
+    hp.className='hdr-pill ok';hp.textContent='Balanced w/ fridge ✓';
+    ba.innerHTML=`<span style="color:var(--sub);font-size:.8rem">−${fmt(absDiffNoFridge)}</span> <span style="color:var(--green);font-size:.75rem">(+fridge: 0)</span>`;
+    ba.className='bv';
+    // Don't allow update — drawer includes fridge money, not a pure accounting match
+    if(updBtn){updBtn.style.display='none';}
   } else {
     db.className='diff off';
-    dv.innerHTML=(diffNoFridge>0?'+':'−')+fmt(diffNoFridge)+fridgeBracket;
-    ds.textContent=(diffNoFridge>0?'Over by ':'Short by ')+fmt(diffNoFridge)+' · expected '+fmt(expected);
-    hp.className='hdr-pill off';hp.textContent='Off '+fmt(diffNoFridge);
-    ba.textContent=(diffNoFridge>0?'+':'−')+fmt(diffNoFridge);ba.className=diffNoFridge>0?'bv green':'bv red';
-    if(updBtn){updBtn.style.display='';updBtn.disabled=true;}
+    const showVal=diffNoFridge;
+    dv.innerHTML=(showVal>0?'+':'−')+fmt(showVal);
+    let subText=(showVal>0?'Over by ':'Short by ')+fmt(showVal)+' · expected '+fmt(expected);
+    if(fridge>0) subText+=` · w/ fridge: ${diffWithFridge>0?'+':'−'}${fmt(diffWithFridge)}`;
+    ds.textContent=subText;
+    hp.className='hdr-pill off';hp.textContent='Off '+fmt(absDiffNoFridge);
+    ba.textContent=(showVal>0?'+':'−')+fmt(showVal);ba.className=showVal>0?'bv green':'bv red';
+    if(updBtn){updBtn.style.display='none';}
   }
   updateEstCalc();
 }
@@ -209,26 +264,28 @@ function updateExpectedFromCount(){
   const coin=g('h-coin'),cash=g('h-cash'),pc=g('h-pc'),bank=g('h-bank');
   const hasCurrent=coin>0||cash>0||pc>0||bank>0;
   if(!D.shift||!hasCurrent)return;
-  const exp=getExpected(),fridge=getFridgeTotal(),diff=Math.abs(Math.round((coin+cash+pc+bank)-exp.total-fridge));
+  const exp=getExpected();
+  const diff=Math.abs(Math.round((coin+cash+pc+bank)-exp.total));
+  // Only allow when pure diff (without fridge) is 0
   if(diff>=1)return;
-  // Update shift to match current physical count
   D.shift.coin=coin;D.shift.cash=cash;D.shift.pc=pc;D.shift.bank=bank;
   D.shift.total=coin+cash+pc+bank;
-  // Clear all transactions since they're now baked into the new start
   D.exchanges=[];D.cashpoints=[];D.fillups=[];D.additions=[];
   saveState();
-  // Clear count inputs
   ['h-coin','h-cash','h-pc','h-bank'].forEach(id=>document.getElementById(id).value='');
   D.inputs.home={};
   saveState();
   document.getElementById('update-expected-btn').style.display='none';
-  renderHomeLog();renderKFLog();renderAddList();
+  renderHomeLog();renderKFLog();renderAddList();renderExchangeList();
   recalc();updateEstCalc();updateHomeEst();
-  // Flash confirmation
   const btn=document.getElementById('update-expected-btn');
   btn.innerHTML='✓ Updated!';btn.disabled=true;btn.style.display='';
   setTimeout(()=>{btn.style.display='none';btn.innerHTML='↺ Update Expected to Current Count';},1800);
 }
+
+// ── Log Pagination ──
+const LOG_PAGE_SIZE=5;
+let _homeLogPage=0;
 
 function renderHomeLog(){
   const all=[
@@ -237,13 +294,19 @@ function renderHomeLog(){
     ...D.cashpoints.map((c,i)=>({type:'cashpoint',i,ts:c.ts||0,data:c}))
   ].sort((a,b)=>b.ts-a.ts);
   const el=document.getElementById('home-log');
-  document.getElementById('log-count-label').textContent=all.length>0?all.length+' entries':'';
-  if(all.length===0){
+  const total=all.length;
+  document.getElementById('log-count-label').textContent=total>0?total+' entries':'';
+  if(total===0){
     el.innerHTML=`<div class="empty" id="home-log-empty"><div class="empty-ico">📋</div>No entries yet</div>`;
+    renderLogPagination('home-log-pagination',0,0,0);
     return;
   }
+  const totalPages=Math.ceil(total/LOG_PAGE_SIZE);
+  if(_homeLogPage>=totalPages)_homeLogPage=totalPages-1;
+  const start=_homeLogPage*LOG_PAGE_SIZE;
+  const pageItems=all.slice(start,start+LOG_PAGE_SIZE);
   el.innerHTML='';
-  all.forEach(entry=>{
+  pageItems.forEach(entry=>{
     const d=entry.data,div=document.createElement('div');div.className='log-item';
     if(entry.type==='fillup'){
       div.innerHTML=`<div class="log-ico" style="background:var(--green-dim)">🔑</div>
@@ -267,6 +330,90 @@ function renderHomeLog(){
     }
     el.appendChild(div);
   });
+  renderLogPagination('home-log-pagination',_homeLogPage,totalPages,total,(p)=>{_homeLogPage=p;renderHomeLog();});
+}
+
+let _exListPage=0;
+function renderExchangeList(){
+  const total=D.exchanges.reduce((s,e)=>s+e.amount,0);
+  document.getElementById('ex-count-label').textContent=D.exchanges.length>0?D.exchanges.length+' · '+fmt(total):'';
+  const el=document.getElementById('ex-list');
+  const allItems=[...D.exchanges].reverse().map((e,ri)=>({e,i:D.exchanges.length-1-ri}));
+  if(allItems.length===0){el.innerHTML=`<div class="empty" id="ex-empty"><div class="empty-ico">🔄</div>No exchanges yet</div>`;renderLogPagination('ex-list-pagination',0,0,0);return;}
+  const totalPages=Math.ceil(allItems.length/LOG_PAGE_SIZE);
+  if(_exListPage>=totalPages)_exListPage=totalPages-1;
+  const pageItems=allItems.slice(_exListPage*LOG_PAGE_SIZE,(_exListPage+1)*LOG_PAGE_SIZE);
+  el.innerHTML='';
+  pageItems.forEach(({e,i})=>{
+    const d=document.createElement('div');d.className='log-item';
+    d.innerHTML=`<div class="log-ico" style="background:var(--blue-dim)">🔄</div>
+      <div class="log-body"><div class="log-title">Exchange</div><div class="log-meta">${CAT_LABELS[e.from]} → ${CAT_LABELS[e.to]}</div></div>
+      <div class="log-right"><div class="log-amt">${fmt(e.amount)}</div><div class="log-time">${e.date}</div></div>
+      <button class="log-del" onclick="delExchange(${i})">✕</button>`;
+    el.appendChild(d);
+  });
+  renderLogPagination('ex-list-pagination',_exListPage,totalPages,allItems.length,(p)=>{_exListPage=p;renderExchangeList();});
+}
+
+let _cpListPage=0;
+function renderCashpointList(){
+  const total=D.cashpoints.reduce((s,c)=>s+c.amount,0);
+  document.getElementById('cp-count-label').textContent=D.cashpoints.length>0?D.cashpoints.length+' · '+fmt(Math.abs(total)):'';
+  const el=document.getElementById('cp-list');
+  const allItems=[...D.cashpoints].reverse().map((c,ri)=>({c,i:D.cashpoints.length-1-ri}));
+  if(allItems.length===0){el.innerHTML=`<div class="empty" id="cp-empty"><div class="empty-ico">🎲</div>No cashpoint entries</div>`;renderLogPagination('cp-list-pagination',0,0,0);return;}
+  const totalPages=Math.ceil(allItems.length/LOG_PAGE_SIZE);
+  if(_cpListPage>=totalPages)_cpListPage=totalPages-1;
+  const pageItems=allItems.slice(_cpListPage*LOG_PAGE_SIZE,(_cpListPage+1)*LOG_PAGE_SIZE);
+  el.innerHTML='';
+  pageItems.forEach(({c,i})=>{
+    const d=document.createElement('div');d.className='log-item';
+    const fl=c.from==='bank'?'Bank/Card':'Cash';
+    const isWithdrawal=c.amount<0;
+    const amtStr=(isWithdrawal?'−':'+')+fmt(Math.abs(c.amount));
+    const meta=isWithdrawal?`Withdrawal · ${fl}`:`Deposit · ${fl}`;
+    const amtColor=isWithdrawal?'var(--blue)':'var(--purple)';
+    d.innerHTML=`<div class="log-ico" style="background:var(--purp-dim)">🎲</div>
+      <div class="log-body"><div class="log-title">Cashpoint</div><div class="log-meta">${meta}</div></div>
+      <div class="log-right"><div class="log-amt" style="color:${amtColor}">${amtStr}</div><div class="log-time">${c.date}</div></div>
+      <button class="log-del" onclick="delCashpoint(${i})">✕</button>`;
+    el.appendChild(d);
+  });
+  renderLogPagination('cp-list-pagination',_cpListPage,totalPages,allItems.length,(p)=>{_cpListPage=p;renderCashpointList();});
+}
+
+let _addListPage=0;
+function renderAddList(){
+  const total=D.additions.reduce((s,a)=>s+a.amount,0);
+  document.getElementById('add-count-label').textContent=D.additions.length>0?D.additions.length+' · '+fmt(total):'';
+  const el=document.getElementById('add-list');
+  const allItems=[...D.additions].reverse().map((a,ri)=>({a,i:D.additions.length-1-ri}));
+  if(allItems.length===0){el.innerHTML=`<div class="empty" id="add-empty"><div class="empty-ico">➕</div>No additions yet</div>`;renderLogPagination('add-list-pagination',0,0,0);return;}
+  const totalPages=Math.ceil(allItems.length/LOG_PAGE_SIZE);
+  if(_addListPage>=totalPages)_addListPage=totalPages-1;
+  const pageItems=allItems.slice(_addListPage*LOG_PAGE_SIZE,(_addListPage+1)*LOG_PAGE_SIZE);
+  el.innerHTML='';
+  pageItems.forEach(({a,i})=>{
+    const icon=a.type==='playcoin'?'🪙':'💵',title=a.type==='playcoin'?'Playcoins Added':'Cash Added';
+    const d=document.createElement('div');d.className='log-item';
+    d.innerHTML=`<div class="log-ico" style="background:var(--teal-dim)">${icon}</div>
+      <div class="log-body"><div class="log-title">${title}</div><div class="log-meta">Replenishment</div></div>
+      <div class="log-right"><div class="log-amt">${fmt(a.amount)}</div><div class="log-time">${a.date}</div></div>
+      <button class="log-del" onclick="delAddition(${i})">✕</button>`;
+    el.appendChild(d);
+  });
+  renderLogPagination('add-list-pagination',_addListPage,totalPages,allItems.length,(p)=>{_addListPage=p;renderAddList();});
+}
+
+function renderLogPagination(containerId,currentPage,totalPages,totalItems,onPage){
+  const el=document.getElementById(containerId);
+  if(!el)return;
+  if(totalPages<=1){el.innerHTML='';return;}
+  el.innerHTML=`<div class="log-pagination">
+    <button class="pag-btn" ${currentPage===0?'disabled':''} onclick="(${onPage.toString()})(${currentPage-1})">← Prev</button>
+    <span class="pag-info">Page ${currentPage+1} of ${totalPages} · ${totalItems} total</span>
+    <button class="pag-btn" ${currentPage>=totalPages-1?'disabled':''} onclick="(${onPage.toString()})(${currentPage+1})">Next →</button>
+  </div>`;
 }
 
 function delFillup(i){
@@ -280,60 +427,83 @@ function delAddition(i){D.additions.splice(i,1);saveState();renderHomeLog();rend
 
 let _exFrom='cash',_exTo='pc';
 const EXCHANGE_RULES={
-  cash:{canGive:['pc'],label:'Cash'},
+  cash:{canGive:['pc','coin'],label:'Cash'},
   coin:{canGive:['cash','pc'],label:'Mønt'},
   pc:{canGive:['cash','coin'],label:'Playcoins',validate:v=>v%20===0&&v>0,validateMsg:'Playcoins must be multiples of 20 kr'},
   bank:{canGive:['cash','coin','pc'],label:'Bank'}
 };
 
 function selExFrom(type){
-  document.querySelectorAll('#ex-from-buttons .tsb').forEach(b=>b.classList.remove('on'));
-  document.getElementById('ex-from-'+type).classList.add('on');_exFrom=type;
+  document.querySelectorAll('.ex-from-buttons .tsb').forEach(b=>b.classList.remove('on'));
+  const fromBtn=document.getElementById('ex-from-'+type);
+  if(fromBtn)fromBtn.classList.add('on');
+  _exFrom=type;
   const rules=EXCHANGE_RULES[type];let first=null;
-  document.querySelectorAll('#ex-to-buttons .tsb').forEach(b=>{
+  document.querySelectorAll('.ex-to-buttons .tsb').forEach(b=>{
     const t=b.id.replace('ex-to-',''),ok=rules.canGive.includes(t);
     b.disabled=!ok;b.classList.remove('on');if(ok&&!first)first=t;
   });
-  if(first){document.getElementById('ex-to-'+first).classList.add('on');_exTo=first;}
-  document.getElementById('ex-amt').value='';
-  document.getElementById('ex-hint').style.display='none';
-  document.getElementById('ex-save-btn').disabled=true;exCalc();
+  if(first){const toBtn=document.getElementById('ex-to-'+first);if(toBtn)toBtn.classList.add('on');_exTo=first;}
+  document.querySelectorAll('.ex-amt-input').forEach(el=>el.value='');
+  document.querySelectorAll('.ex-hint-el').forEach(el=>el.style.display='none');
+  document.querySelectorAll('.ex-save-btn').forEach(btn=>btn.disabled=true);
+  exCalc();
 }
 
 function selExTo(type){
-  if(document.getElementById('ex-to-'+type).disabled)return;
-  document.querySelectorAll('#ex-to-buttons .tsb').forEach(b=>b.classList.remove('on'));
-  document.getElementById('ex-to-'+type).classList.add('on');_exTo=type;exCalc();
+  const btn=document.getElementById('ex-to-'+type);
+  if(btn&&btn.disabled)return;
+  document.querySelectorAll('.ex-to-buttons .tsb').forEach(b=>b.classList.remove('on'));
+  if(btn)btn.classList.add('on');
+  _exTo=type;exCalc();
 }
 
 function exCalc(){
-  const amt=parseFloat(document.getElementById('ex-amt').value)||0;
-  const hint=document.getElementById('ex-hint'),saveBtn=document.getElementById('ex-save-btn');
-  const rules=EXCHANGE_RULES[_exFrom];
-  if(rules.validate&&!rules.validate(amt)){
-    if(amt>0){hint.className='hint error';hint.innerHTML=`<b>Error:</b> ${rules.validateMsg}`;hint.style.display='';}
-    else hint.style.display='none';
-    saveBtn.disabled=true;return;
-  }
-  if(amt<=0){hint.style.display='none';saveBtn.disabled=true;return;}
-  if(_exFrom==='pc'&&_exTo==='cash'){
-    const cp=Math.floor(amt/50)*50,cn=amt-cp;
-    hint.className='hint success';hint.style.display='';
-    hint.innerHTML=cn>0?`Give customer: <b>${fmt(cp)}</b> cash + <b>${fmt(cn)}</b> mønt`:`Give customer: <b>${fmt(cp)}</b> cash`;
-  } else if(_exTo==='pc'){
-    const pcAmt=Math.floor(amt/20)*20,change=amt-pcAmt;
-    if(change>0){hint.className='hint info';hint.style.display='';hint.innerHTML=`Give <b>${fmt(pcAmt)}</b> playcoins + <b>${fmt(change)}</b> change back`;}
-    else hint.style.display='none';
-  } else hint.style.display='none';
-  saveBtn.disabled=false;
+  // Support multiple instances (home page + shift page)
+  const amtInputs=document.querySelectorAll('.ex-amt-input');
+  const amt=parseFloat(amtInputs[0]?amtInputs[0].value:0)||0;
+  document.querySelectorAll('.ex-hint-el').forEach(hint=>{
+    const saveBtn=hint.parentElement.querySelector('.ex-save-btn')||document.querySelector('.ex-save-btn');
+    const rules=EXCHANGE_RULES[_exFrom];
+    if(rules.validate&&!rules.validate(amt)){
+      if(amt>0){hint.className='hint error';hint.innerHTML=`<b>Error:</b> ${rules.validateMsg}`;hint.style.display='';}
+      else hint.style.display='none';
+      document.querySelectorAll('.ex-save-btn').forEach(b=>b.disabled=true);return;
+    }
+    if(amt<=0){hint.style.display='none';document.querySelectorAll('.ex-save-btn').forEach(b=>b.disabled=true);return;}
+
+    if(_exFrom==='cash'&&_exTo==='coin'){
+      hint.className='hint info';hint.style.display='';
+      hint.innerHTML=`Give customer: <b>${fmt(amt)}</b> in coins (mønt)`;
+    } else if(_exFrom==='pc'&&_exTo==='cash'){
+      const cp=Math.floor(amt/50)*50,cn=amt-cp;
+      hint.className='hint success';hint.style.display='';
+      hint.innerHTML=cn>0?`Give customer: <b>${fmt(cp)}</b> cash + <b>${fmt(cn)}</b> mønt`:`Give customer: <b>${fmt(cp)}</b> cash`;
+    } else if(_exTo==='pc'){
+      const pcAmt=Math.floor(amt/20)*20,change=amt-pcAmt;
+      if(change>0){hint.className='hint info';hint.style.display='';hint.innerHTML=`Give <b>${fmt(pcAmt)}</b> playcoins + <b>${fmt(change)}</b> change back`;}
+      else hint.style.display='none';
+    } else hint.style.display='none';
+    document.querySelectorAll('.ex-save-btn').forEach(b=>b.disabled=false);
+  });
+}
+
+function exAmtInput(){
+  // sync all ex-amt-input fields
+  const val=document.querySelectorAll('.ex-amt-input')[0]?.value||'';
+  document.querySelectorAll('.ex-amt-input').forEach(el=>{if(el.value!==val)el.value=val;});
+  exCalc();
 }
 
 function saveExchange(){
-  const amt=parseFloat(document.getElementById('ex-amt').value);
-  if(isNaN(amt)||amt<=0)return flash('ex-amt');
+  const amt=parseFloat(document.querySelector('.ex-amt-input')?.value||0);
+  if(isNaN(amt)||amt<=0){document.querySelectorAll('.ex-amt-input').forEach(el=>flash(el.id||'ex-amt'));return;}
   const rules=EXCHANGE_RULES[_exFrom];
-  if(rules.validate&&!rules.validate(amt))return flash('ex-amt');
-  if(_exFrom==='pc'&&_exTo==='cash'){
+  if(rules.validate&&!rules.validate(amt)){document.querySelectorAll('.ex-amt-input').forEach(el=>flash(el.id||'ex-amt'));return;}
+
+  if(_exFrom==='cash'&&_exTo==='coin'){
+    D.exchanges.push({from:'cash',to:'coin',amount:amt,date:nowFull(),ts:Date.now()});
+  } else if(_exFrom==='pc'&&_exTo==='cash'){
     const cp=Math.floor(amt/50)*50,cn=amt-cp;
     D.exchanges.push({from:'pc',to:'cash',amount:cp,date:nowFull(),ts:Date.now()});
     if(cn>0)D.exchanges.push({from:'pc',to:'coin',amount:cn,date:nowFull(),ts:Date.now()});
@@ -342,25 +512,11 @@ function saveExchange(){
   } else {
     D.exchanges.push({from:_exFrom,to:_exTo,amount:amt,date:nowFull(),ts:Date.now()});
   }
-  saveState();document.getElementById('ex-amt').value='';
-  document.getElementById('ex-hint').style.display='none';document.getElementById('ex-save-btn').disabled=true;
+  saveState();
+  document.querySelectorAll('.ex-amt-input').forEach(el=>el.value='');
+  document.querySelectorAll('.ex-hint-el').forEach(el=>el.style.display='none');
+  document.querySelectorAll('.ex-save-btn').forEach(btn=>btn.disabled=true);
   renderExchangeList();renderHomeLog();recalc();updateEstCalc();
-}
-
-function renderExchangeList(){
-  const total=D.exchanges.reduce((s,e)=>s+e.amount,0);
-  document.getElementById('ex-count-label').textContent=D.exchanges.length>0?D.exchanges.length+' · '+fmt(total):'';
-  const el=document.getElementById('ex-list');
-  if(D.exchanges.length===0){el.innerHTML=`<div class="empty" id="ex-empty"><div class="empty-ico">🔄</div>No exchanges yet</div>`;return;}
-  el.innerHTML='';
-  [...D.exchanges].reverse().forEach((e,ri)=>{
-    const i=D.exchanges.length-1-ri,d=document.createElement('div');d.className='log-item';
-    d.innerHTML=`<div class="log-ico" style="background:var(--blue-dim)">🔄</div>
-      <div class="log-body"><div class="log-title">Exchange</div><div class="log-meta">${CAT_LABELS[e.from]} → ${CAT_LABELS[e.to]}</div></div>
-      <div class="log-right"><div class="log-amt">${fmt(e.amount)}</div><div class="log-time">${e.date}</div></div>
-      <button class="log-del" onclick="delExchange(${i})">✕</button>`;
-    el.appendChild(d);
-  });
 }
 
 let _cpFrom='bank';
@@ -375,7 +531,6 @@ function cpCalc(){
   const raw=document.getElementById('cp-amt').value;
   const amt=parseFloat(raw)||0;
   const hint=document.getElementById('cp-hint'),saveBtn=document.getElementById('cp-save-btn');
-  // Negative only allowed for cash
   if(amt<0 && _cpFrom==='bank'){
     hint.className='hint error';hint.innerHTML='<b>Cannot withdraw from bank</b> — switch to Cash to record a withdrawal.';hint.style.display='';
     saveBtn.disabled=true;return;
@@ -414,26 +569,6 @@ function saveCashpoint(){
   document.getElementById('cp-amt').value='';document.getElementById('cp-hint').style.display='none';document.getElementById('cp-save-btn').disabled=true;
   renderCashpointList();renderHomeLog();recalc();updateEstCalc();
 }
-function renderCashpointList(){
-  const total=D.cashpoints.reduce((s,c)=>s+c.amount,0);
-  document.getElementById('cp-count-label').textContent=D.cashpoints.length>0?D.cashpoints.length+' · '+fmt(Math.abs(total)):'';
-  const el=document.getElementById('cp-list');
-  if(D.cashpoints.length===0){el.innerHTML=`<div class="empty" id="cp-empty"><div class="empty-ico">🎲</div>No cashpoint entries</div>`;return;}
-  el.innerHTML='';
-  [...D.cashpoints].reverse().forEach((c,ri)=>{
-    const i=D.cashpoints.length-1-ri,d=document.createElement('div');d.className='log-item';
-    const fl=c.from==='bank'?'Bank/Card':'Cash';
-    const isWithdrawal=c.amount<0;
-    const amtStr=(isWithdrawal?'−':'+')+fmt(Math.abs(c.amount));
-    const meta=isWithdrawal?`Withdrawal · ${fl}`:`Deposit · ${fl}`;
-    const amtColor=isWithdrawal?'var(--blue)':'var(--purple)';
-    d.innerHTML=`<div class="log-ico" style="background:var(--purp-dim)">🎲</div>
-      <div class="log-body"><div class="log-title">Cashpoint</div><div class="log-meta">${meta}</div></div>
-      <div class="log-right"><div class="log-amt" style="color:${amtColor}">${amtStr}</div><div class="log-time">${c.date}</div></div>
-      <button class="log-del" onclick="delCashpoint(${i})">✕</button>`;
-    el.appendChild(d);
-  });
-}
 
 function doAdd(type){
   D.additions.push({type,amount:10000,date:nowFull(),ts:Date.now()});saveState();
@@ -441,22 +576,6 @@ function doAdd(type){
   const btn=event.currentTarget,orig=btn.innerHTML;
   btn.innerHTML='✓ Added!';btn.style.opacity='.6';
   setTimeout(()=>{btn.innerHTML=orig;btn.style.opacity='';},1300);
-}
-function renderAddList(){
-  const total=D.additions.reduce((s,a)=>s+a.amount,0);
-  document.getElementById('add-count-label').textContent=D.additions.length>0?D.additions.length+' · '+fmt(total):'';
-  const el=document.getElementById('add-list');
-  if(D.additions.length===0){el.innerHTML=`<div class="empty" id="add-empty"><div class="empty-ico">➕</div>No additions yet</div>`;return;}
-  el.innerHTML='';
-  [...D.additions].reverse().forEach((a,ri)=>{
-    const i=D.additions.length-1-ri,icon=a.type==='playcoin'?'🪙':'💵',title=a.type==='playcoin'?'Playcoins Added':'Cash Added';
-    const d=document.createElement('div');d.className='log-item';
-    d.innerHTML=`<div class="log-ico" style="background:var(--teal-dim)">${icon}</div>
-      <div class="log-body"><div class="log-title">${title}</div><div class="log-meta">Replenishment</div></div>
-      <div class="log-right"><div class="log-amt">${fmt(a.amount)}</div><div class="log-time">${a.date}</div></div>
-      <button class="log-del" onclick="delAddition(${i})">✕</button>`;
-    el.appendChild(d);
-  });
 }
 
 function updateEstCalc(){
@@ -489,11 +608,13 @@ function kfCalc(){
   document.getElementById('kfr-val').textContent=fmt(paidOut);
   res.style.display='';saveBtn.disabled=false;stashInputs();
 }
-// Checkbox states — persisted in localStorage
+
 const _checkStates=JSON.parse(localStorage.getItem('ccc_checks')||'{}');
 function _saveChecks(){localStorage.setItem('ccc_checks',JSON.stringify(_checkStates));}
 
 function buildSteps(total){const MAX=200,steps=[];let rem=total;while(rem>0){const fill=Math.min(rem,MAX);steps.push({fill});rem-=fill;}return steps;}
+
+let _kfLogPage=0;
 function saveKF(){
   const raw=parseFloat(document.getElementById('kf-val').value);if(isNaN(raw)||raw<=0)return;
   const machine=document.getElementById('kf-machine').value.trim()||'Unknown';
@@ -508,15 +629,21 @@ function saveKF(){
 }
 function renderKFLog(){
   const el=document.getElementById('kf-log-list');
-  document.getElementById('kf-log-count').textContent=D.fillups.length>0?D.fillups.length+' entries':'';
-  if(D.fillups.length===0){
+  const total=D.fillups.length;
+  document.getElementById('kf-log-count').textContent=total>0?total+' entries':'';
+  if(total===0){
     el.innerHTML=`<div class="empty" id="kf-log-empty"><div class="empty-ico">🔑</div>No fillups saved</div>`;
+    renderLogPagination('kf-log-pagination',0,0,0);
     return;
   }
+  const totalPages=Math.ceil(total/LOG_PAGE_SIZE);
+  if(_kfLogPage>=totalPages)_kfLogPage=totalPages-1;
+  const allItems=[...D.fillups].reverse().map((f,ri)=>({f,i:D.fillups.length-1-ri}));
+  const pageItems=allItems.slice(_kfLogPage*LOG_PAGE_SIZE,(_kfLogPage+1)*LOG_PAGE_SIZE);
   el.innerHTML='';
   const typeMap={kr:'KR','1cr':'1 Credit','05cr':'0.5 Credit'};
-  [...D.fillups].reverse().forEach((f,ri)=>{
-    const i=D.fillups.length-1-ri,d=document.createElement('div');d.className='mlog-item';
+  pageItems.forEach(({f,i})=>{
+    const d=document.createElement('div');d.className='mlog-item';
     const steps=buildSteps(f.coins);
     const stepsHtml=steps.map((s,si)=>{
       const key=`${i}_${si}`;
@@ -536,6 +663,7 @@ function renderKFLog(){
     <div class="mlog-detail"><span style="color:var(--text);font-weight:600">${f.coins} playcoins · ${fmt(f.coins*20)}</span>${inputStr}${stepsHtml}<div style="margin-top:6px;color:var(--muted);font-size:.65rem">${f.date}</div></div>`;
     el.appendChild(d);
   });
+  renderLogPagination('kf-log-pagination',_kfLogPage,totalPages,total,(p)=>{_kfLogPage=p;renderKFLog();});
 }
 
 function sPreview(){
@@ -565,7 +693,6 @@ function generateShiftPDF(){
   const fridgeCash=Math.floor(fridge/50)*50;
   const fridgeCoin=fridge-fridgeCash;
 
-  // Build log entries sorted by time
   const all=[
     ...D.fillups.map((x,i)=>({type:'fillup',ts:x.ts||0,data:x})),
     ...D.additions.map((x,i)=>({type:'addition',ts:x.ts||0,data:x})),
@@ -593,7 +720,6 @@ function generateShiftPDF(){
     logRows+=`<tr><td>${d.date||''}</td><td>${label}</td><td>${detail}</td><td style="text-align:right;font-family:monospace">${amount}</td></tr>`;
   });
 
-  // Fridge summary
   let fridgeRows='';
   if(D.shop&&D.shop.sold){
     const products={sodavand:{n:'Sodavand',p:10},redbull:{n:'Redbull',p:20},vand:{n:'Vand',p:5},bounty:{n:'Bounty',p:10},bueno:{n:'Bueno',p:10},mars:{n:'Mars',p:10},snickers:{n:'Snickers',p:10},pringles:{n:'Pringles',p:10},lighter:{n:'Lighter',p:10}};
@@ -628,7 +754,6 @@ function generateShiftPDF(){
   </style></head><body>
   <h1>Casino — Shift Report</h1>
   <div class="meta">Generated: ${now}${D.shift?` &nbsp;|&nbsp; Shift started: ${D.shift.date}`:''}</div>
-
   <h2>Summary</h2>
   <div class="summary-grid">
     <div class="summary-box"><div class="label">Start Total</div><div class="value">${D.shift?f(D.shift.total):'—'}</div></div>
@@ -638,25 +763,20 @@ function generateShiftPDF(){
     <div class="summary-box"><div class="label">Playcoins Expected</div><div class="value">${f(exp.pc)}</div></div>
     <div class="summary-box"><div class="label">Bank Expected</div><div class="value">${f(exp.bank)}</div></div>
   </div>
-
   ${fridge>0?`<h2>Fridge Revenue — ${f(fridge)}</h2>
   <table><thead><tr><th>Product</th><th style="text-align:center">Start</th><th style="text-align:center">Sold</th><th style="text-align:center">End</th><th style="text-align:right">Revenue</th></tr></thead>
   <tbody>${fridgeRows}</tbody></table>`:''}
-
   <h2>Transaction Log (${all.length} entries)</h2>
   ${all.length===0?'<p style="color:#999">No transactions recorded.</p>':`
   <table><thead><tr><th>Time</th><th>Type</th><th>Detail</th><th style="text-align:right">Amount</th></tr></thead>
   <tbody>${logRows}</tbody></table>`}
-
   <div class="footer">Casino Shift Report &nbsp;|&nbsp; ${now}</div>
   </body></html>`;
 
   const blob=new Blob([html],{type:'text/html'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
-  a.href=url;
-  a.download=`Casino-Shift-${nowDate().replace(/\./g,'-')}.html`;
-  a.click();
+  a.href=url;a.download=`Casino-Shift-${nowDate().replace(/\./g,'-')}.html`;a.click();
   setTimeout(()=>URL.revokeObjectURL(url),3000);
 }
 
@@ -689,6 +809,7 @@ function confirmReset(){
 
 function doReset(){
   D={shift:null,exchanges:[],cashpoints:[],fillups:[],additions:[],shop:{starts:{},sold:{},log:[]},inputs:{home:{},shift:{},machines:{}},kfType:'kr'};
+  _homeLogPage=0;_exListPage=0;_cpListPage=0;_addListPage=0;_kfLogPage=0;
   Object.keys(_checkStates).forEach(k=>delete _checkStates[k]);
   _saveChecks();
   saveState();
@@ -756,7 +877,6 @@ function renderShopItems(){
   });
   renderShopSummary();
   updateHomeEst();
-  // update home breakdown if visible
   const coin=g('h-coin'),cash=g('h-cash'),pc=g('h-pc'),bank=g('h-bank');
   if(coin||cash||pc||bank) recalc();
 }
@@ -765,7 +885,6 @@ function setShopStart(id, val){
   initShop();
   D.shop.starts[id]=parseInt(val)||0;
   saveState();
-  // Update only the affected item's display without full re-render
   const sold=D.shop.sold[id]||0;
   const start=D.shop.starts[id]||0;
   const end=start-sold;
@@ -822,9 +941,6 @@ function renderShopSummary(){
     return;
   }
   if(labelEl)labelEl.textContent='Total revenue breakdown';
-  // Split into coin (under 50kr per denomination) and cash
-  // Rule: per product type, coin = 5kr/10kr/20kr items → coin
-  // Overall total: multiples of 50 = cash, remainder = coin
   const cashPart=Math.floor(totalRevenue/50)*50;
   const coinPart=totalRevenue-cashPart;
   let html='';
@@ -832,7 +948,6 @@ function renderShopSummary(){
     const sold=D.shop.sold[p.id]||0;
     if(sold===0)return;
     const rev=sold*p.price;
-    // Show coin breakdown
     const pCash=Math.floor(rev/50)*50;
     const pCoin=rev-pCash;
     let breakdown='';
@@ -853,7 +968,6 @@ function renderShopSummary(){
       </div>
     </div>`;
   });
-  // totals
   html+=`<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border2);display:flex;justify-content:space-between;align-items:center">
     <span style="font-size:.78rem;font-weight:700;color:var(--green)">Total revenue</span>
     <span style="font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--green)">${totalRevenue.toLocaleString('no-NO')} kr</span>
@@ -867,6 +981,7 @@ function renderShopSummary(){
   if(summaryEl)summaryEl.innerHTML=html;
 }
 
+let _shopLogPage=0;
 function renderShopLog(){
   initShop();
   const log=D.shop.log||[];
@@ -874,9 +989,13 @@ function renderShopLog(){
   const countEl=document.getElementById('shop-log-count');
   if(countEl)countEl.textContent=log.length>0?log.length+' sales':'';
   if(!el)return;
-  if(log.length===0){el.innerHTML=`<div class="empty"><div class="empty-ico">🛒</div>No sales yet</div>`;return;}
+  if(log.length===0){el.innerHTML=`<div class="empty"><div class="empty-ico">🛒</div>No sales yet</div>`;renderLogPagination('shop-log-pagination',0,0,0);return;}
+  const totalPages=Math.ceil(log.length/LOG_PAGE_SIZE);
+  if(_shopLogPage>=totalPages)_shopLogPage=totalPages-1;
+  const allItems=[...log].reverse();
+  const pageItems=allItems.slice(_shopLogPage*LOG_PAGE_SIZE,(_shopLogPage+1)*LOG_PAGE_SIZE);
   el.innerHTML='';
-  [...log].reverse().forEach((entry,ri)=>{
+  pageItems.forEach(entry=>{
     const p=SHOP_PRODUCTS.find(x=>x.id===entry.id)||{icon:'🛒'};
     const d=document.createElement('div');d.className='log-item';
     d.innerHTML=`<div class="log-ico" style="background:var(--green-dim)">${p.icon}</div>
@@ -884,6 +1003,7 @@ function renderShopLog(){
       <div class="log-right"><div class="log-amt" style="color:var(--green)">+${entry.price} kr</div></div>`;
     el.appendChild(d);
   });
+  renderLogPagination('shop-log-pagination',_shopLogPage,totalPages,log.length,(p)=>{_shopLogPage=p;renderShopLog();});
 }
 
 // ── CHECKLIST ──
@@ -896,6 +1016,7 @@ const CHECKLIST={
     {id:'op5',text:'Make sure Top Table is on'},
     {id:'op6',text:'Vacuum and mop in shop'},
     {id:'op7',text:'Count counter and do entry'},
+    {id:'op_reserve',text:'Count Reserve'},
     {id:'op8',text:'Count drinks and snacks and insert in file'},
     {id:'op9',text:'Clean bathroom if dirty'},
     {id:'op10',text:'Turn on AC'},
@@ -908,6 +1029,7 @@ const CHECKLIST={
     {id:'dy4',text:'Remove soda cans in shop'},
     {id:'dy5',text:'Bring back signs from machines that are not used'},
     {id:'dy6',text:'Clean machines with glas rens'},
+    {id:'dy7',text:'Fill fridge'},
   ],
   closing:[
     {id:'cl1',text:'Clean smoke area (After customers are gone)'},
@@ -915,6 +1037,7 @@ const CHECKLIST={
     {id:'cl4',text:'Pickup trash',time:'22:35'},
     {id:'cl2',text:'Wash last cups',time:'23:00'},
     {id:'cl3',text:'Refill sugar/cream and get coffee ready for tomorrow',time:'23:00'},
+    {id:'cl_kasse',text:'Clean kasse',time:'23:00'},
     {id:'cl7',text:'Do Counter entry — do not forget to print/delete and finalize',time:'23:20'},
     {id:'cl8',text:'Do drinks and snacks calculation and insert in file',time:'23:30'},
     {id:'cl5',text:'Sweep floor last time if dirty',time:'23:30'},
@@ -942,7 +1065,6 @@ function renderChecklist(){
     let done=0;
 
     if(group==='day'){
-      // No checkboxes for throughout the day — just a reminder list
       items.forEach(item=>{
         const div=document.createElement('div');
         div.className='cl-item';
@@ -977,7 +1099,6 @@ function toggleCheck(id,checked){
   const state=loadChecklistState();
   state[id]=checked;
   saveChecklistState(state);
-  // Update item style without full re-render
   const labels=document.querySelectorAll('.cl-item');
   labels.forEach(l=>{
     const cb=l.querySelector('input[type=checkbox]');
@@ -985,16 +1106,16 @@ function toggleCheck(id,checked){
       l.classList.toggle('done',checked);
     }
   });
-  // Update counts
   renderChecklistCounts();
 }
 
 function renderChecklistCounts(){
   const state=loadChecklistState();
-  const groups={opening:'cl-opening-count',day:'cl-day-count',closing:'cl-closing-count'};
-  Object.entries(CHECKLIST).forEach(([group,items])=>{
+  const groups={opening:'cl-opening-count',closing:'cl-closing-count'};
+  Object.entries(groups).forEach(([group,countId])=>{
+    const items=CHECKLIST[group];
     const done=items.filter(i=>state[i.id]).length;
-    const el=document.getElementById(groups[group]);
+    const el=document.getElementById(countId);
     if(el)el.textContent=`${done}/${items.length}`;
   });
 }
@@ -1018,7 +1139,7 @@ function checkBetbooksAlert(){
   const el=document.getElementById('betbooks-alert');
   if(!el)return;
   const now=new Date();
-  const day=now.getDay(); // 1=Monday
+  const day=now.getDay();
   const date=now.getDate();
   const lastDay=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
   const isMonday=day===1;
@@ -1046,7 +1167,6 @@ function loadCoffeeTimer(){
 
 function coffeeTimerToggle(){
   if(_coffeeInterval){
-    // Stop
     clearInterval(_coffeeInterval);
     _coffeeInterval=null;
     _coffeeEnd=null;
@@ -1056,7 +1176,6 @@ function coffeeTimerToggle(){
     document.getElementById('coffee-timer-display').style.color='var(--accent)';
     updateCoffeeDisplay();
   } else {
-    // Start 2 hours
     _coffeeEnd=Date.now()+(2*60*60*1000);
     localStorage.setItem('ccc_coffee',JSON.stringify({end:_coffeeEnd}));
     startCoffeeInterval();
@@ -1078,7 +1197,6 @@ function startCoffeeInterval(){
       document.getElementById('coffee-timer-display').style.color='var(--green)';
       document.getElementById('coffee-timer-status').textContent='Coffee is ready!';
       document.getElementById('coffee-start-btn').textContent='Start Timer';
-      // Show modal notification
       showModal({icon:'☕',title:'Coffee Ready!',msg:'2 hours have passed. Time to make fresh coffee!',buttons:[{label:'Got it',style:'modal-btn-primary'}]});
       return;
     }
@@ -1115,17 +1233,3 @@ function coffeeTimerReset(){
   document.getElementById('coffee-timer-display').style.color='var(--accent)';
   updateCoffeeDisplay();
 }
-
-
-if(D.kfType){
-  _kfType=D.kfType;
-  document.querySelectorAll('#page-machines .type-sel.cols-3 .tsb').forEach(b=>b.classList.remove('on'));
-  const ab=document.getElementById('type-'+D.kfType);if(ab)ab.classList.add('on');
-  document.getElementById('kf-input-label').textContent={kr:'Win amount (kr)','1cr':'Credits on display','05cr':'Credits on display'}[D.kfType]||'Win amount (kr)';
-}
-selExFrom('cash');
-renderShiftInfo();renderHomeLog();renderExchangeList();renderCashpointList();renderAddList();renderKFLog();
-renderShopItems();renderShopLog();
-recalc();updateEstCalc();updateHomeEst();
-loadCoffeeTimer();
-checkBetbooksAlert();

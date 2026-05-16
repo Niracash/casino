@@ -54,7 +54,7 @@
     .hdr-pill.idle{background:var(--card2);color:var(--muted);border-color:var(--border)}
 
     .nav{position:fixed;bottom:0;left:0;right:0;height:calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));background:var(--surf);border-top:1px solid var(--border);display:flex;z-index:50;padding-bottom:env(safe-area-inset-bottom, 0px)}
-    .nb{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:var(--muted);border:none;background:none;cursor:pointer;font-size:.55rem;font-weight:600;padding-bottom:0;transition:color .2s;font-family:'Inter',sans-serif;letter-spacing:.4px;text-transform:uppercase}
+    .nb{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:var(--muted);border:none;background:none;cursor:pointer;font-size:.48rem;font-weight:600;padding-bottom:0;transition:color .2s;font-family:'Inter',sans-serif;letter-spacing:.4px;text-transform:uppercase}
     .nb.on{color:var(--accent)}
     .nb svg{width:20px;height:20px;stroke-width:1.7}
 
@@ -185,13 +185,6 @@
     input[type=number]:focus,input[type=text]:focus{border-color:var(--accent)}
     input[type=number]::placeholder,input[type=text]::placeholder{color:var(--muted)}
 
-    .est-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:13px 14px;margin-bottom:11px}
-    .est-title{font-size:.56rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1.1px;margin-bottom:10px}
-    .est-row{display:flex;justify-content:space-between;padding:5px 0;font-size:.81rem;border-bottom:1px solid var(--border)}
-    .est-row:last-child{border:none;padding-bottom:0}
-    .est-l{color:var(--sub)}
-    .est-v{font-weight:500;font-family:'JetBrains Mono',monospace;color:var(--text)}
-
     .cp-badge{display:inline-flex;align-items:center;font-size:.57rem;font-weight:700;padding:2px 7px;border-radius:999px;background:var(--purp-dim);color:var(--purple);border:1px solid var(--purp-mid);margin-left:5px;vertical-align:middle}
 
     /* ── Shop ── */
@@ -213,7 +206,6 @@
     .shop-start-row{display:flex;align-items:center;gap:8px}
     .shop-start-input{width:70px;background:var(--inp);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:.9rem;font-weight:600;padding:6px 8px;outline:none;text-align:center;font-family:'JetBrains Mono',monospace;-webkit-appearance:none;appearance:none}
     .shop-start-input:focus{border-color:var(--accent)}
-    .shop-revenue-hint{font-size:.7rem;color:var(--sub);margin-top:5px;line-height:1.6}
 
     /* ── Checklist ── */
     .checklist-group{display:flex;flex-direction:column;gap:5px}
@@ -224,5 +216,9 @@
     .cl-item.done .cl-item-text{color:var(--sub);text-decoration:line-through;text-decoration-color:var(--muted)}
     .cl-item-time{font-size:.68rem;color:var(--muted);flex-shrink:0;font-family:'JetBrains Mono',monospace}
 
-    /* ── Nav 5 items ── */
-    .nb{font-size:.48rem}
+    /* ── Pagination ── */
+    .log-pagination{display:flex;align-items:center;justify-content:space-between;padding:8px 4px;margin-top:4px;gap:8px}
+    .pag-btn{background:var(--card2);border:1px solid var(--border2);border-radius:8px;color:var(--sub);font-size:.72rem;font-weight:600;padding:6px 12px;cursor:pointer;font-family:'Inter',sans-serif;transition:all .15s}
+    .pag-btn:hover:not(:disabled){color:var(--accent);border-color:var(--accent-mid);background:var(--accent-dim)}
+    .pag-btn:disabled{opacity:.25;cursor:not-allowed}
+    .pag-info{font-size:.65rem;color:var(--muted);flex:1;text-align:center}

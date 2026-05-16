@@ -12,7 +12,6 @@
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icon-192.png">
   <style>
-    /* Hide app content instantly on mobile non-standalone */
     body.gate-active > *:not(#install-gate) { display: none !important; }
 
     #install-gate{
@@ -25,94 +24,22 @@
     }
     #install-gate.show{display:flex}
 
-    .ig-card{
-      width:100%;max-width:340px;
-      display:flex;flex-direction:column;align-items:center;
-    }
-    .ig-emoji{
-      font-size:52px;
-      margin-bottom:24px;
-      line-height:1;
-    }
-    .ig-title{
-      font-size:1.45rem;font-weight:800;
-      color:#ffffff;
-      margin-bottom:10px;
-      letter-spacing:-.4px;
-      line-height:1.2;
-    }
-    .ig-sub{
-      font-size:.88rem;
-      color:#9196b0;
-      line-height:1.65;
-      margin-bottom:36px;
-      max-width:260px;
-    }
-    .ig-steps{
-      width:100%;
-      display:flex;flex-direction:column;
-      gap:10px;
-      margin-bottom:32px;
-    }
-    .ig-step{
-      display:flex;align-items:center;gap:14px;
-      background:#1e2029;
-      border:1px solid #2a2d3e;
-      border-radius:14px;
-      padding:14px 16px;
-      text-align:left;
-    }
-    .ig-step-num{
-      width:30px;height:30px;border-radius:50%;
-      background:rgba(124,140,255,.15);
-      color:#7c8cff;
-      border:1.5px solid rgba(124,140,255,.3);
-      font-size:.75rem;font-weight:700;
-      display:flex;align-items:center;justify-content:center;
-      flex-shrink:0;
-    }
-    .ig-step-text{
-      font-size:.84rem;
-      color:#c8cbe0;
-      line-height:1.5;
-      font-weight:500;
-    }
-    .ig-step-text b{
-      color:#ffffff;
-      font-weight:700;
-    }
-    .ig-install-btn{
-      width:100%;
-      background:#7c8cff;
-      color:#fff;
-      border:none;
-      border-radius:14px;
-      padding:16px;
-      font-size:.95rem;
-      font-weight:700;
-      cursor:pointer;
-      font-family:inherit;
-      letter-spacing:-.1px;
-      transition:opacity .15s,transform .1s;
-    }
+    .ig-card{width:100%;max-width:340px;display:flex;flex-direction:column;align-items:center;}
+    .ig-emoji{font-size:52px;margin-bottom:24px;line-height:1;}
+    .ig-title{font-size:1.45rem;font-weight:800;color:#ffffff;margin-bottom:10px;letter-spacing:-.4px;line-height:1.2;}
+    .ig-sub{font-size:.88rem;color:#9196b0;line-height:1.65;margin-bottom:36px;max-width:260px;}
+    .ig-steps{width:100%;display:flex;flex-direction:column;gap:10px;margin-bottom:32px;}
+    .ig-step{display:flex;align-items:center;gap:14px;background:#1e2029;border:1px solid #2a2d3e;border-radius:14px;padding:14px 16px;text-align:left;}
+    .ig-step-num{width:30px;height:30px;border-radius:50%;background:rgba(124,140,255,.15);color:#7c8cff;border:1.5px solid rgba(124,140,255,.3);font-size:.75rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+    .ig-step-text{font-size:.84rem;color:#c8cbe0;line-height:1.5;font-weight:500;}
+    .ig-step-text b{color:#ffffff;font-weight:700;}
+    .ig-install-btn{width:100%;background:#7c8cff;color:#fff;border:none;border-radius:14px;padding:16px;font-size:.95rem;font-weight:700;cursor:pointer;font-family:inherit;letter-spacing:-.1px;transition:opacity .15s,transform .1s;}
     .ig-install-btn:active{transform:scale(.97);opacity:.9}
+
     /* ── Custom Modal ── */
-    #modal-overlay{
-      position:fixed;inset:0;z-index:10000;
-      background:rgba(0,0,0,.6);
-      display:none;align-items:center;justify-content:center;
-      padding:24px;
-      backdrop-filter:blur(4px);
-    }
+    #modal-overlay{position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;padding:24px;backdrop-filter:blur(4px);}
     #modal-overlay.show{display:flex}
-    #modal-box{
-      background:#1e2029;
-      border:1px solid #2a2d3e;
-      border-radius:18px;
-      padding:28px 24px 20px;
-      width:100%;max-width:320px;
-      animation:modalIn .2s cubic-bezier(.2,.8,.2,1);
-    }
+    #modal-box{background:#1e2029;border:1px solid #2a2d3e;border-radius:18px;padding:28px 24px 20px;width:100%;max-width:320px;animation:modalIn .2s cubic-bezier(.2,.8,.2,1);}
     @keyframes modalIn{from{opacity:0;transform:scale(.93)}to{opacity:1;transform:scale(1)}}
     #modal-icon{font-size:2rem;margin-bottom:14px;text-align:center}
     #modal-title{font-size:1rem;font-weight:700;color:#fff;margin-bottom:8px;text-align:center;line-height:1.3}
@@ -124,6 +51,13 @@
     .modal-btn-danger{background:#f06b6b22;color:#f06b6b;border:1px solid #f06b6b44}
     .modal-btn-ghost{background:#ffffff0f;color:#9196b0;border:1px solid #2a2d3e}
     .modal-btn-green{background:#3ecf8e22;color:#3ecf8e;border:1px solid #3ecf8e44}
+
+    /* Pagination */
+    .log-pagination{display:flex;align-items:center;justify-content:space-between;padding:8px 4px;margin-top:4px;gap:8px}
+    .pag-btn{background:var(--card2);border:1px solid var(--border2);border-radius:8px;color:var(--sub);font-size:.72rem;font-weight:600;padding:6px 12px;cursor:pointer;font-family:'Inter',sans-serif;transition:all .15s}
+    .pag-btn:hover:not(:disabled){color:var(--accent);border-color:var(--accent-mid);background:var(--accent-dim)}
+    .pag-btn:disabled{opacity:.25;cursor:not-allowed}
+    .pag-info{font-size:.65rem;color:var(--muted);flex:1;text-align:center}
   </style>
 </head>
 <body>
@@ -136,6 +70,36 @@
 
 <!-- ════ HOME ════ -->
 <div class="page on" id="page-home">
+
+  <!-- Exchange (quick access on home) -->
+  <div class="sec">Quick Exchange</div>
+  <div class="hint" style="margin-bottom:8px">Record what customer gives and what we give back.</div>
+
+  <div class="sec" style="margin-top:0;font-size:.5rem;color:var(--muted)">Customer gives</div>
+  <div class="type-sel cols-4 ex-from-buttons">
+    <button class="tsb on" id="ex-from-cash" onclick="selExFrom('cash')"><span class="tsi">💵</span>Cash</button>
+    <button class="tsb" id="ex-from-coin" onclick="selExFrom('coin')"><span class="tsi">💰</span>Mønt</button>
+    <button class="tsb" id="ex-from-pc" onclick="selExFrom('pc')"><span class="tsi">🪙</span>Playcoins</button>
+    <button class="tsb" id="ex-from-bank" onclick="selExFrom('bank')"><span class="tsi">💳</span>Bank</button>
+  </div>
+
+  <div class="fg">
+    <label class="fl">Amount (kr)</label>
+    <input type="number" class="ex-amt-input" id="ex-amt-home" placeholder="0" min="0" inputmode="numeric" oninput="exAmtInput()">
+  </div>
+
+  <div class="ex-hint-el hint" style="display:none"></div>
+
+  <div class="sec" style="margin-top:0;font-size:.5rem;color:var(--muted)">We give</div>
+  <div class="type-sel cols-3 ex-to-buttons">
+    <button class="tsb" id="ex-to-cash" onclick="selExTo('cash')"><span class="tsi">💵</span>Cash</button>
+    <button class="tsb" id="ex-to-coin" onclick="selExTo('coin')"><span class="tsi">💰</span>Mønt</button>
+    <button class="tsb on" id="ex-to-pc" onclick="selExTo('pc')"><span class="tsi">🪙</span>Playcoins</button>
+  </div>
+
+  <button class="btn btn-blue ex-save-btn" onclick="saveExchange()" style="margin-top:2px;margin-bottom:14px" disabled>Save Exchange</button>
+
+  <div class="divider" style="margin-top:2px"></div>
 
   <div class="sec">Expected Amounts</div>
   <div class="est-home">
@@ -182,7 +146,7 @@
   </div>
 
   <div class="breakdown" id="diff-breakdown">
-    <div class="brow"><span class="bl">Counter</span><span class="bv muted" id="db-phys">—</span></div>
+    <div class="brow"><span class="bl">vs. Start</span><span class="bv muted" id="db-phys">—</span></div>
     <div class="brow"><span class="bl">After all adjustments</span><span class="bv muted" id="db-adj">—</span></div>
     <div class="brow"><span class="bl">Fridge revenue</span><span class="bv muted" id="db-fridge">—</span></div>
   </div>
@@ -191,10 +155,17 @@
     ↺ Update Expected to Current Count
   </button>
 
-  <div class="sec">Today's Log <span class="sec-side" id="log-count-label"></span></div>
+  <div class="sec">Exchange Log <span class="sec-side" id="ex-count-label"></span></div>
+  <div class="log-list" id="ex-list">
+    <div class="empty" id="ex-empty"><div class="empty-ico">🔄</div>No exchanges yet</div>
+  </div>
+  <div id="ex-list-pagination"></div>
+
+  <div class="sec" style="margin-top:16px">Today's Log <span class="sec-side" id="log-count-label"></span></div>
   <div class="log-list" id="home-log">
     <div class="empty" id="home-log-empty"><div class="empty-ico">📋</div>No entries yet</div>
   </div>
+  <div id="home-log-pagination"></div>
 
 </div>
 
@@ -232,6 +203,7 @@
   <div class="mlog-list" id="kf-log-list">
     <div class="empty" id="kf-log-empty"><div class="empty-ico">🔑</div>No fillups saved</div>
   </div>
+  <div id="kf-log-pagination"></div>
 
   <div class="divider"></div>
 
@@ -245,6 +217,7 @@
   <div class="log-list" id="add-list">
     <div class="empty" id="add-empty"><div class="empty-ico">➕</div>No additions yet</div>
   </div>
+  <div id="add-list-pagination"></div>
 
 </div>
 
@@ -296,7 +269,7 @@
   <div class="hint">Record customer transactions — what they give, then what we give back.</div>
 
   <div class="sec" style="margin-top:0;font-size:.5rem;color:var(--muted)">Customer gives</div>
-  <div class="type-sel cols-4" id="ex-from-buttons">
+  <div class="type-sel cols-4 ex-from-buttons">
     <button class="tsb on" id="ex-from-cash" onclick="selExFrom('cash')"><span class="tsi">💵</span>Cash</button>
     <button class="tsb" id="ex-from-coin" onclick="selExFrom('coin')"><span class="tsi">💰</span>Mønt</button>
     <button class="tsb" id="ex-from-pc" onclick="selExFrom('pc')"><span class="tsi">🪙</span>Playcoins</button>
@@ -305,23 +278,23 @@
 
   <div class="fg">
     <label class="fl">Amount (kr)</label>
-    <input type="number" id="ex-amt" placeholder="0" min="0" inputmode="numeric" oninput="exCalc()">
+    <input type="number" class="ex-amt-input" id="ex-amt-shift" placeholder="0" min="0" inputmode="numeric" oninput="exAmtInput()">
   </div>
 
-  <div id="ex-hint" class="hint" style="display:none"></div>
+  <div class="ex-hint-el hint" style="display:none"></div>
 
   <div class="sec" style="margin-top:0;font-size:.5rem;color:var(--muted)">We give</div>
-  <div class="type-sel cols-3" id="ex-to-buttons">
+  <div class="type-sel cols-3 ex-to-buttons">
     <button class="tsb" id="ex-to-cash" onclick="selExTo('cash')"><span class="tsi">💵</span>Cash</button>
     <button class="tsb" id="ex-to-coin" onclick="selExTo('coin')"><span class="tsi">💰</span>Mønt</button>
     <button class="tsb on" id="ex-to-pc" onclick="selExTo('pc')"><span class="tsi">🪙</span>Playcoins</button>
   </div>
 
-  <button class="btn btn-blue" id="ex-save-btn" onclick="saveExchange()" style="margin-top:8px" disabled>Save Exchange</button>
+  <button class="btn btn-blue ex-save-btn" onclick="saveExchange()" style="margin-top:8px" disabled>Save Exchange</button>
 
-  <div class="sec" style="margin-top:18px">Exchange Log <span class="sec-side" id="ex-count-label"></span></div>
-  <div class="log-list" id="ex-list">
-    <div class="empty" id="ex-empty"><div class="empty-ico">🔄</div>No exchanges yet</div>
+  <div class="sec" style="margin-top:18px">Exchange Log <span class="sec-side" id="ex-count-label-shift"></span></div>
+  <div class="log-list" id="ex-list-shift">
+    <div class="empty"><div class="empty-ico">🔄</div>No exchanges yet</div>
   </div>
 
   <div class="divider"></div>
@@ -349,8 +322,10 @@
   <div class="log-list" id="cp-list">
     <div class="empty" id="cp-empty"><div class="empty-ico">🎲</div>No cashpoint entries</div>
   </div>
+  <div id="cp-list-pagination"></div>
 
-
+  <div style="margin-bottom:20px"></div>
+  <button class="btn btn-ghost" style="font-size:.75rem" onclick="generateShiftPDF()">📄 Download Shift Report</button>
 
 </div>
 
@@ -379,6 +354,7 @@
   <div class="log-list" id="shop-log">
     <div class="empty"><div class="empty-ico">🛒</div>No sales yet</div>
   </div>
+  <div id="shop-log-pagination"></div>
 
 </div>
 
@@ -444,6 +420,7 @@
     Checklist
   </button>
 </nav>
+
 <!-- Custom Modal -->
 <div id="modal-overlay">
   <div id="modal-box">
@@ -475,15 +452,12 @@
   const isAndroid = /android/i.test(navigator.userAgent);
   let deferredPrompt = null;
 
-  // Only hide gate if actually running as installed PWA (standalone mode)
-  // Browser tab on mobile = always show gate, even after installing
   if (!isStandalone && isMobile) {
     document.body.classList.add('gate-active');
     document.getElementById('install-gate').classList.add('show');
     if (isIOS && isSafari) {
       showIOSGate();
     } else if (isAndroid) {
-      // Show fallback steps immediately, swap to button if prompt fires
       showAndroidFallbackGate();
     }
   }
@@ -491,18 +465,9 @@
   function showIOSGate() {
     document.getElementById('ig-sub').textContent = 'Follow these steps in Safari:';
     document.getElementById('ig-steps').innerHTML = `
-      <div class="ig-step">
-        <div class="ig-step-num">1</div>
-        <div class="ig-step-text">Tap the <b>Share</b> button ↑ at the bottom of Safari</div>
-      </div>
-      <div class="ig-step">
-        <div class="ig-step-num">2</div>
-        <div class="ig-step-text">Scroll down and tap <b>Add to Home Screen</b></div>
-      </div>
-      <div class="ig-step">
-        <div class="ig-step-num">3</div>
-        <div class="ig-step-text">Tap <b>Add</b> in the top right corner</div>
-      </div>`;
+      <div class="ig-step"><div class="ig-step-num">1</div><div class="ig-step-text">Tap the <b>Share</b> button ↑ at the bottom of Safari</div></div>
+      <div class="ig-step"><div class="ig-step-num">2</div><div class="ig-step-text">Scroll down and tap <b>Add to Home Screen</b></div></div>
+      <div class="ig-step"><div class="ig-step-num">3</div><div class="ig-step-text">Tap <b>Add</b> in the top right corner</div></div>`;
   }
 
   function showAndroidGate() {
@@ -518,7 +483,6 @@
         deferredPrompt.prompt();
         const result = await deferredPrompt.userChoice;
         deferredPrompt = null;
-        // Don't hide gate — user must open from home screen
         if (result.outcome === 'accepted') {
           document.getElementById('ig-sub').textContent = 'App installed! Open Casino from your home screen.';
           document.getElementById('ig-steps').innerHTML = '';
@@ -532,21 +496,11 @@
   function showAndroidFallbackGate() {
     document.getElementById('ig-sub').textContent = 'Add Casino to your home screen using Chrome:';
     document.getElementById('ig-steps').innerHTML = `
-      <div class="ig-step">
-        <div class="ig-step-num">1</div>
-        <div class="ig-step-text">Tap the <b>⋮ menu</b> in the top right of Chrome</div>
-      </div>
-      <div class="ig-step">
-        <div class="ig-step-num">2</div>
-        <div class="ig-step-text">Tap <b>Add to Home screen</b></div>
-      </div>
-      <div class="ig-step">
-        <div class="ig-step-num">3</div>
-        <div class="ig-step-text">Tap <b>Add</b> to confirm</div>
-      </div>`;
+      <div class="ig-step"><div class="ig-step-num">1</div><div class="ig-step-text">Tap the <b>⋮ menu</b> in the top right of Chrome</div></div>
+      <div class="ig-step"><div class="ig-step-num">2</div><div class="ig-step-text">Tap <b>Add to Home screen</b></div></div>
+      <div class="ig-step"><div class="ig-step-num">3</div><div class="ig-step-text">Tap <b>Add</b> to confirm</div></div>`;
   }
 
-  // When Chrome fires install prompt, swap to install button
   window.addEventListener('beforeinstallprompt', e => {
     e.preventDefault();
     deferredPrompt = e;
