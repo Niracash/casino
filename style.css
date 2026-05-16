@@ -222,3 +222,40 @@
     .pag-btn:hover:not(:disabled){color:var(--accent);border-color:var(--accent-mid);background:var(--accent-dim)}
     .pag-btn:disabled{opacity:.25;cursor:not-allowed}
     .pag-info{font-size:.65rem;color:var(--muted);flex:1;text-align:center}
+
+    /* Section title — centred with side lines */
+    .sec-title{display:flex;align-items:center;gap:10px;margin:28px 0 12px;text-align:center}
+    .sec-title::before,.sec-title::after{content:'';flex:1;height:1px;background:var(--border2)}
+    .sec-title span{font-size:.68rem;font-weight:700;color:var(--sub);text-transform:uppercase;letter-spacing:1.4px;white-space:nowrap}
+    .sec-title:first-child{margin-top:0}
+
+    /* Caption (replaces boxed hints) */
+    .caption{font-size:.72rem;color:var(--muted);line-height:1.65;margin-bottom:12px;padding:0 1px}
+    .caption b{color:var(--sub)}
+
+    /* Inline hint — plain colored text, no box */
+    .ex-hint-el{font-size:.74rem;line-height:1.6;margin-bottom:10px;padding:0 1px;display:none}
+    .ex-hint-el.error{color:var(--red)}
+    .ex-hint-el.success{color:var(--green)}
+    .ex-hint-el.info{color:var(--blue)}
+    .ex-hint-el b{font-weight:700}
+
+    /* cp-hint plain text override */
+    #cp-hint{font-size:.74rem;line-height:1.6;margin-bottom:10px;padding:0 1px;background:none!important;border:none!important;border-radius:0!important;padding-left:0!important;padding-right:0!important}
+    #cp-hint.error{color:var(--red)}
+    #cp-hint.success{color:var(--green)}
+    #cp-hint.info{color:var(--blue)}
+    #cp-hint.cashpoint{color:var(--purple)}
+    #cp-hint b{font-weight:700;color:inherit}
+
+    /* Sub-label (Customer gives / We give) */
+    .sec-sub{font-size:.52rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin:10px 0 7px}
+
+    /* Fridge mini on home */
+    .fridge-mini{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:11px 14px;margin-bottom:10px}
+    .fridge-mini-row{display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:.8rem}
+    .fridge-mini-row+.fridge-mini-row{border-top:1px solid var(--border)}
+    .fridge-mini-l{color:var(--sub)}
+    .fridge-mini-v{font-family:'JetBrains Mono',monospace;font-weight:600;color:var(--green)}
+    .fridge-mini-total{display:flex;justify-content:space-between;align-items:center;padding-top:8px;margin-top:6px;border-top:1px solid var(--border2);font-size:.84rem;font-weight:700}
+    .fridge-mini-empty{font-size:.75rem;color:var(--muted);text-align:center;padding:6px 0}

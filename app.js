@@ -43,7 +43,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   selExFrom(_exFrom);
   renderShiftInfo();renderHomeLog();renderExchangeList();renderCashpointList();renderAddList();renderKFLog();
   renderShopItems();renderShopLog();
-  recalc();updateEstCalc();updateHomeEst();
+  recalc();updateEstCalc();updateHomeEst();renderHomeFridgeMini();
   loadCoffeeTimer();
   checkBetbooksAlert();
 });
@@ -52,9 +52,9 @@ function goPage(id,btn){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
   document.querySelectorAll('.nb').forEach(b=>b.classList.remove('on'));
   document.getElementById('page-'+id).classList.add('on');btn.classList.add('on');
-  if(id==='home'){recalc();renderHomeLog();renderExchangeList();}
+  if(id==='home'){recalc();renderHomeLog();renderExchangeList();renderHomeFridgeMini();}
   if(id==='machines'){renderKFLog();renderAddList();}
-  if(id==='shift'){renderShiftInfo();sPreview();renderExchangeList();renderCashpointList();updateEstCalc();exCalc();}
+  if(id==='shift'){renderShiftInfo();sPreview();renderCashpointList();updateEstCalc();}
   if(id==='shop'){renderShopItems();renderShopLog();}
   if(id==='checklist'){renderChecklist();}
 }
@@ -128,6 +128,24 @@ function getFridgeTotal(){
   return Object.entries(products).reduce((s,[id,price])=>s+(D.shop.sold[id]||0)*price,0);
 }
 
+function renderHomeFridgeMini(){
+  const el=document.getElementById('home-fridge-mini');
+  if(!el)return;
+  if(!D.shop||!D.shop.sold){el.innerHTML='<div class="fridge-mini-empty">No sales recorded yet</div>';return;}
+  const products={sodavand:{n:'Sodavand',p:10},redbull:{n:'Redbull',p:20},vand:{n:'Vand',p:5},bounty:{n:'Bounty',p:10},bueno:{n:'Bueno',p:10},mars:{n:'Mars',p:10},snickers:{n:'Snickers',p:10},pringles:{n:'Pringles',p:10},lighter:{n:'Lighter',p:10}};
+  const ICONS={sodavand:'🥤',redbull:'⚡',vand:'💧',bounty:'🍫',bueno:'🍫',mars:'🍫',snickers:'🍫',pringles:'🍟',lighter:'🔥'};
+  let total=0,html='';
+  Object.entries(products).forEach(([id,{n,p}])=>{
+    const sold=D.shop.sold[id]||0;
+    if(!sold)return;
+    const rev=sold*p;total+=rev;
+    html+=`<div class="fridge-mini-row"><span class="fridge-mini-l">${ICONS[id]} ${n} ×${sold}</span><span class="fridge-mini-v">${rev.toLocaleString('no-NO')} kr</span></div>`;
+  });
+  if(total===0){el.innerHTML='<div class="fridge-mini-empty">No sales recorded yet</div>';return;}
+  html+=`<div class="fridge-mini-total"><span style="color:var(--green)">Total</span><span style="font-family:'JetBrains Mono',monospace;color:var(--green)">${total.toLocaleString('no-NO')} kr</span></div>`;
+  el.innerHTML=html;
+}
+
 function updateHomeEst(){
   const exp=getExpected();
   const fridge=getFridgeTotal();
@@ -150,6 +168,7 @@ function updateHomeEst(){
 
   const lbl=document.getElementById('est-home-label');
   if(lbl)lbl.textContent=D.shift?'Based on start total + all transactions':'Set start of shift to see expected amounts';
+  renderHomeFridgeMini();
 }
 
 function updateHomeHints(){
@@ -227,7 +246,7 @@ function recalc(){
     // Pure accounting match (no fridge needed) - allow update
     db.className='diff ok';
     if(fridge>0){
-      dv.innerHTML='0 kr <span style="color:var(--sub);font-size:.75rem">w/o fridge</span>';
+      dv.innerHTML='0 kr <span style="color:var(--sub);font-size:.75rem">without fridge</span>';
       ds.textContent='Drawer matches expected (excluding fridge revenue)';
     } else {
       dv.innerHTML='0 kr';
@@ -237,21 +256,20 @@ function recalc(){
     ba.textContent='0 kr ✓';ba.className='bv green';
     if(updBtn){updBtn.style.display='';updBtn.disabled=false;}
   } else if(absDiffWithFridge<1){
-    // Only matches when including fridge revenue - show "balanced with fridge" but warn
+    // Only matches when including fridge revenue
     db.className='diff ok';
-    dv.innerHTML=`<span style="font-size:1.3rem">0 kr</span> <span style="color:var(--green);font-size:.72rem">w/ fridge</span>`;
+    dv.innerHTML=`<span style="font-size:1.3rem">0 kr</span> <span style="color:var(--green);font-size:.72rem">with fridge</span>`;
     ds.textContent=`Off by ${fmt(absDiffNoFridge)} without fridge · +${fridge.toLocaleString('no-NO')} kr fridge brings it to zero`;
-    hp.className='hdr-pill ok';hp.textContent='Balanced w/ fridge ✓';
+    hp.className='hdr-pill ok';hp.textContent='Balanced with fridge ✓';
     ba.innerHTML=`<span style="color:var(--sub);font-size:.8rem">−${fmt(absDiffNoFridge)}</span> <span style="color:var(--green);font-size:.75rem">(+fridge: 0)</span>`;
     ba.className='bv';
-    // Don't allow update — drawer includes fridge money, not a pure accounting match
     if(updBtn){updBtn.style.display='none';}
   } else {
     db.className='diff off';
     const showVal=diffNoFridge;
     dv.innerHTML=(showVal>0?'+':'−')+fmt(showVal);
     let subText=(showVal>0?'Over by ':'Short by ')+fmt(showVal)+' · expected '+fmt(expected);
-    if(fridge>0) subText+=` · w/ fridge: ${diffWithFridge>0?'+':'−'}${fmt(diffWithFridge)}`;
+    if(fridge>0) subText+=` · with fridge: ${diffWithFridge>0?'+':'−'}${fmt(diffWithFridge)}`;
     ds.textContent=subText;
     hp.className='hdr-pill off';hp.textContent='Off '+fmt(absDiffNoFridge);
     ba.textContent=(showVal>0?'+':'−')+fmt(showVal);ba.className=showVal>0?'bv green':'bv red';
@@ -417,13 +435,39 @@ function renderLogPagination(containerId,currentPage,totalPages,totalItems,onPag
 }
 
 function delFillup(i){
-  Object.keys(_checkStates).forEach(k=>{if(k.startsWith(i+'_'))delete _checkStates[k];});
-  _saveChecks();
-  D.fillups.splice(i,1);saveState();renderHomeLog();renderKFLog();recalc();updateEstCalc();
+  showModal({title:'Remove entry',msg:'Are you sure you want to remove this fillup? This will affect the calculation.',buttons:[
+    {label:'Cancel',style:'modal-btn-ghost'},
+    {label:'Remove',style:'modal-btn-danger',action:()=>{
+      Object.keys(_checkStates).forEach(k=>{if(k.startsWith(i+'_'))delete _checkStates[k];});
+      _saveChecks();
+      D.fillups.splice(i,1);saveState();renderHomeLog();renderKFLog();recalc();updateEstCalc();
+    }}
+  ]});
 }
-function delExchange(i){D.exchanges.splice(i,1);saveState();renderHomeLog();renderExchangeList();recalc();updateEstCalc();}
-function delCashpoint(i){D.cashpoints.splice(i,1);saveState();renderHomeLog();renderCashpointList();recalc();updateEstCalc();}
-function delAddition(i){D.additions.splice(i,1);saveState();renderHomeLog();renderAddList();recalc();updateEstCalc();}
+function delExchange(i){
+  showModal({title:'Remove entry',msg:'Are you sure you want to remove this exchange? This will affect the calculation.',buttons:[
+    {label:'Cancel',style:'modal-btn-ghost'},
+    {label:'Remove',style:'modal-btn-danger',action:()=>{
+      D.exchanges.splice(i,1);saveState();renderHomeLog();renderExchangeList();recalc();updateEstCalc();
+    }}
+  ]});
+}
+function delCashpoint(i){
+  showModal({title:'Remove entry',msg:'Are you sure you want to remove this cashpoint entry? This will affect the calculation.',buttons:[
+    {label:'Cancel',style:'modal-btn-ghost'},
+    {label:'Remove',style:'modal-btn-danger',action:()=>{
+      D.cashpoints.splice(i,1);saveState();renderHomeLog();renderCashpointList();recalc();updateEstCalc();
+    }}
+  ]});
+}
+function delAddition(i){
+  showModal({title:'Remove entry',msg:'Are you sure you want to remove this addition? This will affect the calculation.',buttons:[
+    {label:'Cancel',style:'modal-btn-ghost'},
+    {label:'Remove',style:'modal-btn-danger',action:()=>{
+      D.additions.splice(i,1);saveState();renderHomeLog();renderAddList();recalc();updateEstCalc();
+    }}
+  ]});
+}
 
 let _exFrom='cash',_exTo='pc';
 const EXCHANGE_RULES={
@@ -459,29 +503,27 @@ function selExTo(type){
 }
 
 function exCalc(){
-  // Support multiple instances (home page + shift page)
   const amtInputs=document.querySelectorAll('.ex-amt-input');
   const amt=parseFloat(amtInputs[0]?amtInputs[0].value:0)||0;
   document.querySelectorAll('.ex-hint-el').forEach(hint=>{
-    const saveBtn=hint.parentElement.querySelector('.ex-save-btn')||document.querySelector('.ex-save-btn');
     const rules=EXCHANGE_RULES[_exFrom];
     if(rules.validate&&!rules.validate(amt)){
-      if(amt>0){hint.className='hint error';hint.innerHTML=`<b>Error:</b> ${rules.validateMsg}`;hint.style.display='';}
+      if(amt>0){hint.className='ex-hint-el error';hint.innerHTML=`<b>Error:</b> ${rules.validateMsg}`;hint.style.display='block';}
       else hint.style.display='none';
       document.querySelectorAll('.ex-save-btn').forEach(b=>b.disabled=true);return;
     }
     if(amt<=0){hint.style.display='none';document.querySelectorAll('.ex-save-btn').forEach(b=>b.disabled=true);return;}
 
     if(_exFrom==='cash'&&_exTo==='coin'){
-      hint.className='hint info';hint.style.display='';
-      hint.innerHTML=`Give customer: <b>${fmt(amt)}</b> in coins (mønt)`;
+      hint.className='ex-hint-el info';hint.style.display='block';
+      hint.innerHTML=`Give customer <b>${fmt(amt)}</b> in coins (mønt)`;
     } else if(_exFrom==='pc'&&_exTo==='cash'){
       const cp=Math.floor(amt/50)*50,cn=amt-cp;
-      hint.className='hint success';hint.style.display='';
-      hint.innerHTML=cn>0?`Give customer: <b>${fmt(cp)}</b> cash + <b>${fmt(cn)}</b> mønt`:`Give customer: <b>${fmt(cp)}</b> cash`;
+      hint.className='ex-hint-el success';hint.style.display='block';
+      hint.innerHTML=cn>0?`Give customer <b>${fmt(cp)}</b> cash + <b>${fmt(cn)}</b> mønt`:`Give customer <b>${fmt(cp)}</b> cash`;
     } else if(_exTo==='pc'){
       const pcAmt=Math.floor(amt/20)*20,change=amt-pcAmt;
-      if(change>0){hint.className='hint info';hint.style.display='';hint.innerHTML=`Give <b>${fmt(pcAmt)}</b> playcoins + <b>${fmt(change)}</b> change back`;}
+      if(change>0){hint.className='ex-hint-el info';hint.style.display='block';hint.innerHTML=`Give <b>${fmt(pcAmt)}</b> playcoins + <b>${fmt(change)}</b> change back`;}
       else hint.style.display='none';
     } else hint.style.display='none';
     document.querySelectorAll('.ex-save-btn').forEach(b=>b.disabled=false);
@@ -532,18 +574,18 @@ function cpCalc(){
   const amt=parseFloat(raw)||0;
   const hint=document.getElementById('cp-hint'),saveBtn=document.getElementById('cp-save-btn');
   if(amt<0 && _cpFrom==='bank'){
-    hint.className='hint error';hint.innerHTML='<b>Cannot withdraw from bank</b> — switch to Cash to record a withdrawal.';hint.style.display='';
+    hint.className='error';hint.innerHTML='<b>Cannot withdraw from bank</b> — switch to Cash to record a withdrawal.';hint.style.display='block';
     saveBtn.disabled=true;return;
   }
   const absAmt=Math.abs(amt);
   if(absAmt<20){
-    if(absAmt>0){hint.className='hint error';hint.innerHTML='<b>Minimum:</b> 20 kr';hint.style.display='';}
+    if(absAmt>0){hint.className='error';hint.innerHTML='<b>Minimum:</b> 20 kr';hint.style.display='block';}
     else hint.style.display='none';
     saveBtn.disabled=true;return;
   }
   const fl=_cpFrom==='bank'?'Bank/Card':'Cash';
   if(amt>0){
-    hint.className='hint cashpoint';hint.style.display='';
+    hint.style.display='block';
     if(_cpFrom==='cash'){
       const cashPart=Math.floor(amt/50)*50;
       const coinPart=amt-cashPart;
@@ -551,12 +593,12 @@ function cpCalc(){
       if(cashPart>0&&coinPart>0) splitStr=` → <b>${fmt(cashPart)}</b> cash + <b>${fmt(coinPart)}</b> mønt`;
       else if(cashPart>0) splitStr=` → <b>${fmt(cashPart)}</b> cash`;
       else splitStr=` → <b>${fmt(coinPart)}</b> mønt`;
-      hint.innerHTML=`Customer deposited <b>+${fmt(amt)}</b> via <b>Cash</b>${splitStr}`;
+      hint.className='cashpoint';hint.innerHTML=`Customer deposited <b>+${fmt(amt)}</b> via <b>Cash</b>${splitStr}`;
     } else {
-      hint.innerHTML=`Customer deposited <b>+${fmt(amt)}</b> via <b>${fl}</b>. Adding to expected ${_cpFrom} balance.`;
+      hint.className='cashpoint';hint.innerHTML=`Customer deposited <b>+${fmt(amt)}</b> via <b>${fl}</b>. Adding to expected ${_cpFrom} balance.`;
     }
   } else {
-    hint.className='hint info';hint.style.display='';
+    hint.className='info';hint.style.display='block';
     hint.innerHTML=`Customer withdrew <b>${fmt(absAmt)}</b> from cashpoint in <b>Cash</b>. Subtracting from expected cash.`;
   }
   saveBtn.disabled=false;
@@ -909,6 +951,7 @@ function _doShopSell(id, delta){
   saveState();
   renderShopItems();
   renderShopLog();
+  renderHomeFridgeMini();
 }
 
 function shopSell(id, delta){
