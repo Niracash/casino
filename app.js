@@ -493,7 +493,7 @@ let _exFrom='cash',_exTo='pc';
 const EXCHANGE_RULES={
   cash:{canGive:['pc','coin'],label:'Cash',validate:v=>v%50===0&&v>0,validateMsg:'Cash must be in multiples of 50 kr (notes only)'},
   coin:{canGive:['pc','cash'],label:'Mønt'},
-  pc:{canGive:['pc','cash','coin'],label:'Playcoins',validate:v=>v%20===0&&v>0,validateMsg:'Playcoins must be multiples of 20 kr'},
+  pc:{canGive:['cash','coin'],label:'Playcoins',validate:v=>v%20===0&&v>0,validateMsg:'Playcoins must be multiples of 20 kr'},
   bank:{canGive:['pc','cash','coin'],label:'Bank'}
 };
 
@@ -542,9 +542,9 @@ function exCalc(){
       const change=amt-pcAmt;
       hint.className='ex-hint-el success';hint.style.display='block';
       if(change>0){
-        hint.innerHTML=`Give <b>${fmt(pcAmt)}</b> playcoins + <b>${fmt(change)}</b> coin change back · +${fmt(amt)} cash, −${fmt(pcAmt)} pc, −${fmt(change)} mønt`;
+        hint.innerHTML=`Give <b>${fmt(pcAmt)}</b> playcoins + <b>${fmt(change)}</b> coin change back`;
       } else {
-        hint.innerHTML=`Give customer <b>${fmt(pcAmt)}</b> playcoins · +${fmt(amt)} cash, −${fmt(pcAmt)} pc`;
+        hint.innerHTML=`Give customer <b>${fmt(pcAmt)}</b> playcoins`;
       }
     } else if(_exFrom==='pc'&&_exTo==='cash'){
       const cp=Math.floor(amt/50)*50,cn=amt-cp;
