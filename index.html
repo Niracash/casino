@@ -74,9 +74,9 @@
   <div class="ex-hint-el"></div>
   <div class="sec-sub">We give</div>
   <div class="type-sel cols-3 ex-to-buttons">
+    <button class="tsb on" id="ex-to-pc" onclick="selExTo('pc')"><span class="tsi">🪙</span>Playcoins</button>
     <button class="tsb" id="ex-to-cash" onclick="selExTo('cash')"><span class="tsi">💵</span>Cash</button>
     <button class="tsb" id="ex-to-coin" onclick="selExTo('coin')"><span class="tsi">💰</span>Mønt</button>
-    <button class="tsb on" id="ex-to-pc" onclick="selExTo('pc')"><span class="tsi">🪙</span>Playcoins</button>
   </div>
   <button class="btn btn-blue ex-save-btn" onclick="saveExchange()" style="margin-top:2px" disabled>Save Exchange</button>
 
@@ -242,7 +242,7 @@
   </div>
 
   <div class="sec-title"><span>Cashpoint</span></div>
-  <p class="caption">Customer bets at the counter and pays with bank or cash. No payout to customer. Min. 20 kr.</p>
+  <p class="caption">Customer bets at the counter and pays with bank or cash. Enter the amount shown in the Cashpoint system. No payout to customer. Min. 20 kr.</p>
 
   <div class="sec-sub">Customer paid with</div>
   <div class="type-sel cols-2" id="cp-from-buttons">
@@ -265,6 +265,49 @@
   <div style="margin-top:24px">
     <button class="btn btn-ghost" style="font-size:.75rem" onclick="generateShiftPDF()">📄 Download Shift Report</button>
   </div>
+
+  <!-- WINNER SECTION -->
+  <div class="sec-title" style="margin-top:32px"><span>Winner Report</span></div>
+  <p class="caption">Fill in the details and tap Send — it will open in your mail app ready to send.</p>
+
+  <div class="fg">
+    <label class="fl">Amount won (kr)</label>
+    <input type="number" id="w-amount" placeholder="e.g. 20000" inputmode="numeric">
+  </div>
+  <div class="fg">
+    <label class="fl">Machine number</label>
+    <input type="text" id="w-machine-nr" placeholder="e.g. 4">
+  </div>
+  <div class="fg">
+    <label class="fl">Machine ID</label>
+    <input type="text" id="w-machine-id" placeholder="e.g. EAC7">
+  </div>
+  <div class="fg">
+    <label class="fl">Machine name</label>
+    <input type="text" id="w-machine-name" placeholder="e.g. Gamblify Online (Det store kup)">
+  </div>
+  <div class="fg">
+    <label class="fl">Shop / Location</label>
+    <input type="text" id="w-shop" placeholder="e.g. Hvidovrevej 253">
+  </div>
+  <div class="fg">
+    <label class="fl">Date</label>
+    <input type="text" id="w-date" placeholder="e.g. 10.4.2026">
+  </div>
+
+  <div class="fg">
+    <label class="fl">Photo (optional)</label>
+    <div id="w-photo-area" style="border:1px dashed var(--border2);border-radius:var(--rs);padding:16px;text-align:center;cursor:pointer;background:var(--inp);transition:border-color .2s" onclick="document.getElementById('w-photo-input').click()">
+      <div id="w-photo-placeholder" style="font-size:.8rem;color:var(--muted)">Tap to attach photo</div>
+      <img id="w-photo-preview" style="display:none;max-width:100%;border-radius:6px;margin-top:8px" alt="preview">
+      <input type="file" id="w-photo-input" accept="image/*" capture="environment" style="display:none" onchange="winnerPhotoSelected(this)">
+    </div>
+    <div id="w-photo-name" style="font-size:.68rem;color:var(--sub);margin-top:4px"></div>
+  </div>
+
+  <button class="btn btn-primary" onclick="sendWinnerEmail()" style="margin-top:4px">Open in Mail App</button>
+
+  <div style="margin-bottom:8px"></div>
 
 </div>
 
