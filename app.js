@@ -78,8 +78,9 @@ function getExpected(){
   D.additions.forEach(a=>{if(a.type==='cash')cash+=a.amount;else if(a.type==='playcoin')pc+=a.amount;});
   D.exchanges.forEach(e=>{
     if(e.from==='cash'&&e.to==='coin'){
-      // cash→mønt: cash out, coin in (all of it)
-      cash-=e.amount; coin+=e.amount; return;
+      // Customer gives cash notes, we give mønt back:
+      // cash drawer IN (+), mønt drawer OUT (−)
+      cash+=e.amount; coin-=e.amount; return;
     }
     if(e.from==='cash'&&e.to==='pc'){
       // cash notes come IN, playcoins go OUT, coin change goes OUT to customer
@@ -551,7 +552,7 @@ function exCalc(){
 
     if(_exFrom==='cash'&&_exTo==='coin'){
       hint.className='ex-hint-el info';hint.style.display='block';
-      hint.innerHTML=`Give customer <b>${fmt(amt)}</b> in coins (mønt)`;
+      hint.innerHTML=`Give customer <b>${fmt(amt)}</b> in coins (mønt) · +${fmt(amt)} cash, −${fmt(amt)} mønt`;
     } else if(_exFrom==='cash'&&_exTo==='pc'){
       const pcAmt=Math.floor(amt/20)*20;
       const change=amt-pcAmt;
