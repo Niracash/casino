@@ -183,10 +183,14 @@ function updateHomeHints(){
 function fillExpectedIntoCount(){
   if(!D.shift)return;
   const exp=getExpected();
-  // Only fill if all inputs are currently empty
-  const allEmpty=['h-coin','h-cash','h-pc','h-bank'].every(id=>!document.getElementById(id).value);
-  if(!allEmpty)return;
-  const set=(id,v)=>{if(Math.round(v)>0)document.getElementById(id).value=Math.round(v);};
+  // Always sync inputs to current expected (without fridge)
+  const set=(id,v)=>{
+    const el=document.getElementById(id);
+    if(!el)return;
+    const rounded=Math.round(v);
+    // Only update if the user hasn't manually diverged (i.e. value matches old expected or is empty)
+    el.value=rounded>0?rounded:'';
+  };
   set('h-coin',exp.coin);
   set('h-cash',exp.cash);
   set('h-pc',exp.pc);
@@ -456,7 +460,7 @@ function delFillup(i){
       auditLog('delete','fillup',D.fillups[i]);
       Object.keys(_checkStates).forEach(k=>{if(k.startsWith(i+'_'))delete _checkStates[k];});
       _saveChecks();
-      D.fillups.splice(i,1);saveState();renderHomeLog();renderKFLog();recalc();updateEstCalc();
+      D.fillups.splice(i,1);saveState();renderHomeLog();renderKFLog();recalc();updateEstCalc();fillExpectedIntoCount();
     }}
   ]});
 }
@@ -465,7 +469,7 @@ function delExchange(i){
     {label:'Cancel',style:'modal-btn-ghost'},
     {label:'Remove',style:'modal-btn-danger',action:()=>{
       auditLog('delete','exchange',D.exchanges[i]);
-      D.exchanges.splice(i,1);saveState();renderHomeLog();renderExchangeList();recalc();updateEstCalc();
+      D.exchanges.splice(i,1);saveState();renderHomeLog();renderExchangeList();recalc();updateEstCalc();fillExpectedIntoCount();
     }}
   ]});
 }
@@ -474,7 +478,7 @@ function delCashpoint(i){
     {label:'Cancel',style:'modal-btn-ghost'},
     {label:'Remove',style:'modal-btn-danger',action:()=>{
       auditLog('delete','cashpoint',D.cashpoints[i]);
-      D.cashpoints.splice(i,1);saveState();renderHomeLog();renderCashpointList();recalc();updateEstCalc();
+      D.cashpoints.splice(i,1);saveState();renderHomeLog();renderCashpointList();recalc();updateEstCalc();fillExpectedIntoCount();
     }}
   ]});
 }
@@ -483,7 +487,7 @@ function delAddition(i){
     {label:'Cancel',style:'modal-btn-ghost'},
     {label:'Remove',style:'modal-btn-danger',action:()=>{
       auditLog('delete','addition',D.additions[i]);
-      D.additions.splice(i,1);saveState();renderHomeLog();renderAddList();recalc();updateEstCalc();
+      D.additions.splice(i,1);saveState();renderHomeLog();renderAddList();recalc();updateEstCalc();fillExpectedIntoCount();
     }}
   ]});
 }
@@ -599,7 +603,7 @@ function saveExchange(){
   document.querySelectorAll('.ex-save-btn').forEach(btn=>btn.disabled=true);
   // Audit last pushed exchange(s)
   D.exchanges.slice(-2).forEach(e=>auditLog('add','exchange',e));
-  renderExchangeList();renderHomeLog();recalc();updateEstCalc();
+  renderExchangeList();renderHomeLog();recalc();updateEstCalc();fillExpectedIntoCount();
 }
 
 let _cpFrom='bank';
@@ -650,12 +654,12 @@ function saveCashpoint(){
   if(amt<0&&_cpFrom==='bank')return flash('cp-amt');
   D.cashpoints.push({from:_cpFrom,amount:amt,date:nowFull(),ts:Date.now()});saveState();
   document.getElementById('cp-amt').value='';document.getElementById('cp-hint').style.display='none';document.getElementById('cp-save-btn').disabled=true;
-  renderCashpointList();renderHomeLog();recalc();updateEstCalc();
+  renderCashpointList();renderHomeLog();recalc();updateEstCalc();fillExpectedIntoCount();
 }
 
 function doAdd(type){
   D.additions.push({type,amount:10000,date:nowFull(),ts:Date.now()});saveState();
-  renderAddList();renderHomeLog();recalc();updateEstCalc();updateHomeEst();
+  renderAddList();renderHomeLog();recalc();updateEstCalc();updateHomeEst();fillExpectedIntoCount();
   const btn=event.currentTarget,orig=btn.innerHTML;
   btn.innerHTML='✓ Added!';btn.style.opacity='.6';
   setTimeout(()=>{btn.innerHTML=orig;btn.style.opacity='';},1300);
@@ -706,7 +710,7 @@ function saveKF(){
   coins=Math.ceil(Math.floor(kr/20)/5)*5||5;
   D.fillups.push({machine,type:_kfType,inputVal:raw,kr,coins,date:nowFull(),ts:Date.now()});saveState();
   document.getElementById('kf-val').value='';document.getElementById('kf-res').style.display='none';document.getElementById('kf-save-btn').disabled=true;
-  renderKFLog();renderHomeLog();recalc();updateEstCalc();updateHomeEst();
+  renderKFLog();renderHomeLog();recalc();updateEstCalc();updateHomeEst();fillExpectedIntoCount();
   const btn=document.getElementById('kf-save-btn');
   btn.innerHTML='✓ Saved!';btn.style.opacity='.6';setTimeout(()=>{btn.innerHTML='Save Fillup';btn.style.opacity='';},1500);
 }
@@ -1376,20 +1380,6 @@ document.addEventListener('DOMContentLoaded',()=>{
   if(dateEl&&!dateEl.value) dateEl.value=nowDate();
 });
 
-function winnerPhotoSelected(input){
-  const file=input.files[0];
-  if(!file)return;
-  document.getElementById('w-photo-name').textContent=file.name;
-  const reader=new FileReader();
-  reader.onload=e=>{
-    const preview=document.getElementById('w-photo-preview');
-    preview.src=e.target.result;
-    preview.style.display='block';
-    document.getElementById('w-photo-placeholder').style.display='none';
-  };
-  reader.readAsDataURL(file);
-}
-
 function sendWinnerEmail(){
   const amount=document.getElementById('w-amount').value.trim();
   const machineNr=document.getElementById('w-machine-nr').value.trim();
@@ -1402,23 +1392,21 @@ function sendWinnerEmail(){
   if(!machineNr){flash('w-machine-nr');return;}
   if(!shop){flash('w-shop');return;}
 
-  const amountFmt=parseInt(amount).toLocaleString('no-NO');
-  const subject=`Vi har en gevinst på ${amountFmt}+ kr - ${shop}`;
+  // No thousands separator — plain number
+  const amountNum=parseInt(amount);
+  const subject=`Vi har en gevinst på ${amountNum}+ kr - ${shop}`;
 
-  const body=`Kære cashino,\nVi har en gevinst på ${amountFmt}+ kr men jeg skulle keyfillup efter kunden har udbetalt, derfor har jeg billede af beløbet.\n\nButik: ${shop}\nBeløb: ${amountFmt}+\nDato: ${date}\nMaskin nummer: ${machineNr}${machineId?'\nMaskin id: '+machineId:''}${machineName?'\nMaskin navn: '+machineName:''}\n\nMed venlig hilsen`;
+  const body=`Kære Casino,
+
+Vi har en gevinst på ${amountNum}+ kr i dag.
+
+Butik: ${shop}
+Beløb: ${amountNum}+
+Dato: ${date}
+Maskin nummer: ${machineNr}${machineId?'\nMaskin id: '+machineId:''}${machineName?'\nMaskin navn: '+machineName:''}
+
+Med venlig hilsen`;
 
   const mailto=`mailto:kundeservice@casinohouse.dk?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   window.location.href=mailto;
-
-  // Note about photo — mailto can't attach files, so we inform the user
-  const photoInput=document.getElementById('w-photo-input');
-  if(photoInput&&photoInput.files&&photoInput.files[0]){
-    setTimeout(()=>{
-      showModal({
-        title:'Remember to attach the photo',
-        msg:'The email has been opened. Please manually attach the machine photo before sending — it cannot be added automatically.',
-        buttons:[{label:'Got it',style:'modal-btn-primary'}]
-      });
-    },800);
-  }
 }
