@@ -1,8 +1,8 @@
-let D={shift:null,exchanges:[],cashpoints:[],fillups:[],additions:[],auditLog:[],inputs:{home:{},shift:{},machines:{}},kfType:'kr'};
+let D={shift:null,exchanges:[],cashpoints:[],fillups:[],additions:[],auditLog:[],history:[],inputs:{home:{},shift:{},machines:{}},kfType:'kr'};
 
 function loadState(){
   const raw=localStorage.getItem('ccc_v5');
-  if(raw){const l=JSON.parse(raw);D={...D,...l};if(!D.inputs)D.inputs={home:{},shift:{},machines:{}};if(!D.exchanges)D.exchanges=[];if(!D.cashpoints)D.cashpoints=[];if(!D.auditLog)D.auditLog=[];}
+  if(raw){const l=JSON.parse(raw);D={...D,...l};if(!D.inputs)D.inputs={home:{},shift:{},machines:{}};if(!D.exchanges)D.exchanges=[];if(!D.cashpoints)D.cashpoints=[];if(!D.auditLog)D.auditLog=[];if(!D.history)D.history=[];}
 }
 function saveState(){localStorage.setItem('ccc_v5',JSON.stringify(D));}
 
@@ -298,10 +298,29 @@ function updateExpectedFromCount(){
   const exp=getExpected();
   const diff=Math.abs(Math.round((coin+cash+pc+bank)-exp.total));
   if(diff>=1)return;
-  // Update shift baseline only — all transaction logs stay intact
+
+  // Archive current transactions into history so the shift report keeps them
+  if(!D.history)D.history=[];
+  const snapshot={
+    date: nowFull(),
+    previousBaseline: {coin:D.shift.coin,cash:D.shift.cash,pc:D.shift.pc,bank:D.shift.bank,total:D.shift.total},
+    exchanges:[...D.exchanges],
+    cashpoints:[...D.cashpoints],
+    fillups:[...D.fillups],
+    additions:[...D.additions],
+  };
+  D.history.push(snapshot);
+
+  // Update shift baseline to the current physical count
   D.shift.coin=coin;D.shift.cash=cash;D.shift.pc=pc;D.shift.bank=bank;
   D.shift.total=coin+cash+pc+bank;
+
+  // Clear live transactions — they're now baked into the new baseline
+  D.exchanges=[];D.cashpoints=[];D.fillups=[];D.additions=[];
+  D.inputs.home={};
+
   saveState();
+  ['h-coin','h-cash','h-pc','h-bank'].forEach(id=>document.getElementById(id).value='');
   fillExpectedIntoCount();
   document.getElementById('update-expected-btn').style.display='none';
   renderHomeLog();renderKFLog();renderAddList();renderExchangeList();
@@ -796,11 +815,21 @@ function generateShiftPDF(){
   const fridgeCash=Math.floor(fridge/50)*50;
   const fridgeCoin=fridge-fridgeCash;
 
+  // Collect all transactions: current + any archived history snapshots
+  const historyEntries=[];
+  (D.history||[]).forEach(snap=>{
+    snap.fillups&&snap.fillups.forEach(x=>historyEntries.push({type:'fillup',ts:x.ts||0,data:x,archived:true}));
+    snap.additions&&snap.additions.forEach(x=>historyEntries.push({type:'addition',ts:x.ts||0,data:x,archived:true}));
+    snap.cashpoints&&snap.cashpoints.forEach(x=>historyEntries.push({type:'cashpoint',ts:x.ts||0,data:x,archived:true}));
+    snap.exchanges&&snap.exchanges.forEach(x=>historyEntries.push({type:'exchange',ts:x.ts||0,data:x,archived:true}));
+  });
+
   const all=[
-    ...D.fillups.map((x,i)=>({type:'fillup',ts:x.ts||0,data:x})),
-    ...D.additions.map((x,i)=>({type:'addition',ts:x.ts||0,data:x})),
-    ...D.cashpoints.map((x,i)=>({type:'cashpoint',ts:x.ts||0,data:x})),
-    ...D.exchanges.map((x,i)=>({type:'exchange',ts:x.ts||0,data:x})),
+    ...historyEntries,
+    ...D.fillups.map(x=>({type:'fillup',ts:x.ts||0,data:x})),
+    ...D.additions.map(x=>({type:'addition',ts:x.ts||0,data:x})),
+    ...D.cashpoints.map(x=>({type:'cashpoint',ts:x.ts||0,data:x})),
+    ...D.exchanges.map(x=>({type:'exchange',ts:x.ts||0,data:x})),
   ].sort((a,b)=>a.ts-b.ts);
 
   const CAT={cash:'Cash',pc:'Playcoins',coin:'Mønt',bank:'Bank'};
@@ -918,7 +947,7 @@ function confirmReset(){
 }
 
 function doReset(){
-  D={shift:null,exchanges:[],cashpoints:[],fillups:[],additions:[],auditLog:[],shop:{starts:{},sold:{},log:[]},inputs:{home:{},shift:{},machines:{}},kfType:'kr'};
+  D={shift:null,exchanges:[],cashpoints:[],fillups:[],additions:[],auditLog:[],history:[],shop:{starts:{},sold:{},log:[]},inputs:{home:{},shift:{},machines:{}},kfType:'kr'};
   _homeLogPage=0;_exListPage=0;_cpListPage=0;_addListPage=0;_kfLogPage=0;
   Object.keys(_checkStates).forEach(k=>delete _checkStates[k]);
   _saveChecks();
