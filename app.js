@@ -298,11 +298,9 @@ function updateExpectedFromCount(){
   const exp=getExpected();
   const diff=Math.abs(Math.round((coin+cash+pc+bank)-exp.total));
   if(diff>=1)return;
-  // Update shift baseline only — keep all transaction logs intact
+  // Update shift baseline only — all transaction logs stay intact
   D.shift.coin=coin;D.shift.cash=cash;D.shift.pc=pc;D.shift.bank=bank;
   D.shift.total=coin+cash+pc+bank;
-  // Reset all transactions since they're now baked into the new baseline
-  D.exchanges=[];D.cashpoints=[];D.fillups=[];D.additions=[];
   saveState();
   fillExpectedIntoCount();
   document.getElementById('update-expected-btn').style.display='none';
@@ -867,7 +865,8 @@ function generateShiftPDF(){
   </style></head><body>
   <h1>Casino — Shift Report</h1>
   <div class="meta">Generated: ${now}${D.shift?` &nbsp;|&nbsp; Shift started: ${D.shift.date}`:''}</div>
-  <button onclick="window.print()" style="margin-bottom:16px;padding:8px 18px;background:#1a1a2e;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">Save as PDF</button>
+  <button onclick="window.print()" style="margin-bottom:16px;margin-right:8px;padding:8px 18px;background:#1a1a2e;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">Save as PDF</button>
+  <button onclick="window.close()" style="margin-bottom:16px;padding:8px 18px;background:#f4f4f8;color:#333;border:1px solid #ddd;border-radius:6px;cursor:pointer;font-size:13px">← Back to App</button>
   <h2>Summary</h2>
   <div class="summary-grid">
     <div class="summary-box"><div class="label">Start Total</div><div class="value">${D.shift?f(D.shift.total):'—'}</div></div>
