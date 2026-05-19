@@ -297,15 +297,14 @@ function updateExpectedFromCount(){
   if(!D.shift||!hasCurrent)return;
   const exp=getExpected();
   const diff=Math.abs(Math.round((coin+cash+pc+bank)-exp.total));
-  // Only allow when pure diff (without fridge) is 0
   if(diff>=1)return;
+  // Update shift baseline only — keep all transaction logs intact
   D.shift.coin=coin;D.shift.cash=cash;D.shift.pc=pc;D.shift.bank=bank;
   D.shift.total=coin+cash+pc+bank;
+  // Reset all transactions since they're now baked into the new baseline
   D.exchanges=[];D.cashpoints=[];D.fillups=[];D.additions=[];
   saveState();
-  ['h-coin','h-cash','h-pc','h-bank'].forEach(id=>document.getElementById(id).value='');
-  D.inputs.home={};
-  saveState();
+  fillExpectedIntoCount();
   document.getElementById('update-expected-btn').style.display='none';
   renderHomeLog();renderKFLog();renderAddList();renderExchangeList();
   recalc();updateEstCalc();updateHomeEst();
@@ -832,20 +831,7 @@ function generateShiftPDF(){
     logRows+=`<tr><td>${d.date||''}</td><td>${label}</td><td>${detail}</td><td style="text-align:right;font-family:monospace">${amount}</td></tr>`;
   });
 
-  // Audit log rows (deleted/undone entries)
-  let auditRows='';
-  const audit=D.auditLog||[];
-  if(audit.length>0){
-    audit.forEach(a=>{
-      const d=a.data;
-      let detail='';
-      if(a.type==='fillup') detail=`Machine ${d.machine} — ${d.coins} coins (${f(d.coins*20)})`;
-      else if(a.type==='exchange') detail=`${CAT[d.from]||d.from} → ${CAT[d.to]||d.to} ${f(d.amount)}`;
-      else if(a.type==='cashpoint') detail=`${d.amount<0?'Withdrawal':'Deposit'} ${f(Math.abs(d.amount))} via ${d.from==='bank'?'Bank':'Cash'}`;
-      else if(a.type==='addition') detail=`${d.type==='playcoin'?'Playcoins':'Cash'} +${f(d.amount)}`;
-      auditRows+=`<tr style="color:#c00"><td>${a.date}</td><td>${a.action==='delete'?'DELETED':'ADDED'}</td><td>${a.type}</td><td>${detail}</td></tr>`;
-    });
-  }
+  // Audit log intentionally excluded from report
 
   let fridgeRows='';
   if(D.shop&&D.shop.sold){
@@ -898,9 +884,6 @@ function generateShiftPDF(){
   ${all.length===0?'<p style="color:#999">No transactions recorded.</p>':`
   <table><thead><tr><th>Time</th><th>Type</th><th>Detail</th><th style="text-align:right">Amount</th></tr></thead>
   <tbody>${logRows}</tbody></table>`}
-  ${audit.length>0?`<h2>Audit Log — Deleted / Undone Entries (${audit.length})</h2>
-  <table><thead><tr><th>Time</th><th>Action</th><th>Type</th><th>Detail</th></tr></thead>
-  <tbody>${auditRows}</tbody></table>`:''}
   <div class="footer">Casino Shift Report &nbsp;|&nbsp; ${now}</div>
   </body></html>`;
 
