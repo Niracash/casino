@@ -221,11 +221,21 @@ function recalc(){
   const fridge=getFridgeTotal();
   br.classList.add('on');
 
-  const physDiff=current-D.shift.total;
-  const physStr=Math.abs(Math.round(physDiff))<1?'0 kr':(physDiff>0?'+':'−')+fmt(physDiff);
-  const fridgeCounterStr=fridge>0?` <span style="color:var(--green);font-size:.75rem">(fridge: +${fridge.toLocaleString('no-NO')} kr)</span>`:'';
-  bp.innerHTML=physStr+fridgeCounterStr;
-  bp.className=physDiff>0?'bv green':physDiff<0?'bv red':'bv muted';
+  const originalTotal=D.shift.originalTotal||D.shift.total;
+  const physDiff=current-originalTotal;
+  const transactionsDiff=D.shift.total-originalTotal; // baked-in additions from past updates
+  const liveDiff=current-D.shift.total; // diff from current baseline (live transactions)
+  const totalDiffFromOrigin=physDiff; // current vs original day start
+
+  let physStr;
+  if(Math.abs(Math.round(totalDiffFromOrigin))<1){
+    physStr='0 kr';
+  } else {
+    physStr=(totalDiffFromOrigin>0?'+':'−')+fmt(totalDiffFromOrigin);
+  }
+  const fridgeStr=fridge>0?` <span style="color:var(--green);font-size:.75rem">(+${fridge.toLocaleString('no-NO')} kr fridge)</span>`:'';
+  bp.innerHTML=physStr+fridgeStr;
+  bp.className=totalDiffFromOrigin>0?'bv green':totalDiffFromOrigin<0?'bv red':'bv muted';
 
   if(bf){
     if(fridge<=0){bf.textContent='—';bf.className='bv muted';}
@@ -320,7 +330,8 @@ function updateExpectedFromCount(){
     pc:Math.round(exp.pc),
     bank:Math.round(exp.bank),
     total:Math.round(exp.total),
-    date:D.shift.date // keep original shift date
+    originalTotal:D.shift.originalTotal||D.shift.total, // preserve original
+    date:D.shift.date
   };
 
   // Clear live transactions — now baked into the new baseline
@@ -777,8 +788,7 @@ function renderKFLog(){
 }
 
 function sPreview(){
-  const coin=g('s-coin'),cash=g('s-cash'),pc=g('s-pc'),bank=g('s-bank');
-  document.getElementById('s-preview').textContent=fmt(coin+cash+pc+bank);stashInputs();
+  stashInputs();
 }
 function setShift(){
   const coin=g('s-coin'),cash=g('s-cash'),pc=g('s-pc'),bank=g('s-bank');
@@ -786,7 +796,7 @@ function setShift(){
     showModal({title:'No values entered',msg:'Enter at least one value before setting the start total.',buttons:[{label:'OK',style:'modal-btn-primary'}]});
     return;
   }
-  D.shift={coin,cash,pc,bank,total:coin+cash+pc+bank,date:nowFull()};
+  D.shift={coin,cash,pc,bank,total:coin+cash+pc+bank,originalTotal:coin+cash+pc+bank,date:nowFull()};
   saveState();renderShiftInfo();recalc();updateEstCalc();updateHomeEst();
   const btn=event.currentTarget;btn.innerHTML='✓ Done!';btn.style.opacity='.7';
   setTimeout(()=>{btn.innerHTML='✓ Set as Start Total';btn.style.opacity='';},2000);
@@ -802,13 +812,12 @@ function lockShiftInputs(locked){
   });
   const btn=document.querySelector('#page-shift .btn-primary');
   if(btn){btn.disabled=locked;btn.style.opacity=locked?'0.3':'';}
-  const preview=document.getElementById('s-preview');
-  if(preview)preview.style.opacity=locked?'0.4':'1';
 }
 function renderShiftInfo(){
   const el=document.getElementById('shift-total-display'),date=document.getElementById('shift-date-display');
   if(D.shift){
-    el.textContent=fmt(D.shift.total);el.className='ssv';date.textContent='Set: '+D.shift.date;
+    const original=D.shift.originalTotal||D.shift.total;
+    el.textContent=fmt(original);el.className='ssv';date.textContent='Set: '+D.shift.date;
     lockShiftInputs(true);
   } else {
     el.textContent='Not set';el.className='ssv idle';date.textContent='';
@@ -960,7 +969,7 @@ function doReset(){
   _saveChecks();
   saveState();
   document.querySelectorAll('input[type=number],input[type=text]').forEach(el=>el.value='');
-  document.getElementById('s-preview').textContent='0 kr';document.getElementById('h-current-total').textContent='0 kr';
+  document.getElementById('h-current-total').textContent='0 kr';
   renderShiftInfo();renderHomeLog();renderExchangeList();renderCashpointList();renderAddList();renderKFLog();recalc();updateEstCalc();updateHomeEst();
 }
 
