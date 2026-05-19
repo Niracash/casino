@@ -1392,16 +1392,14 @@ function sendWinnerEmail(){
   if(!machineNr){flash('w-machine-nr');return;}
   if(!shop){flash('w-shop');return;}
 
-  // No thousands separator — plain number
-  const amountNum=parseInt(amount);
-  const subject=`Vi har en gevinst på ${amountNum} kr - ${shop}`;
+  const subject=`Vi har en gevinst på ${amount} kr - ${shop}`;
 
   const body=`Kære Casino,
 
-Vi har en gevinst på ${amountNum} kr i dag.
+Vi har en gevinst på ${amount} kr i dag.
 
 Butik: ${shop}
-Beløb: ${amountNum} kr
+Beløb: ${amount} kr
 Dato: ${date}
 Maskin nummer: ${machineNr}${machineId?'\nMaskin id: '+machineId:''}${machineName?'\nMaskin navn: '+machineName:''}`;
 
