@@ -1,8 +1,8 @@
-let D={shift:null,exchanges:[],cashpoints:[],fillups:[],additions:[],auditLog:[],inputs:{home:{},shift:{},machines:{}},kfType:'kr'};
+let D={shift:null,exchanges:[],cashpoints:[],fillups:[],additions:[],auditLog:[],archived:{exchanges:[],cashpoints:[],fillups:[],additions:[]},inputs:{home:{},shift:{},machines:{}},kfType:'kr'};
 
 function loadState(){
   const raw=localStorage.getItem('ccc_v5');
-  if(raw){const l=JSON.parse(raw);D={...D,...l};if(!D.inputs)D.inputs={home:{},shift:{},machines:{}};if(!D.exchanges)D.exchanges=[];if(!D.cashpoints)D.cashpoints=[];if(!D.auditLog)D.auditLog=[];}
+  if(raw){const l=JSON.parse(raw);D={...D,...l};if(!D.inputs)D.inputs={home:{},shift:{},machines:{}};if(!D.exchanges)D.exchanges=[];if(!D.cashpoints)D.cashpoints=[];if(!D.auditLog)D.auditLog=[];if(!D.archived)D.archived={exchanges:[],cashpoints:[],fillups:[],additions:[]};if(!D.archived.exchanges)D.archived.exchanges=[];if(!D.archived.cashpoints)D.archived.cashpoints=[];if(!D.archived.fillups)D.archived.fillups=[];if(!D.archived.additions)D.archived.additions=[];}
 }
 function saveState(){localStorage.setItem('ccc_v5',JSON.stringify(D));}
 
@@ -299,15 +299,26 @@ function updateExpectedFromCount(){
   const diff=Math.abs(Math.round((coin+cash+pc+bank)-exp.total));
   // Only allow when pure diff (without fridge) is 0
   if(diff>=1)return;
+
+  // ── Fix #3: Archive existing transactions to report-only storage BEFORE clearing them ──
+  // This preserves them for the PDF shift report while removing them from active calculations.
+  if(!D.archived) D.archived={exchanges:[],cashpoints:[],fillups:[],additions:[]};
+  D.archived.exchanges.push(...D.exchanges);
+  D.archived.cashpoints.push(...D.cashpoints);
+  D.archived.fillups.push(...D.fillups);
+  D.archived.additions.push(...D.additions);
+
+  // Update working state to new baseline
   D.shift.coin=coin;D.shift.cash=cash;D.shift.pc=pc;D.shift.bank=bank;
   D.shift.total=coin+cash+pc+bank;
+  // NOTE: D.shift.originalTotal stays untouched (Fix #2) — Active Start Total keeps showing original value
   D.exchanges=[];D.cashpoints=[];D.fillups=[];D.additions=[];
   saveState();
   ['h-coin','h-cash','h-pc','h-bank'].forEach(id=>document.getElementById(id).value='');
   D.inputs.home={};
   saveState();
   document.getElementById('update-expected-btn').style.display='none';
-  renderHomeLog();renderKFLog();renderAddList();renderExchangeList();
+  renderHomeLog();renderKFLog();renderAddList();renderExchangeList();renderCashpointList();
   recalc();updateEstCalc();updateHomeEst();
   const btn=document.getElementById('update-expected-btn');
   btn.innerHTML='✓ Updated!';btn.disabled=true;btn.style.display='';
@@ -493,10 +504,11 @@ function delAddition(i){
 }
 
 let _exFrom='cash',_exTo='pc';
+// ── Fix #1: Customer giving Playcoins cannot receive Playcoins back (no PC→PC trade) ──
 const EXCHANGE_RULES={
   cash:{canGive:['pc','coin'],label:'Cash',validate:v=>v%50===0&&v>0,validateMsg:'Cash must be in multiples of 50 kr (notes only)'},
   coin:{canGive:['pc','cash'],label:'Mønt'},
-  pc:{canGive:['pc','cash','coin'],label:'Playcoins',validate:v=>v%20===0&&v>0,validateMsg:'Playcoins must be multiples of 20 kr'},
+  pc:{canGive:['cash','coin'],label:'Playcoins',validate:v=>v%20===0&&v>0,validateMsg:'Playcoins must be multiples of 20 kr'},
   bank:{canGive:['pc','cash','coin'],label:'Bank'}
 };
 
@@ -763,7 +775,9 @@ function setShift(){
     showModal({title:'No values entered',msg:'Enter at least one value before setting the start total.',buttons:[{label:'OK',style:'modal-btn-primary'}]});
     return;
   }
-  D.shift={coin,cash,pc,bank,total:coin+cash+pc+bank,date:nowFull()};
+  const total=coin+cash+pc+bank;
+  // ── Fix #2: Store originalTotal separately — never overwritten by updateExpectedFromCount ──
+  D.shift={coin,cash,pc,bank,total,originalTotal:total,originalCoin:coin,originalCash:cash,originalPc:pc,originalBank:bank,date:nowFull()};
   saveState();renderShiftInfo();recalc();updateEstCalc();updateHomeEst();
   const btn=event.currentTarget;btn.innerHTML='✓ Done!';btn.style.opacity='.7';
   setTimeout(()=>{btn.innerHTML='✓ Set as Start Total';btn.style.opacity='';},2000);
@@ -785,7 +799,9 @@ function lockShiftInputs(locked){
 function renderShiftInfo(){
   const el=document.getElementById('shift-total-display'),date=document.getElementById('shift-date-display');
   if(D.shift){
-    el.textContent=fmt(D.shift.total);el.className='ssv';date.textContent='Set: '+D.shift.date;
+    // ── Fix #2: Display original start total (never the updated one) ──
+    const displayTotal = D.shift.originalTotal != null ? D.shift.originalTotal : D.shift.total;
+    el.textContent=fmt(displayTotal);el.className='ssv';date.textContent='Set: '+D.shift.date;
     lockShiftInputs(true);
   } else {
     el.textContent='Not set';el.className='ssv idle';date.textContent='';
@@ -799,17 +815,27 @@ function generateShiftPDF(){
   const fridgeCash=Math.floor(fridge/50)*50;
   const fridgeCoin=fridge-fridgeCash;
 
-  const all=[
-    ...D.fillups.map((x,i)=>({type:'fillup',ts:x.ts||0,data:x})),
-    ...D.additions.map((x,i)=>({type:'addition',ts:x.ts||0,data:x})),
-    ...D.cashpoints.map((x,i)=>({type:'cashpoint',ts:x.ts||0,data:x})),
-    ...D.exchanges.map((x,i)=>({type:'exchange',ts:x.ts||0,data:x})),
+  // ── Fix #3: Merge archived transactions with current ones for the report ──
+  const archived = D.archived || {exchanges:[],cashpoints:[],fillups:[],additions:[]};
+  const allFillups   = [...(archived.fillups||[]),   ...D.fillups];
+  const allAdditions = [...(archived.additions||[]), ...D.additions];
+  const allCashpoints= [...(archived.cashpoints||[]),...D.cashpoints];
+  const allExchanges = [...(archived.exchanges||[]), ...D.exchanges];
+
+  // Today's Log = fillups + additions + cashpoints (NOT exchanges)
+  const todayLog=[
+    ...allFillups.map(x=>({type:'fillup',ts:x.ts||0,data:x})),
+    ...allAdditions.map(x=>({type:'addition',ts:x.ts||0,data:x})),
+    ...allCashpoints.map(x=>({type:'cashpoint',ts:x.ts||0,data:x})),
   ].sort((a,b)=>a.ts-b.ts);
+
+  // Exchange Log = exchanges only, separate table
+  const exchangeLog=[...allExchanges].sort((a,b)=>(a.ts||0)-(b.ts||0));
 
   const CAT={cash:'Cash',pc:'Playcoins',coin:'Mønt',bank:'Bank'};
 
   let logRows='';
-  all.forEach(e=>{
+  todayLog.forEach(e=>{
     const d=e.data;
     let label='',detail='',amount='';
     if(e.type==='fillup'){
@@ -820,44 +846,36 @@ function generateShiftPDF(){
       const isW=d.amount<0;
       label='Cashpoint';detail=`${isW?'Withdrawal':'Deposit'} via ${d.from==='bank'?'Bank/Card':'Cash'}`;
       amount=(isW?'−':'+')+f(Math.abs(d.amount));
-    } else if(e.type==='exchange'){
-      label='Exchange';
-      if(d.from==='cash'&&d.to==='pc'){
-        detail=`Cash → Playcoins (+${f(d.amount)} cash, −${f(d.pcOut||Math.floor(d.amount/20)*20)} pc, −${f(d.coinChange||(d.amount-Math.floor(d.amount/20)*20))} mønt)`;
-        amount=f(d.amount);
-      } else {
-        detail=`${CAT[d.from]} → ${CAT[d.to]}`;amount=f(d.amount);
-      }
     }
     logRows+=`<tr><td>${d.date||''}</td><td>${label}</td><td>${detail}</td><td style="text-align:right;font-family:monospace">${amount}</td></tr>`;
   });
 
-  // Audit log rows (deleted/undone entries)
-  let auditRows='';
-  const audit=D.auditLog||[];
-  if(audit.length>0){
-    audit.forEach(a=>{
-      const d=a.data;
-      let detail='';
-      if(a.type==='fillup') detail=`Machine ${d.machine} — ${d.coins} coins (${f(d.coins*20)})`;
-      else if(a.type==='exchange') detail=`${CAT[d.from]||d.from} → ${CAT[d.to]||d.to} ${f(d.amount)}`;
-      else if(a.type==='cashpoint') detail=`${d.amount<0?'Withdrawal':'Deposit'} ${f(Math.abs(d.amount))} via ${d.from==='bank'?'Bank':'Cash'}`;
-      else if(a.type==='addition') detail=`${d.type==='playcoin'?'Playcoins':'Cash'} +${f(d.amount)}`;
-      auditRows+=`<tr style="color:#c00"><td>${a.date}</td><td>${a.action==='delete'?'DELETED':'ADDED'}</td><td>${a.type}</td><td>${detail}</td></tr>`;
+  let exchangeRows='';
+  exchangeLog.forEach(d=>{
+    let detail='',amount='';
+    if(d.from==='cash'&&d.to==='pc'){
+      detail=`Cash → Playcoins (+${f(d.amount)} cash, −${f(d.pcOut||Math.floor(d.amount/20)*20)} pc, −${f(d.coinChange||(d.amount-Math.floor(d.amount/20)*20))} mønt)`;
+      amount=f(d.amount);
+    } else {
+      detail=`${CAT[d.from]} → ${CAT[d.to]}`;amount=f(d.amount);
+    }
+    exchangeRows+=`<tr><td>${d.date||''}</td><td>${detail}</td><td style="text-align:right;font-family:monospace">${amount}</td></tr>`;
+  });
+
+  // ── Fix #4: Include ALL fridge products in report (even items with 0 start and 0 sold) ──
+  let fridgeRows='';
+  if(D.shop){
+    const products={sodavand:{n:'Sodavand',p:10},redbull:{n:'Redbull',p:20},vand:{n:'Vand',p:5},bounty:{n:'Bounty',p:10},bueno:{n:'Bueno',p:10},mars:{n:'Mars',p:10},snickers:{n:'Snickers',p:10},pringles:{n:'Pringles',p:10},lighter:{n:'Lighter',p:10}};
+    Object.entries(products).forEach(([id,{n,p}])=>{
+      const sold=(D.shop.sold && D.shop.sold[id])||0;
+      const start=(D.shop.starts && D.shop.starts[id])||0;
+      // Always include row (no filter)
+      fridgeRows+=`<tr><td>${n}</td><td style="text-align:center">${start}</td><td style="text-align:center">${sold}</td><td style="text-align:center">${start-sold}</td><td style="text-align:right;font-family:monospace">${f(sold*p)}</td></tr>`;
     });
   }
 
-  let fridgeRows='';
-  if(D.shop&&D.shop.sold){
-    const products={sodavand:{n:'Sodavand',p:10},redbull:{n:'Redbull',p:20},vand:{n:'Vand',p:5},bounty:{n:'Bounty',p:10},bueno:{n:'Bueno',p:10},mars:{n:'Mars',p:10},snickers:{n:'Snickers',p:10},pringles:{n:'Pringles',p:10},lighter:{n:'Lighter',p:10}};
-    Object.entries(products).forEach(([id,{n,p}])=>{
-      const sold=D.shop.sold[id]||0;
-      const start=D.shop.starts&&D.shop.starts[id]||0;
-      if(sold>0||start>0){
-        fridgeRows+=`<tr><td>${n}</td><td style="text-align:center">${start}</td><td style="text-align:center">${sold}</td><td style="text-align:center">${start-sold}</td><td style="text-align:right;font-family:monospace">${f(sold*p)}</td></tr>`;
-      }
-    });
-  }
+  // ── Fix #2: Show original start total in report (not the updated one) ──
+  const displayStartTotal = D.shift ? (D.shift.originalTotal != null ? D.shift.originalTotal : D.shift.total) : 0;
 
   const html=`<!DOCTYPE html><html><head><meta charset="UTF-8">
   <title>Casino Shift Report</title>
@@ -881,26 +899,30 @@ function generateShiftPDF(){
   </style></head><body>
   <h1>Casino — Shift Report</h1>
   <div class="meta">Generated: ${now}${D.shift?` &nbsp;|&nbsp; Shift started: ${D.shift.date}`:''}</div>
-  <button onclick="window.print()" style="margin-bottom:16px;padding:8px 18px;background:#1a1a2e;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">Save as PDF</button>
+  <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+    <button onclick="window.close()" style="padding:8px 18px;background:#fff;color:#1a1a2e;border:1px solid #1a1a2e;border-radius:6px;cursor:pointer;font-size:13px">← Back to App</button>
+    <button onclick="window.print()" style="padding:8px 18px;background:#1a1a2e;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">Save as PDF</button>
+  </div>
   <h2>Summary</h2>
   <div class="summary-grid">
-    <div class="summary-box"><div class="label">Start Total</div><div class="value">${D.shift?f(D.shift.total):'—'}</div></div>
+    <div class="summary-box"><div class="label">Start Total</div><div class="value">${D.shift?f(displayStartTotal):'—'}</div></div>
     <div class="summary-box"><div class="label">Expected Total</div><div class="value">${f(exp.total)}</div></div>
     <div class="summary-box"><div class="label">Mønt Expected</div><div class="value">${f(exp.coin)}</div>${fridgeCoin>0?`<div class="sub">+ ${f(fridgeCoin)} fridge</div>`:''}</div>
     <div class="summary-box"><div class="label">Cash Expected</div><div class="value">${f(exp.cash)}</div>${fridgeCash>0?`<div class="sub">+ ${f(fridgeCash)} fridge</div>`:''}</div>
     <div class="summary-box"><div class="label">Playcoins Expected</div><div class="value">${f(exp.pc)}</div></div>
     <div class="summary-box"><div class="label">Bank Expected</div><div class="value">${f(exp.bank)}</div></div>
   </div>
-  ${fridge>0?`<h2>Fridge Revenue — ${f(fridge)}</h2>
+  <h2>Fridge Revenue${fridge>0?` — ${f(fridge)}`:''}</h2>
   <table><thead><tr><th>Product</th><th style="text-align:center">Start</th><th style="text-align:center">Sold</th><th style="text-align:center">End</th><th style="text-align:right">Revenue</th></tr></thead>
-  <tbody>${fridgeRows}</tbody></table>`:''}
-  <h2>Transaction Log (${all.length} entries)</h2>
-  ${all.length===0?'<p style="color:#999">No transactions recorded.</p>':`
+  <tbody>${fridgeRows}</tbody></table>
+  <h2>Today's Log (${todayLog.length} entries)</h2>
+  ${todayLog.length===0?'<p style="color:#999">No entries recorded.</p>':`
   <table><thead><tr><th>Time</th><th>Type</th><th>Detail</th><th style="text-align:right">Amount</th></tr></thead>
   <tbody>${logRows}</tbody></table>`}
-  ${audit.length>0?`<h2>Audit Log — Deleted / Undone Entries (${audit.length})</h2>
-  <table><thead><tr><th>Time</th><th>Action</th><th>Type</th><th>Detail</th></tr></thead>
-  <tbody>${auditRows}</tbody></table>`:''}
+  <h2>Exchange Log (${exchangeLog.length} entries)</h2>
+  ${exchangeLog.length===0?'<p style="color:#999">No exchanges recorded.</p>':`
+  <table><thead><tr><th>Time</th><th>Detail</th><th style="text-align:right">Amount</th></tr></thead>
+  <tbody>${exchangeRows}</tbody></table>`}
   <div class="footer">Casino Shift Report &nbsp;|&nbsp; ${now}</div>
   </body></html>`;
 
@@ -916,7 +938,9 @@ function confirmReset(){
     buttons:[
       {label:'Cancel',style:'modal-btn-ghost'},
       {label:'Reset',style:'modal-btn-danger',action:()=>{
-        const hasData=D.shift||(D.fillups&&D.fillups.length)||(D.cashpoints&&D.cashpoints.length)||(D.exchanges&&D.exchanges.length)||(D.additions&&D.additions.length);
+        const archived=D.archived||{exchanges:[],cashpoints:[],fillups:[],additions:[]};
+        const hasArchived=(archived.exchanges&&archived.exchanges.length)||(archived.cashpoints&&archived.cashpoints.length)||(archived.fillups&&archived.fillups.length)||(archived.additions&&archived.additions.length);
+        const hasData=D.shift||(D.fillups&&D.fillups.length)||(D.cashpoints&&D.cashpoints.length)||(D.exchanges&&D.exchanges.length)||(D.additions&&D.additions.length)||hasArchived;
         if(hasData){
           showModal({
             icon:'📄',
@@ -936,7 +960,7 @@ function confirmReset(){
 }
 
 function doReset(){
-  D={shift:null,exchanges:[],cashpoints:[],fillups:[],additions:[],auditLog:[],shop:{starts:{},sold:{},log:[]},inputs:{home:{},shift:{},machines:{}},kfType:'kr'};
+  D={shift:null,exchanges:[],cashpoints:[],fillups:[],additions:[],auditLog:[],archived:{exchanges:[],cashpoints:[],fillups:[],additions:[]},shop:{starts:{},sold:{},log:[]},inputs:{home:{},shift:{},machines:{}},kfType:'kr'};
   _homeLogPage=0;_exListPage=0;_cpListPage=0;_addListPage=0;_kfLogPage=0;
   Object.keys(_checkStates).forEach(k=>delete _checkStates[k]);
   _saveChecks();
