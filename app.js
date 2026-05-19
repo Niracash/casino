@@ -1,8 +1,8 @@
-let D={shift:null,exchanges:[],cashpoints:[],fillups:[],additions:[],inputs:{home:{},shift:{},machines:{}},kfType:'kr'};
+let D={shift:null,exchanges:[],cashpoints:[],fillups:[],additions:[],auditLog:[],inputs:{home:{},shift:{},machines:{}},kfType:'kr'};
 
 function loadState(){
   const raw=localStorage.getItem('ccc_v5');
-  if(raw){const l=JSON.parse(raw);D={...D,...l};if(!D.inputs)D.inputs={home:{},shift:{},machines:{}};if(!D.exchanges)D.exchanges=[];if(!D.cashpoints)D.cashpoints=[];}
+  if(raw){const l=JSON.parse(raw);D={...D,...l};if(!D.inputs)D.inputs={home:{},shift:{},machines:{}};if(!D.exchanges)D.exchanges=[];if(!D.cashpoints)D.cashpoints=[];if(!D.auditLog)D.auditLog=[];}
 }
 function saveState(){localStorage.setItem('ccc_v5',JSON.stringify(D));}
 
@@ -43,7 +43,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   selExFrom(_exFrom);
   renderShiftInfo();renderHomeLog();renderExchangeList();renderCashpointList();renderAddList();renderKFLog();
   renderShopItems();renderShopLog();
-  recalc();updateEstCalc();updateHomeEst();renderShopSummary();
+  recalc();updateEstCalc();updateHomeEst();renderShopSummary();fillExpectedIntoCount();
   loadCoffeeTimer();
   checkBetbooksAlert();
 });
@@ -52,9 +52,13 @@ function goPage(id,btn){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
   document.querySelectorAll('.nb').forEach(b=>b.classList.remove('on'));
   document.getElementById('page-'+id).classList.add('on');btn.classList.add('on');
-  if(id==='home'){recalc();renderHomeLog();renderExchangeList();renderShopSummary();}
+  if(id==='home'){fillExpectedIntoCount();recalc();renderHomeLog();renderExchangeList();renderShopSummary();}
   if(id==='machines'){renderKFLog();renderAddList();}
-  if(id==='shift'){renderShiftInfo();sPreview();renderCashpointList();updateEstCalc();}
+  if(id==='shift'){
+    renderShiftInfo();sPreview();renderCashpointList();updateEstCalc();
+    const dateEl=document.getElementById('w-date');
+    if(dateEl&&!dateEl.value)dateEl.value=nowDate();
+  }
   if(id==='shop'){renderShopItems();renderShopLog();}
   if(id==='checklist'){renderChecklist();}
 }
@@ -73,23 +77,24 @@ function getExpected(){
   let coin=D.shift.coin,cash=D.shift.cash,pc=D.shift.pc,bank=D.shift.bank;
   D.additions.forEach(a=>{if(a.type==='cash')cash+=a.amount;else if(a.type==='playcoin')pc+=a.amount;});
   D.exchanges.forEach(e=>{
-    if(e.from==='cash'){
-      // cash→mønt: all goes to coin
-      if(e.to==='coin'){
-        coin+=e.amount;
-        cash-=e.amount;
-        return;
-      }
-      const cashPart=Math.floor(e.amount/50)*50;
-      const coinPart=e.amount-cashPart;
-      cash+=cashPart;coin+=coinPart;
+    if(e.from==='cash'&&e.to==='coin'){
+      // cash→mønt: cash out, coin in (all of it)
+      cash-=e.amount; coin+=e.amount; return;
+    }
+    if(e.from==='cash'&&e.to==='pc'){
+      // cash notes come IN, playcoins go OUT, coin change goes OUT to customer
+      cash+=e.amount;          // full cash amount enters drawer
+      pc-=e.pcOut||Math.floor(e.amount/20)*20;   // playcoins leave
+      coin-=(e.coinChange||(e.amount-Math.floor(e.amount/20)*20)); // coin change leaves
+      return;
     }
     if(e.from==='bank')bank+=e.amount;
     if(e.from==='pc')pc+=e.amount;
     if(e.from==='coin')coin+=e.amount;
-    if(e.from==='cash'&&e.to!=='coin'){/* handled above */}
-    if(e.to==='cash')cash-=e.amount;if(e.to==='pc')pc-=e.amount;
-    if(e.to==='coin'&&e.from!=='cash')coin-=e.amount;if(e.to==='bank')bank-=e.amount;
+    if(e.to==='cash')cash-=e.amount;
+    if(e.to==='pc')pc-=e.amount;
+    if(e.to==='coin'&&e.from!=='cash')coin-=e.amount;
+    if(e.to==='bank')bank-=e.amount;
   });
   D.cashpoints.forEach(cp=>{
     if(cp.from==='bank') bank+=cp.amount;
@@ -162,14 +167,32 @@ function updateHomeHints(){
   const fridge=getFridgeTotal();
   const fridgeCash=fridge>0?Math.floor(fridge/50)*50:0;
   const fridgeCoin=fridge>0?fridge-fridgeCash:0;
-  const setH=(id,v)=>{
+  const setH=(id,base,fridgePart)=>{
     const el=document.getElementById(id);if(!el)return;
-    el.innerHTML=D.shift?`Expected: <span>${Math.round(v).toLocaleString('no-NO')} kr</span>`:'';
+    if(!D.shift){el.innerHTML='';return;}
+    const baseStr=`Expected: <span>${Math.round(base).toLocaleString('no-NO')} kr</span>`;
+    const fridgeStr=fridgePart>0?` <span style="color:var(--green)">(+${fridgePart.toLocaleString('no-NO')} kr fridge = ${Math.round(base+fridgePart).toLocaleString('no-NO')} kr)</span>`:'';
+    el.innerHTML=baseStr+fridgeStr;
   };
-  setH('h-coin-hint',exp.coin+fridgeCoin);
-  setH('h-cash-hint',exp.cash+fridgeCash);
-  setH('h-pc-hint',exp.pc);
-  setH('h-bank-hint',exp.bank);
+  setH('h-coin-hint',exp.coin,fridgeCoin);
+  setH('h-cash-hint',exp.cash,fridgeCash);
+  setH('h-pc-hint',exp.pc,0);
+  setH('h-bank-hint',exp.bank,0);
+}
+
+function fillExpectedIntoCount(){
+  if(!D.shift)return;
+  const exp=getExpected();
+  // Only fill if all inputs are currently empty
+  const allEmpty=['h-coin','h-cash','h-pc','h-bank'].every(id=>!document.getElementById(id).value);
+  if(!allEmpty)return;
+  const set=(id,v)=>{if(Math.round(v)>0)document.getElementById(id).value=Math.round(v);};
+  set('h-coin',exp.coin);
+  set('h-cash',exp.cash);
+  set('h-pc',exp.pc);
+  set('h-bank',exp.bank);
+  stashInputs();
+  recalc();
 }
 
 function recalc(){
@@ -420,10 +443,17 @@ function renderLogPagination(containerId,currentPage,totalPages,totalItems,onPag
   </div>`;
 }
 
+function auditLog(action,type,data){
+  if(!D.auditLog)D.auditLog=[];
+  D.auditLog.push({action,type,data:JSON.parse(JSON.stringify(data)),ts:Date.now(),date:nowFull()});
+  saveState();
+}
+
 function delFillup(i){
   showModal({title:'Remove entry',msg:'Are you sure you want to remove this fillup? This will affect the calculation.',buttons:[
     {label:'Cancel',style:'modal-btn-ghost'},
     {label:'Remove',style:'modal-btn-danger',action:()=>{
+      auditLog('delete','fillup',D.fillups[i]);
       Object.keys(_checkStates).forEach(k=>{if(k.startsWith(i+'_'))delete _checkStates[k];});
       _saveChecks();
       D.fillups.splice(i,1);saveState();renderHomeLog();renderKFLog();recalc();updateEstCalc();
@@ -434,6 +464,7 @@ function delExchange(i){
   showModal({title:'Remove entry',msg:'Are you sure you want to remove this exchange? This will affect the calculation.',buttons:[
     {label:'Cancel',style:'modal-btn-ghost'},
     {label:'Remove',style:'modal-btn-danger',action:()=>{
+      auditLog('delete','exchange',D.exchanges[i]);
       D.exchanges.splice(i,1);saveState();renderHomeLog();renderExchangeList();recalc();updateEstCalc();
     }}
   ]});
@@ -442,6 +473,7 @@ function delCashpoint(i){
   showModal({title:'Remove entry',msg:'Are you sure you want to remove this cashpoint entry? This will affect the calculation.',buttons:[
     {label:'Cancel',style:'modal-btn-ghost'},
     {label:'Remove',style:'modal-btn-danger',action:()=>{
+      auditLog('delete','cashpoint',D.cashpoints[i]);
       D.cashpoints.splice(i,1);saveState();renderHomeLog();renderCashpointList();recalc();updateEstCalc();
     }}
   ]});
@@ -450,6 +482,7 @@ function delAddition(i){
   showModal({title:'Remove entry',msg:'Are you sure you want to remove this addition? This will affect the calculation.',buttons:[
     {label:'Cancel',style:'modal-btn-ghost'},
     {label:'Remove',style:'modal-btn-danger',action:()=>{
+      auditLog('delete','addition',D.additions[i]);
       D.additions.splice(i,1);saveState();renderHomeLog();renderAddList();recalc();updateEstCalc();
     }}
   ]});
@@ -457,10 +490,10 @@ function delAddition(i){
 
 let _exFrom='cash',_exTo='pc';
 const EXCHANGE_RULES={
-  cash:{canGive:['pc','coin'],label:'Cash'},
-  coin:{canGive:['cash','pc'],label:'Mønt'},
-  pc:{canGive:['cash','coin'],label:'Playcoins',validate:v=>v%20===0&&v>0,validateMsg:'Playcoins must be multiples of 20 kr'},
-  bank:{canGive:['cash','coin','pc'],label:'Bank'}
+  cash:{canGive:['pc','coin'],label:'Cash',validate:v=>v%50===0&&v>0,validateMsg:'Cash must be in multiples of 50 kr (notes only)'},
+  coin:{canGive:['pc','cash'],label:'Mønt'},
+  pc:{canGive:['pc','cash','coin'],label:'Playcoins',validate:v=>v%20===0&&v>0,validateMsg:'Playcoins must be multiples of 20 kr'},
+  bank:{canGive:['pc','cash','coin'],label:'Bank'}
 };
 
 function selExFrom(type){
@@ -503,13 +536,22 @@ function exCalc(){
     if(_exFrom==='cash'&&_exTo==='coin'){
       hint.className='ex-hint-el info';hint.style.display='block';
       hint.innerHTML=`Give customer <b>${fmt(amt)}</b> in coins (mønt)`;
+    } else if(_exFrom==='cash'&&_exTo==='pc'){
+      const pcAmt=Math.floor(amt/20)*20;
+      const change=amt-pcAmt;
+      hint.className='ex-hint-el success';hint.style.display='block';
+      if(change>0){
+        hint.innerHTML=`Give <b>${fmt(pcAmt)}</b> playcoins + <b>${fmt(change)}</b> coin change back · +${fmt(amt)} cash, −${fmt(pcAmt)} pc, −${fmt(change)} mønt`;
+      } else {
+        hint.innerHTML=`Give customer <b>${fmt(pcAmt)}</b> playcoins · +${fmt(amt)} cash, −${fmt(pcAmt)} pc`;
+      }
     } else if(_exFrom==='pc'&&_exTo==='cash'){
       const cp=Math.floor(amt/50)*50,cn=amt-cp;
       hint.className='ex-hint-el success';hint.style.display='block';
       hint.innerHTML=cn>0?`Give customer <b>${fmt(cp)}</b> cash + <b>${fmt(cn)}</b> mønt`:`Give customer <b>${fmt(cp)}</b> cash`;
     } else if(_exTo==='pc'){
       const pcAmt=Math.floor(amt/20)*20,change=amt-pcAmt;
-      if(change>0){hint.className='ex-hint-el info';hint.style.display='block';hint.innerHTML=`Give <b>${fmt(pcAmt)}</b> playcoins + <b>${fmt(change)}</b> change back`;}
+      if(change>0){hint.className='ex-hint-el info';hint.style.display='block';hint.innerHTML=`Give <b>${fmt(pcAmt)}</b> playcoins · <b>${fmt(change)}</b> change back`;}
       else hint.style.display='none';
     } else hint.style.display='none';
     document.querySelectorAll('.ex-save-btn').forEach(b=>b.disabled=false);
@@ -530,13 +572,24 @@ function saveExchange(){
   if(rules.validate&&!rules.validate(amt)){document.querySelectorAll('.ex-amt-input').forEach(el=>flash(el.id||'ex-amt'));return;}
 
   if(_exFrom==='cash'&&_exTo==='coin'){
+    // Cash → Mønt: all cash becomes coin
     D.exchanges.push({from:'cash',to:'coin',amount:amt,date:nowFull(),ts:Date.now()});
+  } else if(_exFrom==='cash'&&_exTo==='pc'){
+    // Customer gives cash notes, we give playcoins (floor to 20), coin change back
+    const pcAmt=Math.floor(amt/20)*20;
+    const change=amt-pcAmt; // coin change back to customer
+    // cash comes IN, playcoins go OUT, coin change goes OUT
+    D.exchanges.push({from:'cash',to:'pc',amount:amt,pcOut:pcAmt,coinChange:change,date:nowFull(),ts:Date.now()});
   } else if(_exFrom==='pc'&&_exTo==='cash'){
+    // Playcoins in, cash out (floor to 50) + coin change
     const cp=Math.floor(amt/50)*50,cn=amt-cp;
     D.exchanges.push({from:'pc',to:'cash',amount:cp,date:nowFull(),ts:Date.now()});
     if(cn>0)D.exchanges.push({from:'pc',to:'coin',amount:cn,date:nowFull(),ts:Date.now()});
   } else if(_exTo==='pc'){
-    D.exchanges.push({from:_exFrom,to:'pc',amount:Math.floor(amt/20)*20,date:nowFull(),ts:Date.now()});
+    // bank/coin→pc: give floor-to-20 playcoins, coin change back if needed
+    const pcAmt=Math.floor(amt/20)*20;
+    D.exchanges.push({from:_exFrom,to:'pc',amount:pcAmt,date:nowFull(),ts:Date.now()});
+    // no cash change needed for bank; coin source already provides exact
   } else {
     D.exchanges.push({from:_exFrom,to:_exTo,amount:amt,date:nowFull(),ts:Date.now()});
   }
@@ -544,6 +597,8 @@ function saveExchange(){
   document.querySelectorAll('.ex-amt-input').forEach(el=>el.value='');
   document.querySelectorAll('.ex-hint-el').forEach(el=>el.style.display='none');
   document.querySelectorAll('.ex-save-btn').forEach(btn=>btn.disabled=true);
+  // Audit last pushed exchange(s)
+  D.exchanges.slice(-2).forEach(e=>auditLog('add','exchange',e));
   renderExchangeList();renderHomeLog();recalc();updateEstCalc();
 }
 
@@ -762,10 +817,31 @@ function generateShiftPDF(){
       label='Cashpoint';detail=`${isW?'Withdrawal':'Deposit'} via ${d.from==='bank'?'Bank/Card':'Cash'}`;
       amount=(isW?'−':'+')+f(Math.abs(d.amount));
     } else if(e.type==='exchange'){
-      label='Exchange';detail=`${CAT[d.from]} → ${CAT[d.to]}`;amount=f(d.amount);
+      label='Exchange';
+      if(d.from==='cash'&&d.to==='pc'){
+        detail=`Cash → Playcoins (+${f(d.amount)} cash, −${f(d.pcOut||Math.floor(d.amount/20)*20)} pc, −${f(d.coinChange||(d.amount-Math.floor(d.amount/20)*20))} mønt)`;
+        amount=f(d.amount);
+      } else {
+        detail=`${CAT[d.from]} → ${CAT[d.to]}`;amount=f(d.amount);
+      }
     }
     logRows+=`<tr><td>${d.date||''}</td><td>${label}</td><td>${detail}</td><td style="text-align:right;font-family:monospace">${amount}</td></tr>`;
   });
+
+  // Audit log rows (deleted/undone entries)
+  let auditRows='';
+  const audit=D.auditLog||[];
+  if(audit.length>0){
+    audit.forEach(a=>{
+      const d=a.data;
+      let detail='';
+      if(a.type==='fillup') detail=`Machine ${d.machine} — ${d.coins} coins (${f(d.coins*20)})`;
+      else if(a.type==='exchange') detail=`${CAT[d.from]||d.from} → ${CAT[d.to]||d.to} ${f(d.amount)}`;
+      else if(a.type==='cashpoint') detail=`${d.amount<0?'Withdrawal':'Deposit'} ${f(Math.abs(d.amount))} via ${d.from==='bank'?'Bank':'Cash'}`;
+      else if(a.type==='addition') detail=`${d.type==='playcoin'?'Playcoins':'Cash'} +${f(d.amount)}`;
+      auditRows+=`<tr style="color:#c00"><td>${a.date}</td><td>${a.action==='delete'?'DELETED':'ADDED'}</td><td>${a.type}</td><td>${detail}</td></tr>`;
+    });
+  }
 
   let fridgeRows='';
   if(D.shop&&D.shop.sold){
@@ -788,25 +864,26 @@ function generateShiftPDF(){
     h2{font-size:14px;font-weight:700;margin:22px 0 8px;padding-bottom:4px;border-bottom:2px solid #eee;color:#1a1a2e}
     table{width:100%;border-collapse:collapse;margin-bottom:6px}
     th{background:#f4f4f8;text-align:left;padding:7px 10px;font-size:12px;color:#555;border-bottom:2px solid #ddd}
-    td{padding:6px 10px;border-bottom:1px solid #eee;vertical-align:top}
+    td{padding:6px 10px;border-bottom:1px solid #eee;vertical-align:top;font-size:12px}
     tr:last-child td{border-bottom:none}
     .summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:8px}
     .summary-box{background:#f8f8fc;border:1px solid #e0e0ec;border-radius:8px;padding:12px 14px}
     .summary-box .label{font-size:11px;color:#888;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px}
     .summary-box .value{font-size:16px;font-weight:700;font-family:monospace;color:#1a1a2e}
     .summary-box .sub{font-size:11px;color:#3ecf8e;margin-top:3px}
-    .green{color:#2a9d5c}.red{color:#e05454}
+    .del-row{color:#c00;background:#fff5f5}
     .footer{margin-top:32px;font-size:11px;color:#aaa;text-align:center;border-top:1px solid #eee;padding-top:12px}
-    @media print{body{padding:10px}}
+    @media print{body{padding:10px}button{display:none}}
   </style></head><body>
   <h1>Casino — Shift Report</h1>
   <div class="meta">Generated: ${now}${D.shift?` &nbsp;|&nbsp; Shift started: ${D.shift.date}`:''}</div>
+  <button onclick="window.print()" style="margin-bottom:16px;padding:8px 18px;background:#1a1a2e;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">Save as PDF</button>
   <h2>Summary</h2>
   <div class="summary-grid">
     <div class="summary-box"><div class="label">Start Total</div><div class="value">${D.shift?f(D.shift.total):'—'}</div></div>
     <div class="summary-box"><div class="label">Expected Total</div><div class="value">${f(exp.total)}</div></div>
-    <div class="summary-box"><div class="label">Mont Expected</div><div class="value">${f(exp.coin)}</div>${fridgeCoin>0?`<div class="sub">incl. +${f(fridgeCoin)} fridge</div>`:''}</div>
-    <div class="summary-box"><div class="label">Cash Expected</div><div class="value">${f(exp.cash)}</div>${fridgeCash>0?`<div class="sub">incl. +${f(fridgeCash)} fridge</div>`:''}</div>
+    <div class="summary-box"><div class="label">Mønt Expected</div><div class="value">${f(exp.coin)}</div>${fridgeCoin>0?`<div class="sub">+ ${f(fridgeCoin)} fridge</div>`:''}</div>
+    <div class="summary-box"><div class="label">Cash Expected</div><div class="value">${f(exp.cash)}</div>${fridgeCash>0?`<div class="sub">+ ${f(fridgeCash)} fridge</div>`:''}</div>
     <div class="summary-box"><div class="label">Playcoins Expected</div><div class="value">${f(exp.pc)}</div></div>
     <div class="summary-box"><div class="label">Bank Expected</div><div class="value">${f(exp.bank)}</div></div>
   </div>
@@ -817,14 +894,14 @@ function generateShiftPDF(){
   ${all.length===0?'<p style="color:#999">No transactions recorded.</p>':`
   <table><thead><tr><th>Time</th><th>Type</th><th>Detail</th><th style="text-align:right">Amount</th></tr></thead>
   <tbody>${logRows}</tbody></table>`}
+  ${audit.length>0?`<h2>Audit Log — Deleted / Undone Entries (${audit.length})</h2>
+  <table><thead><tr><th>Time</th><th>Action</th><th>Type</th><th>Detail</th></tr></thead>
+  <tbody>${auditRows}</tbody></table>`:''}
   <div class="footer">Casino Shift Report &nbsp;|&nbsp; ${now}</div>
   </body></html>`;
 
-  const blob=new Blob([html],{type:'text/html'});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');
-  a.href=url;a.download=`Casino-Shift-${nowDate().replace(/\./g,'-')}.html`;a.click();
-  setTimeout(()=>URL.revokeObjectURL(url),3000);
+  const w=window.open('','_blank');
+  if(w){w.document.write(html);w.document.close();}
 }
 
 function confirmReset(){
@@ -855,7 +932,7 @@ function confirmReset(){
 }
 
 function doReset(){
-  D={shift:null,exchanges:[],cashpoints:[],fillups:[],additions:[],shop:{starts:{},sold:{},log:[]},inputs:{home:{},shift:{},machines:{}},kfType:'kr'};
+  D={shift:null,exchanges:[],cashpoints:[],fillups:[],additions:[],auditLog:[],shop:{starts:{},sold:{},log:[]},inputs:{home:{},shift:{},machines:{}},kfType:'kr'};
   _homeLogPage=0;_exListPage=0;_cpListPage=0;_addListPage=0;_kfLogPage=0;
   Object.keys(_checkStates).forEach(k=>delete _checkStates[k]);
   _saveChecks();
@@ -1290,4 +1367,58 @@ function coffeeTimerReset(){
   document.getElementById('coffee-timer-status').textContent='Ready to start';
   document.getElementById('coffee-timer-display').style.color='var(--accent)';
   updateCoffeeDisplay();
+}
+
+// ── WINNER EMAIL ──
+// Pre-fill today's date when shift page is visited
+document.addEventListener('DOMContentLoaded',()=>{
+  const dateEl=document.getElementById('w-date');
+  if(dateEl&&!dateEl.value) dateEl.value=nowDate();
+});
+
+function winnerPhotoSelected(input){
+  const file=input.files[0];
+  if(!file)return;
+  document.getElementById('w-photo-name').textContent=file.name;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const preview=document.getElementById('w-photo-preview');
+    preview.src=e.target.result;
+    preview.style.display='block';
+    document.getElementById('w-photo-placeholder').style.display='none';
+  };
+  reader.readAsDataURL(file);
+}
+
+function sendWinnerEmail(){
+  const amount=document.getElementById('w-amount').value.trim();
+  const machineNr=document.getElementById('w-machine-nr').value.trim();
+  const machineId=document.getElementById('w-machine-id').value.trim();
+  const machineName=document.getElementById('w-machine-name').value.trim();
+  const shop=document.getElementById('w-shop').value.trim();
+  const date=document.getElementById('w-date').value.trim()||nowDate();
+
+  if(!amount){flash('w-amount');return;}
+  if(!machineNr){flash('w-machine-nr');return;}
+  if(!shop){flash('w-shop');return;}
+
+  const amountFmt=parseInt(amount).toLocaleString('no-NO');
+  const subject=`Vi har en gevinst på ${amountFmt}+ kr - ${shop}`;
+
+  const body=`Kære cashino,\nVi har en gevinst på ${amountFmt}+ kr men jeg skulle keyfillup efter kunden har udbetalt, derfor har jeg billede af beløbet.\n\nButik: ${shop}\nBeløb: ${amountFmt}+\nDato: ${date}\nMaskin nummer: ${machineNr}${machineId?'\nMaskin id: '+machineId:''}${machineName?'\nMaskin navn: '+machineName:''}\n\nMed venlig hilsen`;
+
+  const mailto=`mailto:kundeservice@casinohouse.dk?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  window.location.href=mailto;
+
+  // Note about photo — mailto can't attach files, so we inform the user
+  const photoInput=document.getElementById('w-photo-input');
+  if(photoInput&&photoInput.files&&photoInput.files[0]){
+    setTimeout(()=>{
+      showModal({
+        title:'Remember to attach the photo',
+        msg:'The email has been opened. Please manually attach the machine photo before sending — it cannot be added automatically.',
+        buttons:[{label:'Got it',style:'modal-btn-primary'}]
+      });
+    },800);
+  }
 }
