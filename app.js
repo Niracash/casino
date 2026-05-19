@@ -1394,18 +1394,16 @@ function sendWinnerEmail(){
 
   // No thousands separator — plain number
   const amountNum=parseInt(amount);
-  const subject=`Vi har en gevinst på ${amountNum}+ kr - ${shop}`;
+  const subject=`Vi har en gevinst på ${amountNum} kr - ${shop}`;
 
   const body=`Kære Casino,
 
-Vi har en gevinst på ${amountNum}+ kr i dag.
+Vi har en gevinst på ${amountNum} kr i dag.
 
 Butik: ${shop}
-Beløb: ${amountNum}+
+Beløb: ${amountNum} kr
 Dato: ${date}
-Maskin nummer: ${machineNr}${machineId?'\nMaskin id: '+machineId:''}${machineName?'\nMaskin navn: '+machineName:''}
-
-Med venlig hilsen`;
+Maskin nummer: ${machineNr}${machineId?'\nMaskin id: '+machineId:''}${machineName?'\nMaskin navn: '+machineName:''}`;
 
   const mailto=`mailto:kundeservice@casinohouse.dk?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   window.location.href=mailto;
