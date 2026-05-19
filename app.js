@@ -295,36 +295,43 @@ function updateExpectedFromCount(){
   const coin=g('h-coin'),cash=g('h-cash'),pc=g('h-pc'),bank=g('h-bank');
   const hasCurrent=coin>0||cash>0||pc>0||bank>0;
   if(!D.shift||!hasCurrent)return;
+
   const exp=getExpected();
   const diff=Math.abs(Math.round((coin+cash+pc+bank)-exp.total));
   if(diff>=1)return;
 
-  // Archive current transactions into history so the shift report keeps them
+  // Archive live transactions into history so they still appear in the report
   if(!D.history)D.history=[];
-  const snapshot={
-    date: nowFull(),
-    previousBaseline: {coin:D.shift.coin,cash:D.shift.cash,pc:D.shift.pc,bank:D.shift.bank,total:D.shift.total},
+  D.history.push({
+    date:nowFull(),
+    previousBaseline:{coin:D.shift.coin,cash:D.shift.cash,pc:D.shift.pc,bank:D.shift.bank,total:D.shift.total},
     exchanges:[...D.exchanges],
     cashpoints:[...D.cashpoints],
     fillups:[...D.fillups],
     additions:[...D.additions],
+  });
+
+  // Set new baseline to the EXPECTED values (not physical count) so that
+  // additions/exchanges are not double-counted after clearing.
+  // Physical count matched expected, so they are equal — this keeps start total correct.
+  D.shift={...D.shift,
+    coin:Math.round(exp.coin),
+    cash:Math.round(exp.cash),
+    pc:Math.round(exp.pc),
+    bank:Math.round(exp.bank),
+    total:Math.round(exp.total),
+    date:D.shift.date // keep original shift date
   };
-  D.history.push(snapshot);
 
-  // Update shift baseline to the current physical count
-  D.shift.coin=coin;D.shift.cash=cash;D.shift.pc=pc;D.shift.bank=bank;
-  D.shift.total=coin+cash+pc+bank;
-
-  // Clear live transactions — they're now baked into the new baseline
+  // Clear live transactions — now baked into the new baseline
   D.exchanges=[];D.cashpoints=[];D.fillups=[];D.additions=[];
   D.inputs.home={};
-
   saveState();
+
   ['h-coin','h-cash','h-pc','h-bank'].forEach(id=>document.getElementById(id).value='');
-  fillExpectedIntoCount();
-  document.getElementById('update-expected-btn').style.display='none';
-  renderHomeLog();renderKFLog();renderAddList();renderExchangeList();
-  recalc();updateEstCalc();updateHomeEst();
+  renderHomeLog();renderKFLog();renderAddList();renderExchangeList();renderCashpointList();
+  recalc();updateEstCalc();updateHomeEst();renderShopSummary();fillExpectedIntoCount();
+
   const btn=document.getElementById('update-expected-btn');
   btn.innerHTML='✓ Updated!';btn.disabled=true;btn.style.display='';
   setTimeout(()=>{btn.style.display='none';btn.innerHTML='↺ Update Expected to Current Count';},1800);
