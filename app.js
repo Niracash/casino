@@ -321,27 +321,36 @@ function updateExpectedFromCount(){
     additions:[...D.additions],
   });
 
-  // Set new baseline to the EXPECTED values (not physical count) so that
-  // additions/exchanges are not double-counted after clearing.
-  // Physical count matched expected, so they are equal — this keeps start total correct.
-  D.shift={...D.shift,
-    coin:Math.round(exp.coin),
-    cash:Math.round(exp.cash),
-    pc:Math.round(exp.pc),
-    bank:Math.round(exp.bank),
-    total:Math.round(exp.total),
-    originalTotal:D.shift.originalTotal||D.shift.total, // preserve original
-    date:D.shift.date
-  };
+  // New baseline = expected values (prevents double-counting after clearing)
+  const newCoin=Math.round(exp.coin);
+  const newCash=Math.round(exp.cash);
+  const newPc=Math.round(exp.pc);
+  const newBank=Math.round(exp.bank);
 
-  // Clear live transactions — now baked into the new baseline
+  D.shift.coin=newCoin;
+  D.shift.cash=newCash;
+  D.shift.pc=newPc;
+  D.shift.bank=newBank;
+  D.shift.total=Math.round(exp.total);
+  if(!D.shift.originalTotal) D.shift.originalTotal=D.shift.total; // already set on first setShift, but guard here too
+  // date stays unchanged
+
+  // Clear live transactions — baked into new baseline
   D.exchanges=[];D.cashpoints=[];D.fillups=[];D.additions=[];
-  D.inputs.home={};
+
+  // Update home inputs to reflect new expected (which equals the physical count)
+  D.inputs.home={coin:newCoin,cash:newCash,pc:newPc,bank:newBank};
+
   saveState();
 
-  ['h-coin','h-cash','h-pc','h-bank'].forEach(id=>document.getElementById(id).value='');
+  // Set DOM inputs directly
+  document.getElementById('h-coin').value=newCoin||'';
+  document.getElementById('h-cash').value=newCash||'';
+  document.getElementById('h-pc').value=newPc||'';
+  document.getElementById('h-bank').value=newBank||'';
+
   renderHomeLog();renderKFLog();renderAddList();renderExchangeList();renderCashpointList();
-  recalc();updateEstCalc();updateHomeEst();renderShopSummary();fillExpectedIntoCount();
+  recalc();updateEstCalc();updateHomeEst();renderShopSummary();
 
   const btn=document.getElementById('update-expected-btn');
   btn.innerHTML='✓ Updated!';btn.disabled=true;btn.style.display='';
@@ -796,7 +805,8 @@ function setShift(){
     showModal({title:'No values entered',msg:'Enter at least one value before setting the start total.',buttons:[{label:'OK',style:'modal-btn-primary'}]});
     return;
   }
-  D.shift={coin,cash,pc,bank,total:coin+cash+pc+bank,originalTotal:coin+cash+pc+bank,date:nowFull()};
+  const total=coin+cash+pc+bank;
+  D.shift={coin,cash,pc,bank,total,originalTotal:total,date:nowFull()};
   saveState();renderShiftInfo();recalc();updateEstCalc();updateHomeEst();
   const btn=event.currentTarget;btn.innerHTML='✓ Done!';btn.style.opacity='.7';
   setTimeout(()=>{btn.innerHTML='✓ Set as Start Total';btn.style.opacity='';},2000);
