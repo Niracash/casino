@@ -507,11 +507,32 @@ function delAddition(i){
 let _exFrom='cash',_exTo='pc';
 // ── Fix #1: Customer giving Playcoins cannot receive Playcoins back (no PC→PC trade) ──
 const EXCHANGE_RULES={
-  cash:{canGive:['pc','coin'],label:'Cash',validate:v=>v%50===0&&v>0,validateMsg:'Cash must be in multiples of 50 kr (notes only)'},
+  cash:{canGive:['pc','coin'],label:'Cash'},
   coin:{canGive:['pc','cash'],label:'Mønt'},
   pc:{canGive:['cash','coin'],label:'Playcoins',validate:v=>v%20===0&&v>0,validateMsg:'Playcoins must be multiples of 20 kr'},
   bank:{canGive:['pc','cash','coin'],label:'Bank'}
 };
+
+// Context-aware validation: rules depend on BOTH from and to.
+// Returns null if valid, or an error message string.
+function validateExchange(from, to, amt){
+  if(isNaN(amt)||amt<=0) return null; // empty input — not an error, just not valid yet
+  if(from==='cash'){
+    if(to==='coin'){
+      // Cash → Mønt: notes only, multiples of 50
+      if(amt%50!==0) return 'Cash must be in multiples of 50 kr (notes only)';
+    } else if(to==='pc'){
+      // Cash → Playcoins: any amount ≥ 50, mønt change auto-calculated
+      if(amt<50) return 'Minimum 50 kr for cash → playcoins';
+    }
+    return null;
+  }
+  if(from==='pc'){
+    if(amt%20!==0) return 'Playcoins must be multiples of 20 kr';
+    return null;
+  }
+  return null;
+}
 
 function selExFrom(type){
   document.querySelectorAll('.ex-from-buttons .tsb').forEach(b=>b.classList.remove('on'));
@@ -542,9 +563,9 @@ function exCalc(){
   const amtInputs=document.querySelectorAll('.ex-amt-input');
   const amt=parseFloat(amtInputs[0]?amtInputs[0].value:0)||0;
   document.querySelectorAll('.ex-hint-el').forEach(hint=>{
-    const rules=EXCHANGE_RULES[_exFrom];
-    if(rules.validate&&!rules.validate(amt)){
-      if(amt>0){hint.className='ex-hint-el error';hint.innerHTML=`<b>Error:</b> ${rules.validateMsg}`;hint.style.display='block';}
+    const err=validateExchange(_exFrom,_exTo,amt);
+    if(err){
+      if(amt>0){hint.className='ex-hint-el error';hint.innerHTML=`<b>Error:</b> ${err}`;hint.style.display='block';}
       else hint.style.display='none';
       document.querySelectorAll('.ex-save-btn').forEach(b=>b.disabled=true);return;
     }
@@ -585,8 +606,8 @@ function exAmtInput(){
 function saveExchange(){
   const amt=parseFloat(document.querySelector('.ex-amt-input')?.value||0);
   if(isNaN(amt)||amt<=0){document.querySelectorAll('.ex-amt-input').forEach(el=>flash(el.id||'ex-amt'));return;}
-  const rules=EXCHANGE_RULES[_exFrom];
-  if(rules.validate&&!rules.validate(amt)){document.querySelectorAll('.ex-amt-input').forEach(el=>flash(el.id||'ex-amt'));return;}
+  const err=validateExchange(_exFrom,_exTo,amt);
+  if(err){document.querySelectorAll('.ex-amt-input').forEach(el=>flash(el.id||'ex-amt'));return;}
 
   if(_exFrom==='cash'&&_exTo==='coin'){
     // Cash → Mønt: all cash becomes coin
