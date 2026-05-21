@@ -856,7 +856,13 @@ function generateShiftPDF(){
   exchangeLog.forEach(d=>{
     let detail='',amount='';
     if(d.from==='cash'&&d.to==='pc'){
-      detail=`Cash → Playcoins (+${f(d.amount)} cash, −${f(d.pcOut||Math.floor(d.amount/20)*20)} pc, −${f(d.coinChange||(d.amount-Math.floor(d.amount/20)*20))} mønt)`;
+      const pcOut=d.pcOut||Math.floor(d.amount/20)*20;
+      const change=d.coinChange||(d.amount-pcOut);
+      if(change>0){
+        detail=`Cash → Playcoins (${f(pcOut)} pc + ${f(change)} mønt change)`;
+      } else {
+        detail=`Cash → Playcoins`;
+      }
       amount=f(d.amount);
     } else {
       detail=`${CAT[d.from]} → ${CAT[d.to]}`;amount=f(d.amount);
@@ -1217,7 +1223,7 @@ function renderShopSummary(){
       .filter(l=>l.id===p.id && l.free)
       .map(l=>l.takenBy)
       .filter(Boolean);
-    const freeNamesStr = freeNames.length>0 ? ` <span style="color:var(--accent)">[${freeNames.join(', ')}]</span>` : '';
+    const freeNamesStr = freeNames.length>0 ? ` <span style="color:var(--accent)">(${freeNames.join(', ')})</span>` : '';
 
     html+=`<div style="padding:7px 0;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:8px">
       <div>
