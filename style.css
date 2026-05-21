@@ -206,6 +206,8 @@
     .shop-start-row{display:flex;align-items:center;gap:8px}
     .shop-start-input{width:70px;background:var(--inp);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:.9rem;font-weight:600;padding:6px 8px;outline:none;text-align:center;font-family:'JetBrains Mono',monospace;-webkit-appearance:none;appearance:none}
     .shop-start-input:focus{border-color:var(--accent)}
+    .shop-free-btn{background:var(--accent-dim);color:var(--accent);border:1px solid var(--accent-mid);border-radius:8px;font-size:.66rem;font-weight:600;padding:7px 12px;cursor:pointer;font-family:'Inter',sans-serif;transition:opacity .15s,transform .1s;white-space:nowrap}
+    .shop-free-btn:active{transform:scale(.95);opacity:.85}
 
     /* ── Checklist ── */
     .checklist-group{display:flex;flex-direction:column;gap:5px}
