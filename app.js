@@ -824,14 +824,15 @@ function generateShiftPDF(){
   const allExchanges = [...(archived.exchanges||[]), ...D.exchanges];
 
   // Today's Log = fillups + additions + cashpoints (NOT exchanges)
+  // Sorted newest first (latest on top)
   const todayLog=[
     ...allFillups.map(x=>({type:'fillup',ts:x.ts||0,data:x})),
     ...allAdditions.map(x=>({type:'addition',ts:x.ts||0,data:x})),
     ...allCashpoints.map(x=>({type:'cashpoint',ts:x.ts||0,data:x})),
-  ].sort((a,b)=>a.ts-b.ts);
+  ].sort((a,b)=>b.ts-a.ts);
 
-  // Exchange Log = exchanges only, separate table
-  const exchangeLog=[...allExchanges].sort((a,b)=>(a.ts||0)-(b.ts||0));
+  // Exchange Log = exchanges only, separate table — newest first
+  const exchangeLog=[...allExchanges].sort((a,b)=>(b.ts||0)-(a.ts||0));
 
   const CAT={cash:'Cash',pc:'Playcoins',coin:'Mønt',bank:'Bank'};
 
@@ -865,18 +866,39 @@ function generateShiftPDF(){
 
   // ── Fix #4: Include ALL fridge products in report (even items with 0 start and 0 sold) ──
   let fridgeRows='';
+  let totalStart=0, totalSold=0, totalFree=0, totalEnd=0, totalRev=0;
   if(D.shop){
     const products={sodavand:{n:'Sodavand',p:10},redbull:{n:'Redbull',p:20},vand:{n:'Vand',p:5},bounty:{n:'Bounty',p:10},bueno:{n:'Bueno',p:10},mars:{n:'Mars',p:10},snickers:{n:'Snickers',p:10},pringles:{n:'Pringles',p:10},lighter:{n:'Lighter',p:10}};
     Object.entries(products).forEach(([id,{n,p}])=>{
       const sold=(D.shop.sold && D.shop.sold[id])||0;
       const start=(D.shop.starts && D.shop.starts[id])||0;
-      // Always include row (no filter)
-      fridgeRows+=`<tr><td>${n}</td><td style="text-align:center">${start}</td><td style="text-align:center">${sold}</td><td style="text-align:center">${start-sold}</td><td style="text-align:right;font-family:monospace">${f(sold*p)}</td></tr>`;
+      const free=(D.shop.freeTakes && D.shop.freeTakes[id])||0;
+      const end=start-sold-free;
+      const rev=sold*p;
+      // Collect names from log for this product's free takes
+      const freeNames=((D.shop && D.shop.log)||[]).filter(l=>l.id===id && l.free).map(l=>l.takenBy).filter(Boolean);
+      // Build "sold + free (names)" display string
+      let soldCell;
+      if(free>0){
+        const namesStr=freeNames.length>0?` (${freeNames.join(', ')})`:'';
+        soldCell=`${sold} + ${free} free${namesStr}`;
+      } else {
+        soldCell=`${sold}`;
+      }
+      totalStart+=start; totalSold+=sold; totalFree+=free; totalEnd+=end; totalRev+=rev;
+      fridgeRows+=`<tr><td>${n}</td><td style="text-align:center">${start}</td><td>${soldCell}</td><td style="text-align:center">${end}</td><td style="text-align:right;font-family:monospace">${f(rev)}</td></tr>`;
     });
+    // Total row
+    const totalSoldCell = totalFree>0 ? `${totalSold} + ${totalFree} free` : `${totalSold}`;
+    fridgeRows+=`<tr style="background:#f4f4f8;font-weight:700"><td>Total</td><td style="text-align:center">${totalStart}</td><td>${totalSoldCell}</td><td style="text-align:center">${totalEnd}</td><td style="text-align:right;font-family:monospace">${f(totalRev)}</td></tr>`;
   }
 
-  // ── Fix #2: Show original start total in report (not the updated one) ──
-  const displayStartTotal = D.shift ? (D.shift.originalTotal != null ? D.shift.originalTotal : D.shift.total) : 0;
+  // ── Start Total excludes Bank — only Mønt + Cash + Playcoins ──
+  const displayStartTotal = D.shift
+    ? ((D.shift.originalCoin != null ? D.shift.originalCoin : D.shift.coin) || 0)
+      + ((D.shift.originalCash != null ? D.shift.originalCash : D.shift.cash) || 0)
+      + ((D.shift.originalPc   != null ? D.shift.originalPc   : D.shift.pc)   || 0)
+    : 0;
 
   const html=`<!DOCTYPE html><html><head><meta charset="UTF-8">
   <title>Casino Shift Report</title>
@@ -906,7 +928,7 @@ function generateShiftPDF(){
   </div>
   <h2>Summary</h2>
   <div class="summary-grid">
-    <div class="summary-box"><div class="label">Start Total</div><div class="value">${D.shift?f(displayStartTotal):'—'}</div></div>
+    <div class="summary-box"><div class="label">Start Total (excl. bank)</div><div class="value">${D.shift?f(displayStartTotal):'—'}</div></div>
     <div class="summary-box"><div class="label">Expected Total</div><div class="value">${f(exp.total)}</div></div>
     <div class="summary-box"><div class="label">Mønt Expected</div><div class="value">${f(exp.coin)}</div>${fridgeCoin>0?`<div class="sub">+ ${f(fridgeCoin)} fridge</div>`:''}</div>
     <div class="summary-box"><div class="label">Cash Expected</div><div class="value">${f(exp.cash)}</div>${fridgeCash>0?`<div class="sub">+ ${f(fridgeCash)} fridge</div>`:''}</div>
@@ -914,7 +936,7 @@ function generateShiftPDF(){
     <div class="summary-box"><div class="label">Bank Expected</div><div class="value">${f(exp.bank)}</div></div>
   </div>
   <h2>Fridge Revenue${fridge>0?` — ${f(fridge)}`:''}</h2>
-  <table><thead><tr><th>Product</th><th style="text-align:center">Start</th><th style="text-align:center">Sold</th><th style="text-align:center">End</th><th style="text-align:right">Revenue</th></tr></thead>
+  <table><thead><tr><th>Product</th><th style="text-align:center">Start</th><th>Sold</th><th style="text-align:center">End</th><th style="text-align:right">Revenue</th></tr></thead>
   <tbody>${fridgeRows}</tbody></table>
   <h2>Today's Log (${todayLog.length} entries)</h2>
   ${todayLog.length===0?'<p style="color:#999">No entries recorded.</p>':`
@@ -961,7 +983,7 @@ function confirmReset(){
 }
 
 function doReset(){
-  D={shift:null,exchanges:[],cashpoints:[],fillups:[],additions:[],auditLog:[],archived:{exchanges:[],cashpoints:[],fillups:[],additions:[]},shop:{starts:{},sold:{},log:[]},inputs:{home:{},shift:{},machines:{}},kfType:'kr'};
+  D={shift:null,exchanges:[],cashpoints:[],fillups:[],additions:[],auditLog:[],archived:{exchanges:[],cashpoints:[],fillups:[],additions:[]},shop:{starts:{},sold:{},freeTakes:{},log:[]},inputs:{home:{},shift:{},machines:{}},kfType:'kr'};
   _homeLogPage=0;_exListPage=0;_cpListPage=0;_addListPage=0;_kfLogPage=0;
   Object.keys(_checkStates).forEach(k=>delete _checkStates[k]);
   _saveChecks();
@@ -985,10 +1007,12 @@ const SHOP_PRODUCTS = [
 ];
 
 function initShop(){
-  if(!D.shop) D.shop={starts:{},sold:{}};
+  if(!D.shop) D.shop={starts:{},sold:{},freeTakes:{}};
+  if(!D.shop.freeTakes) D.shop.freeTakes={};
   SHOP_PRODUCTS.forEach(p=>{
     if(D.shop.starts[p.id]===undefined) D.shop.starts[p.id]=0;
     if(D.shop.sold[p.id]===undefined)   D.shop.sold[p.id]=0;
+    if(D.shop.freeTakes[p.id]===undefined) D.shop.freeTakes[p.id]=0;
   });
 }
 
@@ -999,7 +1023,8 @@ function renderShopItems(){
   SHOP_PRODUCTS.forEach(p=>{
     const start=D.shop.starts[p.id]||0;
     const sold=D.shop.sold[p.id]||0;
-    const end=start-sold;
+    const free=D.shop.freeTakes[p.id]||0;
+    const end=start-sold-free;
     const revenue=sold*p.price;
     const div=document.createElement('div');
     div.className='shop-item';
@@ -1021,9 +1046,11 @@ function renderShopItems(){
             <div class="shop-count-display" id="shop-sold-${p.id}">${sold}</div>
             <button class="shop-counter-btn plus" onclick="shopSell('${p.id}',1)">+</button>
           </div>
+          <button class="shop-free-btn" onclick="shopFreeTake('${p.id}')">🎁 Take (free)</button>
         </div>
       </div>
-      <div class="shop-item-row"><span class="sl">Sold</span><span class="sv">${sold} pcs</span></div>
+      <div class="shop-item-row"><span class="sl">Sold (paid)</span><span class="sv">${sold} pcs</span></div>
+      <div class="shop-item-row"><span class="sl">Free takes</span><span class="sv" style="color:${free>0?'var(--accent)':'var(--muted)'}">${free} pcs</span></div>
       <div class="shop-item-row"><span class="sl">End count</span><span class="sv" id="shop-end-${p.id}" style="color:${end<0?'var(--red)':'var(--text)'}">${end}</span></div>
       <div class="shop-item-row"><span class="sl">Revenue</span><span class="sv" style="color:var(--green)">${revenue>0?revenue.toLocaleString('no-NO')+' kr':'—'}</span></div>`;
     el.appendChild(div);
@@ -1039,8 +1066,9 @@ function setShopStart(id, val){
   D.shop.starts[id]=parseInt(val)||0;
   saveState();
   const sold=D.shop.sold[id]||0;
+  const free=D.shop.freeTakes[id]||0;
   const start=D.shop.starts[id]||0;
-  const end=start-sold;
+  const end=start-sold-free;
   const endEl=document.getElementById('shop-end-'+id);
   if(endEl){endEl.textContent=end;endEl.style.color=end<0?'var(--red)':'var(--text)';}
   renderShopSummary();
@@ -1084,16 +1112,79 @@ function shopSell(id, delta){
   _doShopSell(id,delta);
 }
 
+// ── Free Take (no payment, with employee/staff name) ──
+function showNameModal(productName, onConfirm){
+  // Build modal with a text input inside the message area
+  document.getElementById('modal-icon').textContent='🎁';
+  document.getElementById('modal-icon').style.display='block';
+  document.getElementById('modal-title').textContent='Free Take — '+productName;
+  const msgEl=document.getElementById('modal-msg');
+  msgEl.innerHTML=`<div style="margin-bottom:12px">Who's taking this item?</div>
+    <input id="free-take-name" type="text" placeholder="Enter name" style="width:100%;background:#0c0d12;border:1px solid #2e3141;border-radius:8px;color:#e8eaf2;font-size:.95rem;padding:11px 12px;outline:none;font-family:'Inter',sans-serif" autocomplete="off">`;
+  const btnsEl=document.getElementById('modal-btns');
+  btnsEl.innerHTML='';
+  const cancelBtn=document.createElement('button');
+  cancelBtn.className='modal-btn modal-btn-ghost';
+  cancelBtn.textContent='Cancel';
+  cancelBtn.onclick=()=>closeModal();
+  const okBtn=document.createElement('button');
+  okBtn.className='modal-btn modal-btn-primary';
+  okBtn.textContent='Confirm Take';
+  okBtn.onclick=()=>{
+    const name=document.getElementById('free-take-name').value.trim();
+    if(!name){
+      const inp=document.getElementById('free-take-name');
+      inp.style.borderColor='#f06b6b';
+      inp.focus();
+      setTimeout(()=>{inp.style.borderColor='';},1600);
+      return;
+    }
+    closeModal();
+    onConfirm(name);
+  };
+  btnsEl.appendChild(cancelBtn);
+  btnsEl.appendChild(okBtn);
+  document.getElementById('modal-overlay').classList.add('show');
+  setTimeout(()=>{
+    const inp=document.getElementById('free-take-name');
+    if(inp)inp.focus();
+  },120);
+}
+
+function shopFreeTake(id){
+  initShop();
+  const product=SHOP_PRODUCTS.find(p=>p.id===id);
+  if(!product)return;
+  showNameModal(product.name, (name)=>{
+    D.shop.freeTakes[id]=(D.shop.freeTakes[id]||0)+1;
+    if(!D.shop.log)D.shop.log=[];
+    D.shop.log.push({
+      id,
+      name:product.name,
+      price:product.price,
+      free:true,
+      takenBy:name,
+      ts:Date.now(),
+      date:nowFull()
+    });
+    saveState();
+    renderShopItems();
+    renderShopLog();
+    renderHomeFridgeMini();
+  });
+}
+
 function renderShopSummary(){
   initShop();
   const totalRevenue=SHOP_PRODUCTS.reduce((s,p)=>s+(D.shop.sold[p.id]||0)*p.price,0);
+  const totalFree=SHOP_PRODUCTS.reduce((s,p)=>s+(D.shop.freeTakes[p.id]||0),0);
 
   const targets=[
     {summaryEl:document.getElementById('shop-summary-rows'), labelEl:document.querySelector('#shop-summary .est-home-label')},
     {summaryEl:document.getElementById('home-shop-summary-rows'), labelEl:document.getElementById('home-shop-summary-label')},
   ];
 
-  if(totalRevenue===0){
+  if(totalRevenue===0 && totalFree===0){
     targets.forEach(({summaryEl,labelEl})=>{
       if(labelEl)labelEl.textContent='No sales recorded yet';
       if(summaryEl)summaryEl.innerHTML='';
@@ -1106,21 +1197,32 @@ function renderShopSummary(){
   let html='';
   SHOP_PRODUCTS.forEach(p=>{
     const sold=D.shop.sold[p.id]||0;
-    if(sold===0)return;
+    const free=D.shop.freeTakes[p.id]||0;
+    if(sold===0 && free===0)return;
     const rev=sold*p.price;
     const pCash=Math.floor(rev/50)*50;
     const pCoin=rev-pCash;
     let breakdown='';
-    if(pCash>0&&pCoin>0) breakdown=`Cash: ${pCash.toLocaleString('no-NO')} kr + Coin: ${pCoin.toLocaleString('no-NO')} kr`;
+    if(rev===0){
+      breakdown='Free only';
+    } else if(pCash>0&&pCoin>0) breakdown=`Cash: ${pCash.toLocaleString('no-NO')} kr + Coin: ${pCoin.toLocaleString('no-NO')} kr`;
     else if(pCash>0)      breakdown=`Cash: ${pCash.toLocaleString('no-NO')} kr`;
     else                  breakdown=`Coin: ${pCoin.toLocaleString('no-NO')} kr`;
     const start=D.shop.starts[p.id]||0;
-    const end=start-sold;
+    const end=start-sold-free;
     const endColor=end<0?'var(--red)':'var(--muted)';
+
+    // Build name list from free-take log entries
+    const freeNames = (D.shop.log||[])
+      .filter(l=>l.id===p.id && l.free)
+      .map(l=>l.takenBy)
+      .filter(Boolean);
+    const freeNamesStr = freeNames.length>0 ? ` <span style="color:var(--accent)">[${freeNames.join(', ')}]</span>` : '';
+
     html+=`<div style="padding:7px 0;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:8px">
       <div>
         <div style="font-size:.82rem;color:var(--sub)">${p.icon} ${p.name}</div>
-        <div style="font-size:.68rem;margin-top:2px;color:var(--muted)">Sold: <b style="color:var(--text)">${sold}</b> &nbsp;·&nbsp; End: <b style="color:${endColor}">${end}</b></div>
+        <div style="font-size:.68rem;margin-top:2px;color:var(--muted)">Sold: <b style="color:var(--text)">${sold}</b>${free>0?` + <b style="color:var(--accent)">${free} free</b>${freeNamesStr}`:''} &nbsp;·&nbsp; End: <b style="color:${endColor}">${end}</b></div>
       </div>
       <div style="text-align:right;flex-shrink:0">
         <div style="font-family:'JetBrains Mono',monospace;font-weight:600;font-size:.84rem;color:var(--text)">${rev.toLocaleString('no-NO')} kr</div>
@@ -1132,6 +1234,12 @@ function renderShopSummary(){
     <span style="font-size:.78rem;font-weight:700;color:var(--green)">Total revenue</span>
     <span style="font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--green)">${totalRevenue.toLocaleString('no-NO')} kr</span>
   </div>`;
+  if(totalFree>0){
+    html+=`<div style="margin-top:4px;display:flex;justify-content:space-between;align-items:center">
+      <span style="font-size:.72rem;color:var(--accent)">Free takes (no revenue)</span>
+      <span style="font-family:'JetBrains Mono',monospace;font-weight:600;font-size:.78rem;color:var(--accent)">${totalFree} pcs</span>
+    </div>`;
+  }
   if(cashPart>0||coinPart>0){
     const parts=[];
     if(cashPart>0) parts.push(`💵 ${cashPart.toLocaleString('no-NO')} kr cash`);
@@ -1162,9 +1270,15 @@ function renderShopLog(){
   pageItems.forEach(entry=>{
     const p=SHOP_PRODUCTS.find(x=>x.id===entry.id)||{icon:'🛒'};
     const d=document.createElement('div');d.className='log-item';
-    d.innerHTML=`<div class="log-ico" style="background:var(--green-dim)">${p.icon}</div>
-      <div class="log-body"><div class="log-title">${entry.name}</div><div class="log-meta">${entry.date}</div></div>
-      <div class="log-right"><div class="log-amt" style="color:var(--green)">+${entry.price} kr</div></div>`;
+    if(entry.free){
+      d.innerHTML=`<div class="log-ico" style="background:var(--accent-dim)">🎁</div>
+        <div class="log-body"><div class="log-title">${entry.name} <span style="font-size:.6rem;font-weight:700;padding:2px 7px;border-radius:999px;background:var(--accent-dim);color:var(--accent);border:1px solid var(--accent-mid);margin-left:4px;vertical-align:middle">FREE</span></div><div class="log-meta">Taken by <b style="color:var(--text)">${entry.takenBy||'—'}</b> · ${entry.date}</div></div>
+        <div class="log-right"><div class="log-amt" style="color:var(--accent)">— kr</div></div>`;
+    } else {
+      d.innerHTML=`<div class="log-ico" style="background:var(--green-dim)">${p.icon}</div>
+        <div class="log-body"><div class="log-title">${entry.name}</div><div class="log-meta">${entry.date}</div></div>
+        <div class="log-right"><div class="log-amt" style="color:var(--green)">+${entry.price} kr</div></div>`;
+    }
     el.appendChild(d);
   });
   renderLogPagination('shop-log-pagination',_shopLogPage,totalPages,log.length,(p)=>{_shopLogPage=p;renderShopLog();});
