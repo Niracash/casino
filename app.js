@@ -78,15 +78,12 @@ function getExpected(){
   D.additions.forEach(a=>{if(a.type==='cash')cash+=a.amount;else if(a.type==='playcoin')pc+=a.amount;});
   D.exchanges.forEach(e=>{
     if(e.from==='cash'&&e.to==='coin'){
-      // Customer gives cash notes, we give mønt back:
-      // cash drawer IN (+), mønt drawer OUT (−)
       cash+=e.amount; coin-=e.amount; return;
     }
     if(e.from==='cash'&&e.to==='pc'){
-      // cash notes come IN, playcoins go OUT, coin change goes OUT to customer
-      cash+=e.amount;          // full cash amount enters drawer
-      pc-=e.pcOut||Math.floor(e.amount/20)*20;   // playcoins leave
-      coin-=(e.coinChange||(e.amount-Math.floor(e.amount/20)*20)); // coin change leaves
+      cash+=e.amount;
+      pc-=e.pcOut||Math.floor(e.amount/20)*20;
+      coin-=(e.coinChange||(e.amount-Math.floor(e.amount/20)*20));
       return;
     }
     if(e.from==='bank')bank+=e.amount;
@@ -184,12 +181,10 @@ function updateHomeHints(){
 function fillExpectedIntoCount(){
   if(!D.shift)return;
   const exp=getExpected();
-  // Always sync inputs to current expected (without fridge)
   const set=(id,v)=>{
     const el=document.getElementById(id);
     if(!el)return;
     const rounded=Math.round(v);
-    // Only update if the user hasn't manually diverged (i.e. value matches old expected or is empty)
     el.value=rounded>0?rounded:'';
   };
   set('h-coin',exp.coin);
@@ -241,23 +236,12 @@ function recalc(){
     return;
   }
 
-  // diff WITHOUT fridge (pure accounting diff)
   const diffNoFridge=current-expected;
-  // diff WITH fridge baked in (what you'd expect if fridge revenue is in drawer)
   const diffWithFridge=current-expected-fridge;
   const absDiffNoFridge=Math.abs(Math.round(diffNoFridge));
   const absDiffWithFridge=Math.abs(Math.round(diffWithFridge));
 
-  // Determine display state
-  // Primary: show diff without fridge (pure accounting)
-  // Secondary info: show that with fridge it's balanced
-  const bothBalanced=absDiffNoFridge<1&&absDiffWithFridge<1;
-  const onlyWithFridgeBalanced=absDiffWithFridge<1&&absDiffNoFridge>=1;
-  const noFridgeBalanced=absDiffNoFridge<1&&absDiffWithFridge>=1;
-  const neitherBalanced=absDiffNoFridge>=1&&absDiffWithFridge>=1;
-
   if(absDiffNoFridge<1){
-    // Pure accounting match (no fridge needed) - allow update
     db.className='diff ok';
     if(fridge>0){
       dv.innerHTML='0 kr <span style="color:var(--sub);font-size:.75rem">without fridge</span>';
@@ -270,7 +254,6 @@ function recalc(){
     ba.textContent='0 kr ✓';ba.className='bv green';
     if(updBtn){updBtn.style.display='';updBtn.disabled=false;}
   } else if(absDiffWithFridge<1){
-    // Only matches when including fridge revenue
     db.className='diff ok';
     dv.innerHTML=`<span style="font-size:1.3rem">0 kr</span> <span style="color:var(--green);font-size:.72rem">with fridge</span>`;
     ds.textContent=`Off by ${fmt(absDiffNoFridge)} without fridge · +${fridge.toLocaleString('no-NO')} kr fridge brings it to zero`;
@@ -298,21 +281,16 @@ function updateExpectedFromCount(){
   if(!D.shift||!hasCurrent)return;
   const exp=getExpected();
   const diff=Math.abs(Math.round((coin+cash+pc+bank)-exp.total));
-  // Only allow when pure diff (without fridge) is 0
   if(diff>=1)return;
 
-  // ── Fix #3: Archive existing transactions to report-only storage BEFORE clearing them ──
-  // This preserves them for the PDF shift report while removing them from active calculations.
   if(!D.archived) D.archived={exchanges:[],cashpoints:[],fillups:[],additions:[]};
   D.archived.exchanges.push(...D.exchanges);
   D.archived.cashpoints.push(...D.cashpoints);
   D.archived.fillups.push(...D.fillups);
   D.archived.additions.push(...D.additions);
 
-  // Update working state to new baseline
   D.shift.coin=coin;D.shift.cash=cash;D.shift.pc=pc;D.shift.bank=bank;
   D.shift.total=coin+cash+pc+bank;
-  // NOTE: D.shift.originalTotal stays untouched (Fix #2) — Active Start Total keeps showing original value
   D.exchanges=[];D.cashpoints=[];D.fillups=[];D.additions=[];
   saveState();
   ['h-coin','h-cash','h-pc','h-bank'].forEach(id=>document.getElementById(id).value='');
@@ -505,7 +483,6 @@ function delAddition(i){
 }
 
 let _exFrom='cash',_exTo='pc';
-// ── Fix #1: Customer giving Playcoins cannot receive Playcoins back (no PC→PC trade) ──
 const EXCHANGE_RULES={
   cash:{canGive:['pc','coin'],label:'Cash'},
   coin:{canGive:['pc','cash'],label:'Mønt'},
@@ -513,16 +490,12 @@ const EXCHANGE_RULES={
   bank:{canGive:['pc','cash','coin'],label:'Bank'}
 };
 
-// Context-aware validation: rules depend on BOTH from and to.
-// Returns null if valid, or an error message string.
 function validateExchange(from, to, amt){
-  if(isNaN(amt)||amt<=0) return null; // empty input — not an error, just not valid yet
+  if(isNaN(amt)||amt<=0) return null;
   if(from==='cash'){
     if(to==='coin'){
-      // Cash → Mønt: notes only, multiples of 50
       if(amt%50!==0) return 'Cash must be in multiples of 50 kr (notes only)';
     } else if(to==='pc'){
-      // Cash → Playcoins: any amount ≥ 50, mønt change auto-calculated
       if(amt<50) return 'Minimum 50 kr for cash → playcoins';
     }
     return null;
@@ -597,7 +570,6 @@ function exCalc(){
 }
 
 function exAmtInput(){
-  // sync all ex-amt-input fields
   const val=document.querySelectorAll('.ex-amt-input')[0]?.value||'';
   document.querySelectorAll('.ex-amt-input').forEach(el=>{if(el.value!==val)el.value=val;});
   exCalc();
@@ -610,24 +582,18 @@ function saveExchange(){
   if(err){document.querySelectorAll('.ex-amt-input').forEach(el=>flash(el.id||'ex-amt'));return;}
 
   if(_exFrom==='cash'&&_exTo==='coin'){
-    // Cash → Mønt: all cash becomes coin
     D.exchanges.push({from:'cash',to:'coin',amount:amt,date:nowFull(),ts:Date.now()});
   } else if(_exFrom==='cash'&&_exTo==='pc'){
-    // Customer gives cash notes, we give playcoins (floor to 20), coin change back
     const pcAmt=Math.floor(amt/20)*20;
-    const change=amt-pcAmt; // coin change back to customer
-    // cash comes IN, playcoins go OUT, coin change goes OUT
+    const change=amt-pcAmt;
     D.exchanges.push({from:'cash',to:'pc',amount:amt,pcOut:pcAmt,coinChange:change,date:nowFull(),ts:Date.now()});
   } else if(_exFrom==='pc'&&_exTo==='cash'){
-    // Playcoins in, cash out (floor to 50) + coin change
     const cp=Math.floor(amt/50)*50,cn=amt-cp;
     D.exchanges.push({from:'pc',to:'cash',amount:cp,date:nowFull(),ts:Date.now()});
     if(cn>0)D.exchanges.push({from:'pc',to:'coin',amount:cn,date:nowFull(),ts:Date.now()});
   } else if(_exTo==='pc'){
-    // bank/coin→pc: give floor-to-20 playcoins, coin change back if needed
     const pcAmt=Math.floor(amt/20)*20;
     D.exchanges.push({from:_exFrom,to:'pc',amount:pcAmt,date:nowFull(),ts:Date.now()});
-    // no cash change needed for bank; coin source already provides exact
   } else {
     D.exchanges.push({from:_exFrom,to:_exTo,amount:amt,date:nowFull(),ts:Date.now()});
   }
@@ -635,7 +601,6 @@ function saveExchange(){
   document.querySelectorAll('.ex-amt-input').forEach(el=>el.value='');
   document.querySelectorAll('.ex-hint-el').forEach(el=>el.style.display='none');
   document.querySelectorAll('.ex-save-btn').forEach(btn=>btn.disabled=true);
-  // Audit last pushed exchange(s)
   D.exchanges.slice(-2).forEach(e=>auditLog('add','exchange',e));
   renderExchangeList();renderHomeLog();recalc();updateEstCalc();fillExpectedIntoCount();
 }
@@ -798,7 +763,6 @@ function setShift(){
     return;
   }
   const total=coin+cash+pc+bank;
-  // ── Fix #2: Store originalTotal separately — never overwritten by updateExpectedFromCount ──
   D.shift={coin,cash,pc,bank,total,originalTotal:total,originalCoin:coin,originalCash:cash,originalPc:pc,originalBank:bank,date:nowFull()};
   saveState();renderShiftInfo();recalc();updateEstCalc();updateHomeEst();
   const btn=event.currentTarget;btn.innerHTML='✓ Done!';btn.style.opacity='.7';
@@ -821,7 +785,6 @@ function lockShiftInputs(locked){
 function renderShiftInfo(){
   const el=document.getElementById('shift-total-display'),date=document.getElementById('shift-date-display');
   if(D.shift){
-    // ── Fix #2: Display original start total (never the updated one) ──
     const displayTotal = D.shift.originalTotal != null ? D.shift.originalTotal : D.shift.total;
     el.textContent=fmt(displayTotal);el.className='ssv';date.textContent='Set: '+D.shift.date;
     lockShiftInputs(true);
@@ -830,6 +793,42 @@ function renderShiftInfo(){
     lockShiftInputs(false);
   }
 }
+
+// ── Helper: compute running expected totals after each transaction ──
+function getRunningExpected(){
+  if(!D.shift)return[];
+  let coin=D.shift.coin,cash=D.shift.cash,pc=D.shift.pc,bank=D.shift.bank;
+  const snapshots=[];
+
+  // Build a unified timeline of all events
+  const archived = D.archived || {exchanges:[],cashpoints:[],fillups:[],additions:[]};
+  const allAdditions=[...(archived.additions||[]),...D.additions].sort((a,b)=>(a.ts||0)-(b.ts||0));
+  const allFillups=[...(archived.fillups||[]),...D.fillups].sort((a,b)=>(a.ts||0)-(b.ts||0));
+  const allCashpoints=[...(archived.cashpoints||[]),...D.cashpoints].sort((a,b)=>(a.ts||0)-(b.ts||0));
+
+  // Apply additions
+  allAdditions.forEach(a=>{
+    if(a.type==='cash') cash+=a.amount;
+    else if(a.type==='playcoin') pc+=a.amount;
+    snapshots.push({label:a.type==='playcoin'?'Playcoins Added':'Cash Added',ts:a.ts||0,coin,cash,pc,bank,total:coin+cash+pc+bank});
+  });
+  // Apply cashpoints
+  allCashpoints.forEach(cp=>{
+    if(cp.from==='bank') bank+=cp.amount;
+    if(cp.from==='cash'){
+      if(cp.amount>=0){cash+=Math.floor(cp.amount/50)*50;coin+=cp.amount-Math.floor(cp.amount/50)*50;}
+      else cash+=cp.amount;
+    }
+    snapshots.push({label:'Cashpoint',ts:cp.ts||0,coin,cash,pc,bank,total:coin+cash+pc+bank});
+  });
+  // Apply fillups
+  allFillups.forEach(f=>{
+    pc-=f.coins*20;
+    snapshots.push({label:`Fillup M${f.machine}`,ts:f.ts||0,coin,cash,pc,bank,total:coin+cash+pc+bank});
+  });
+  return snapshots.sort((a,b)=>a.ts-b.ts);
+}
+
 function generateShiftPDF(){
   const f=fmt,now=nowFull();
   const exp=getExpected();
@@ -837,25 +836,75 @@ function generateShiftPDF(){
   const fridgeCash=Math.floor(fridge/50)*50;
   const fridgeCoin=fridge-fridgeCash;
 
-  // ── Fix #3: Merge archived transactions with current ones for the report ──
   const archived = D.archived || {exchanges:[],cashpoints:[],fillups:[],additions:[]};
   const allFillups   = [...(archived.fillups||[]),   ...D.fillups];
   const allAdditions = [...(archived.additions||[]), ...D.additions];
   const allCashpoints= [...(archived.cashpoints||[]),...D.cashpoints];
   const allExchanges = [...(archived.exchanges||[]), ...D.exchanges];
 
-  // Today's Log = fillups + additions + cashpoints (NOT exchanges)
-  // Sorted newest first (latest on top)
   const todayLog=[
     ...allFillups.map(x=>({type:'fillup',ts:x.ts||0,data:x})),
     ...allAdditions.map(x=>({type:'addition',ts:x.ts||0,data:x})),
     ...allCashpoints.map(x=>({type:'cashpoint',ts:x.ts||0,data:x})),
   ].sort((a,b)=>b.ts-a.ts);
 
-  // Exchange Log = exchanges only, separate table — newest first
   const exchangeLog=[...allExchanges].sort((a,b)=>(b.ts||0)-(a.ts||0));
 
   const CAT={cash:'Cash',pc:'Playcoins',coin:'Mønt',bank:'Bank'};
+
+  // Build running expected for log rows
+  // We'll compute expected state after each event in chronological order
+  const runningEvents=[
+    ...allFillups.map(x=>({type:'fillup',ts:x.ts||0,data:x})),
+    ...allAdditions.map(x=>({type:'addition',ts:x.ts||0,data:x})),
+    ...allCashpoints.map(x=>({type:'cashpoint',ts:x.ts||0,data:x})),
+    ...allExchanges.map(x=>({type:'exchange',ts:x.ts||0,data:x})),
+  ].sort((a,b)=>a.ts-b.ts);
+
+  let rCoin=D.shift?D.shift.coin:0;
+  let rCash=D.shift?D.shift.cash:0;
+  let rPc=D.shift?D.shift.pc:0;
+  let rBank=D.shift?D.shift.bank:0;
+
+  // Map ts → expected snapshot + which fields changed
+  const expectedAfter={};
+  runningEvents.forEach(ev=>{
+    const d=ev.data;
+    const changed=new Set();
+    if(ev.type==='addition'){
+      if(d.type==='cash'){rCash+=d.amount;changed.add('cash');}
+      else if(d.type==='playcoin'){rPc+=d.amount;changed.add('pc');}
+    } else if(ev.type==='cashpoint'){
+      if(d.from==='bank'){rBank+=d.amount;changed.add('bank');}
+      else if(d.from==='cash'){
+        if(d.amount>=0){
+          const cp=Math.floor(d.amount/50)*50,cn=d.amount-cp;
+          if(cp){rCash+=cp;changed.add('cash');}
+          if(cn){rCoin+=cn;changed.add('coin');}
+        } else {rCash+=d.amount;changed.add('cash');}
+      }
+    } else if(ev.type==='fillup'){
+      rPc-=d.coins*20;changed.add('pc');
+    } else if(ev.type==='exchange'){
+      if(d.from==='cash'&&d.to==='coin'){
+        rCash+=d.amount;rCoin-=d.amount;changed.add('cash');changed.add('coin');
+      } else if(d.from==='cash'&&d.to==='pc'){
+        rCash+=d.amount;changed.add('cash');
+        rPc-=d.pcOut||Math.floor(d.amount/20)*20;changed.add('pc');
+        const chg=d.coinChange||(d.amount-Math.floor(d.amount/20)*20);
+        if(chg){rCoin-=chg;changed.add('coin');}
+      } else {
+        if(d.from==='bank'){rBank+=d.amount;changed.add('bank');}
+        if(d.from==='pc'){rPc+=d.amount;changed.add('pc');}
+        if(d.from==='coin'){rCoin+=d.amount;changed.add('coin');}
+        if(d.to==='cash'){rCash-=d.amount;changed.add('cash');}
+        if(d.to==='pc'){rPc-=d.amount;changed.add('pc');}
+        if(d.to==='coin'&&d.from!=='cash'){rCoin-=d.amount;changed.add('coin');}
+        if(d.to==='bank'){rBank-=d.amount;changed.add('bank');}
+      }
+    }
+    expectedAfter[ev.ts]={coin:rCoin,cash:rCash,pc:rPc,bank:rBank,total:rCoin+rCash+rPc+rBank,changed};
+  });
 
   let logRows='';
   todayLog.forEach(e=>{
@@ -870,28 +919,30 @@ function generateShiftPDF(){
       label='Cashpoint';detail=`${isW?'Withdrawal':'Deposit'} via ${d.from==='bank'?'Bank/Card':'Cash'}`;
       amount=(isW?'−':'+')+f(Math.abs(d.amount));
     }
-    logRows+=`<tr><td>${d.date||''}</td><td>${label}</td><td>${detail}</td><td style="text-align:right;font-family:monospace">${amount}</td></tr>`;
+    // Get expected snapshot after this event
+    const snap=expectedAfter[d.ts||e.ts];
+    const expCell=snap?`<span style="font-size:10px;color:#888">C:${Math.round(snap.coin).toLocaleString('no-NO')} / Ca:${Math.round(snap.cash).toLocaleString('no-NO')} / PC:${Math.round(snap.pc).toLocaleString('no-NO')}</span>`:'—';
+    logRows+=`<tr><td>${d.date||''}</td><td>${label}</td><td>${detail}</td><td style="text-align:right;font-family:monospace">${amount}</td><td style="text-align:right">${expCell}</td></tr>`;
   });
 
   let exchangeRows='';
   exchangeLog.forEach(d=>{
-    let detail='',amount='';
+    // Clean label — no bracket details
+    let detail='';
     if(d.from==='cash'&&d.to==='pc'){
-      const pcOut=d.pcOut||Math.floor(d.amount/20)*20;
-      const change=d.coinChange||(d.amount-pcOut);
-      if(change>0){
-        detail=`Cash → Playcoins (${f(pcOut)} pc + ${f(change)} mønt change)`;
-      } else {
-        detail=`Cash → Playcoins`;
-      }
-      amount=f(d.amount);
+      detail='Cash → Playcoins';
+    } else if(d.from==='cash'&&d.to==='coin'){
+      detail='Cash → Mønt';
+    } else if(d.from==='pc'&&d.to==='cash'){
+      detail='Playcoins → Cash';
+    } else if(d.from==='pc'&&d.to==='coin'){
+      detail='Playcoins → Mønt';
     } else {
-      detail=`${CAT[d.from]} → ${CAT[d.to]}`;amount=f(d.amount);
+      detail=`${CAT[d.from]||d.from} → ${CAT[d.to]||d.to}`;
     }
-    exchangeRows+=`<tr><td>${d.date||''}</td><td>${detail}</td><td style="text-align:right;font-family:monospace">${amount}</td></tr>`;
+    exchangeRows+=`<tr><td>${d.date||''}</td><td>${detail}</td><td style="text-align:right;font-family:monospace">${f(d.amount)}</td></tr>`;
   });
 
-  // ── Fix #4: Include ALL fridge products in report (even items with 0 start and 0 sold) ──
   let fridgeRows='';
   let totalStart=0, totalSold=0, totalFree=0, totalEnd=0, totalRev=0;
   if(D.shop){
@@ -902,9 +953,7 @@ function generateShiftPDF(){
       const free=(D.shop.freeTakes && D.shop.freeTakes[id])||0;
       const end=start-sold-free;
       const rev=sold*p;
-      // Collect names from log for this product's free takes
       const freeNames=((D.shop && D.shop.log)||[]).filter(l=>l.id===id && l.free).map(l=>l.takenBy).filter(Boolean);
-      // Build "sold + free (names)" display string
       let soldCell;
       if(free>0){
         const namesStr=freeNames.length>0?` (${freeNames.join(', ')})`:'';
@@ -915,12 +964,10 @@ function generateShiftPDF(){
       totalStart+=start; totalSold+=sold; totalFree+=free; totalEnd+=end; totalRev+=rev;
       fridgeRows+=`<tr><td>${n}</td><td style="text-align:center">${start}</td><td>${soldCell}</td><td style="text-align:center">${end}</td><td style="text-align:right;font-family:monospace">${f(rev)}</td></tr>`;
     });
-    // Total row
     const totalSoldCell = totalFree>0 ? `${totalSold} + ${totalFree} free` : `${totalSold}`;
     fridgeRows+=`<tr style="background:#f4f4f8;font-weight:700"><td>Total</td><td style="text-align:center">${totalStart}</td><td>${totalSoldCell}</td><td style="text-align:center">${totalEnd}</td><td style="text-align:right;font-family:monospace">${f(totalRev)}</td></tr>`;
   }
 
-  // ── Start Total excludes Bank — only Mønt + Cash + Playcoins ──
   const displayStartTotal = D.shift
     ? ((D.shift.originalCoin != null ? D.shift.originalCoin : D.shift.coin) || 0)
       + ((D.shift.originalCash != null ? D.shift.originalCash : D.shift.cash) || 0)
@@ -930,7 +977,7 @@ function generateShiftPDF(){
   const html=`<!DOCTYPE html><html><head><meta charset="UTF-8">
   <title>Casino Shift Report</title>
   <style>
-    body{font-family:Arial,sans-serif;font-size:13px;color:#111;padding:30px;max-width:720px;margin:0 auto}
+    body{font-family:Arial,sans-serif;font-size:13px;color:#111;padding:30px;max-width:760px;margin:0 auto}
     h1{font-size:20px;margin-bottom:2px;color:#1a1a2e}
     .meta{color:#666;font-size:12px;margin-bottom:24px}
     h2{font-size:14px;font-weight:700;margin:22px 0 8px;padding-bottom:4px;border-bottom:2px solid #eee;color:#1a1a2e}
@@ -943,8 +990,8 @@ function generateShiftPDF(){
     .summary-box .label{font-size:11px;color:#888;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px}
     .summary-box .value{font-size:16px;font-weight:700;font-family:monospace;color:#1a1a2e}
     .summary-box .sub{font-size:11px;color:#3ecf8e;margin-top:3px}
-    .del-row{color:#c00;background:#fff5f5}
     .footer{margin-top:32px;font-size:11px;color:#aaa;text-align:center;border-top:1px solid #eee;padding-top:12px}
+    .exp-col{background:#fafbff}
     @media print{body{padding:10px}button{display:none}}
   </style></head><body>
   <h1>Casino — Shift Report</h1>
@@ -967,7 +1014,7 @@ function generateShiftPDF(){
   <tbody>${fridgeRows}</tbody></table>
   <h2>Today's Log (${todayLog.length} entries)</h2>
   ${todayLog.length===0?'<p style="color:#999">No entries recorded.</p>':`
-  <table><thead><tr><th>Time</th><th>Type</th><th>Detail</th><th style="text-align:right">Amount</th></tr></thead>
+  <table><thead><tr><th>Time</th><th>Type</th><th>Detail</th><th style="text-align:right">Amount</th><th style="text-align:right" class="exp-col">Expected after (C/Ca/PC)</th></tr></thead>
   <tbody>${logRows}</tbody></table>`}
   <h2>Exchange Log (${exchangeLog.length} entries)</h2>
   ${exchangeLog.length===0?'<p style="color:#999">No exchanges recorded.</p>':`
@@ -1053,6 +1100,20 @@ function renderShopItems(){
     const free=D.shop.freeTakes[p.id]||0;
     const end=start-sold-free;
     const revenue=sold*p.price;
+
+    // Build free takers list with undo buttons
+    const freeLogs=(D.shop.log||[]).map((l,i)=>({...l,_i:i})).filter(l=>l.id===p.id&&l.free);
+    let freeTakersHtml='';
+    if(freeLogs.length>0){
+      freeTakersHtml=`<div style="margin-top:6px;padding:6px 0;border-top:1px solid var(--border)">
+        <div style="font-size:.6rem;color:var(--sub);text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-bottom:5px">Free takes</div>
+        ${freeLogs.map(l=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:3px 0;gap:8px">
+          <span style="font-size:.75rem;color:var(--accent)">${l.takenBy||'—'} <span style="color:var(--muted);font-size:.65rem">· ${l.date||''}</span></span>
+          <button onclick="delFreeTake('${p.id}',${l._i})" style="background:var(--red-dim);border:1px solid var(--red-mid);color:var(--red);border-radius:5px;font-size:.62rem;padding:3px 8px;cursor:pointer;font-family:'Inter',sans-serif;font-weight:600">Undo</button>
+        </div>`).join('')}
+      </div>`;
+    }
+
     const div=document.createElement('div');
     div.className='shop-item';
     div.innerHTML=`
@@ -1073,13 +1134,14 @@ function renderShopItems(){
             <div class="shop-count-display" id="shop-sold-${p.id}">${sold}</div>
             <button class="shop-counter-btn plus" onclick="shopSell('${p.id}',1)">+</button>
           </div>
-          <button class="shop-free-btn" onclick="shopFreeTake('${p.id}')">🎁 Take (free)</button>
+          <button class="shop-free-btn" onclick="shopFreeTake('${p.id}')">Take (free)</button>
         </div>
       </div>
       <div class="shop-item-row"><span class="sl">Sold (paid)</span><span class="sv">${sold} pcs</span></div>
       <div class="shop-item-row"><span class="sl">Free takes</span><span class="sv" style="color:${free>0?'var(--accent)':'var(--muted)'}">${free} pcs</span></div>
       <div class="shop-item-row"><span class="sl">End count</span><span class="sv" id="shop-end-${p.id}" style="color:${end<0?'var(--red)':'var(--text)'}">${end}</span></div>
-      <div class="shop-item-row"><span class="sl">Revenue</span><span class="sv" style="color:var(--green)">${revenue>0?revenue.toLocaleString('no-NO')+' kr':'—'}</span></div>`;
+      <div class="shop-item-row"><span class="sl">Revenue</span><span class="sv" style="color:var(--green)">${revenue>0?revenue.toLocaleString('no-NO')+' kr':'—'}</span></div>
+      ${freeTakersHtml}`;
     el.appendChild(div);
   });
   renderShopSummary();
@@ -1110,7 +1172,7 @@ function _doShopSell(id, delta){
     D.shop.log.push({id,name:SHOP_PRODUCTS.find(p=>p.id===id).name,price:SHOP_PRODUCTS.find(p=>p.id===id).price,ts:Date.now(),date:nowFull()});
   } else {
     if(D.shop.log){
-      const idx=[...D.shop.log].map((l,i)=>({l,i})).reverse().find(x=>x.l.id===id);
+      const idx=[...D.shop.log].map((l,i)=>({l,i})).reverse().find(x=>x.l.id===id&&!x.l.free);
       if(idx)D.shop.log.splice(idx.i,1);
     }
   }
@@ -1139,9 +1201,34 @@ function shopSell(id, delta){
   _doShopSell(id,delta);
 }
 
+// ── Undo/Remove a free take ──
+function delFreeTake(id, logIndex){
+  initShop();
+  const product=SHOP_PRODUCTS.find(p=>p.id===id);
+  if(!product)return;
+  const entry=D.shop.log&&D.shop.log[logIndex];
+  if(!entry||!entry.free)return;
+  const takenBy=entry.takenBy||'someone';
+  showModal({
+    icon:'↩️',
+    title:'Remove Free Take',
+    msg:`Remove free take of ${product.name} by ${takenBy}?`,
+    buttons:[
+      {label:'Cancel',style:'modal-btn-ghost'},
+      {label:'Remove',style:'modal-btn-danger',action:()=>{
+        D.shop.log.splice(logIndex,1);
+        D.shop.freeTakes[id]=Math.max(0,(D.shop.freeTakes[id]||1)-1);
+        saveState();
+        renderShopItems();
+        renderShopLog();
+        renderHomeFridgeMini();
+      }}
+    ]
+  });
+}
+
 // ── Free Take (no payment, with employee/staff name) ──
 function showNameModal(productName, onConfirm){
-  // Build modal with a text input inside the message area
   document.getElementById('modal-icon').textContent='🎁';
   document.getElementById('modal-icon').style.display='block';
   document.getElementById('modal-title').textContent='Free Take — '+productName;
@@ -1239,7 +1326,6 @@ function renderShopSummary(){
     const end=start-sold-free;
     const endColor=end<0?'var(--red)':'var(--muted)';
 
-    // Build name list from free-take log entries
     const freeNames = (D.shop.log||[])
       .filter(l=>l.id===p.id && l.free)
       .map(l=>l.takenBy)
@@ -1540,11 +1626,20 @@ function coffeeTimerReset(){
 }
 
 // ── WINNER EMAIL ──
-// Pre-fill today's date when shift page is visited
 document.addEventListener('DOMContentLoaded',()=>{
   const dateEl=document.getElementById('w-date');
   if(dateEl&&!dateEl.value) dateEl.value=nowDate();
 });
+
+function clearWinnerFields(){
+  ['w-amount','w-machine-nr','w-machine-id','w-machine-name','w-shop'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el)el.value='';
+  });
+  // Reset date to today
+  const dateEl=document.getElementById('w-date');
+  if(dateEl)dateEl.value=nowDate();
+}
 
 function sendWinnerEmail(){
   const amount=document.getElementById('w-amount').value.trim();
@@ -1571,4 +1666,7 @@ Maskin nummer: ${machineNr}${machineId?'\nMaskin id: '+machineId:''}${machineNam
 
   const mailto=`mailto:kundeservice@casinohouse.dk?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   window.location.href=mailto;
+
+  // Auto-clear fields after opening mail
+  setTimeout(()=>clearWinnerFields(), 1500);
 }
