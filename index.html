@@ -160,7 +160,7 @@
   <div class="sec-title"><span>Key Fillup</span></div>
   <div class="fg">
     <label class="fl">Machine number</label>
-    <input type="text" id="kf-machine" placeholder="e.g. Machine 14" oninput="stashInputs()">
+    <input type="text" id="kf-machine" placeholder="Enter machine number" oninput="stashInputs()">
   </div>
   <div class="fg">
     <label class="fl">Type</label>
@@ -300,9 +300,10 @@
     </div>
   </div>
 
-  <button class="btn btn-primary" onclick="sendWinnerEmail()">Open in Mail App</button>
-
-  <div style="margin-bottom:8px"></div>
+  <div class="btn-2" style="margin-bottom:8px">
+    <button class="btn btn-primary" onclick="sendWinnerEmail()">Open in Mail App</button>
+    <button class="btn btn-ghost" onclick="clearWinnerFields()">Clear Fields</button>
+  </div>
 
 </div>
 
@@ -313,17 +314,17 @@
   <p class="caption">Set start count at the beginning of your shift. Tap + to record a sale, − to undo.</p>
   <div id="shop-items-list"></div>
 
-  <div class="sec-title"><span>Revenue Summary</span></div>
-  <div class="est-home" id="shop-summary">
-    <div class="est-home-label">No sales recorded yet</div>
-    <div id="shop-summary-rows"></div>
-  </div>
-
   <div class="sec-title"><span>Sales Log <span id="shop-log-count" style="font-weight:500;letter-spacing:0;text-transform:none;opacity:.7"></span></span></div>
   <div class="log-list" id="shop-log">
     <div class="empty"><div class="empty-ico">🛒</div>No sales yet</div>
   </div>
   <div id="shop-log-pagination"></div>
+
+  <div class="sec-title"><span>Revenue Summary</span></div>
+  <div class="est-home" id="shop-summary">
+    <div class="est-home-label">No sales recorded yet</div>
+    <div id="shop-summary-rows"></div>
+  </div>
 
 </div>
 
