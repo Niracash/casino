@@ -919,9 +919,15 @@ function generateShiftPDF(){
       label='Cashpoint';detail=`${isW?'Withdrawal':'Deposit'} via ${d.from==='bank'?'Bank/Card':'Cash'}`;
       amount=(isW?'−':'+')+f(Math.abs(d.amount));
     }
-    // Get expected snapshot after this event
+    // Get expected snapshot after this event — only show changed types
     const snap=expectedAfter[d.ts||e.ts];
-    const expCell=snap?`<span style="font-size:10px;color:#888">C:${Math.round(snap.coin).toLocaleString('no-NO')} / Ca:${Math.round(snap.cash).toLocaleString('no-NO')} / PC:${Math.round(snap.pc).toLocaleString('no-NO')}</span>`:'—';
+    let expCell='—';
+    if(snap&&snap.changed&&snap.changed.size>0){
+      const labels={coin:'Mønt',cash:'Cash',pc:'Playcoins',bank:'Bank'};
+      const vals={coin:snap.coin,cash:snap.cash,pc:snap.pc,bank:snap.bank};
+      const parts=[...snap.changed].map(k=>`${labels[k]}: <b>${Math.round(vals[k]).toLocaleString('no-NO')} kr</b>`);
+      expCell=`<span style="font-size:10px;color:#555">${parts.join(' &nbsp;·&nbsp; ')}</span>`;
+    }
     logRows+=`<tr><td>${d.date||''}</td><td>${label}</td><td>${detail}</td><td style="text-align:right;font-family:monospace">${amount}</td><td style="text-align:right">${expCell}</td></tr>`;
   });
 
@@ -1014,7 +1020,7 @@ function generateShiftPDF(){
   <tbody>${fridgeRows}</tbody></table>
   <h2>Today's Log (${todayLog.length} entries)</h2>
   ${todayLog.length===0?'<p style="color:#999">No entries recorded.</p>':`
-  <table><thead><tr><th>Time</th><th>Type</th><th>Detail</th><th style="text-align:right">Amount</th><th style="text-align:right" class="exp-col">Expected after (C/Ca/PC)</th></tr></thead>
+  <table><thead><tr><th>Time</th><th>Type</th><th>Detail</th><th style="text-align:right">Amount</th><th style="text-align:right" class="exp-col">Expected after</th></tr></thead>
   <tbody>${logRows}</tbody></table>`}
   <h2>Exchange Log (${exchangeLog.length} entries)</h2>
   ${exchangeLog.length===0?'<p style="color:#999">No exchanges recorded.</p>':`
