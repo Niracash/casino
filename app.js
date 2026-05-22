@@ -946,7 +946,15 @@ function generateShiftPDF(){
     } else {
       detail=`${CAT[d.from]||d.from} → ${CAT[d.to]||d.to}`;
     }
-    exchangeRows+=`<tr><td>${d.date||''}</td><td>${detail}</td><td style="text-align:right;font-family:monospace">${f(d.amount)}</td></tr>`;
+    const snap=expectedAfter[d.ts];
+    let expCell='—';
+    if(snap&&snap.changed&&snap.changed.size>0){
+      const labels={coin:'Mønt',cash:'Cash',pc:'Playcoins',bank:'Bank'};
+      const vals={coin:snap.coin,cash:snap.cash,pc:snap.pc,bank:snap.bank};
+      const parts=[...snap.changed].map(k=>`${labels[k]}: <b>${Math.round(vals[k]).toLocaleString('no-NO')} kr</b>`);
+      expCell=`<span style="font-size:10px;color:#555">${parts.join(' &nbsp;·&nbsp; ')}</span>`;
+    }
+    exchangeRows+=`<tr><td>${d.date||''}</td><td>${detail}</td><td style="text-align:right;font-family:monospace">${f(d.amount)}</td><td style="text-align:right">${expCell}</td></tr>`;
   });
 
   let fridgeRows='';
@@ -1024,7 +1032,7 @@ function generateShiftPDF(){
   <tbody>${logRows}</tbody></table>`}
   <h2>Exchange Log (${exchangeLog.length} entries)</h2>
   ${exchangeLog.length===0?'<p style="color:#999">No exchanges recorded.</p>':`
-  <table><thead><tr><th>Time</th><th>Detail</th><th style="text-align:right">Amount</th></tr></thead>
+  <table><thead><tr><th>Time</th><th>Detail</th><th style="text-align:right">Amount</th><th style="text-align:right" class="exp-col">Expected after</th></tr></thead>
   <tbody>${exchangeRows}</tbody></table>`}
   <div class="footer">Casino Shift Report &nbsp;|&nbsp; ${now}</div>
   </body></html>`;
