@@ -1680,7 +1680,4 @@ Maskin nummer: ${machineNr}${machineId?'\nMaskin id: '+machineId:''}${machineNam
 
   const mailto=`mailto:kundeservice@casinohouse.dk?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   window.location.href=mailto;
-
-  // Auto-clear fields after opening mail
-  setTimeout(()=>clearWinnerFields(), 1500);
 }
