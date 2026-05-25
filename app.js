@@ -107,6 +107,13 @@ function getExpected(){
       coin-=(e.coinChange||(e.amount-Math.floor(e.amount/20)*20));
       return;
     }
+    if(e.from==='coin'&&e.to==='cash'){
+      // Customer gives coins, we give notes out; coin remainder goes back to customer
+      const cashOut=e.cashOut!=null?e.cashOut:Math.floor(e.amount/50)*50;
+      coin-=e.amount; // we receive all coins from customer
+      cash-=cashOut;  // we give notes out of drawer
+      return;
+    }
     if(e.from==='bank')bank+=e.amount;
     if(e.from==='pc')pc+=e.amount;
     if(e.from==='coin')coin+=e.amount;
@@ -733,6 +740,14 @@ function exCalc(){
       const cp=Math.floor(amt/50)*50,cn=amt-cp;
       hint.className='ex-hint-el success';hint.style.display='block';
       hint.innerHTML=cn>0?`Give customer <b>${fmt(cp)}</b> cash + <b>${fmt(cn)}</b> mønt`:`Give customer <b>${fmt(cp)}</b> cash`;
+    } else if(_exFrom==='coin'&&_exTo==='cash'){
+      const cashPart=Math.floor(amt/50)*50,coinPart=amt-cashPart;
+      hint.className='ex-hint-el success';hint.style.display='block';
+      if(coinPart>0){
+        hint.innerHTML=`Give customer <b>${fmt(cashPart)}</b> cash + <b>${fmt(coinPart)}</b> mønt back · −${fmt(amt)} mønt, +${fmt(cashPart)} cash`;
+      } else {
+        hint.innerHTML=`Give customer <b>${fmt(cashPart)}</b> cash · −${fmt(amt)} mønt, +${fmt(cashPart)} cash`;
+      }
     } else if(_exTo==='pc'){
       const pcAmt=Math.floor(amt/20)*20,change=amt-pcAmt;
       if(change>0){
@@ -767,6 +782,14 @@ function saveExchange(){
     const cp=Math.floor(amt/50)*50,cn=amt-cp;
     D.exchanges.push({from:'pc',to:'cash',amount:cp,date:nowFull(),ts:Date.now()});
     if(cn>0)D.exchanges.push({from:'pc',to:'coin',amount:cn,date:nowFull(),ts:Date.now()});
+  } else if(_exFrom==='coin'&&_exTo==='cash'){
+    // e.g. 120 mønt → 100 cash out + 20 mønt back to customer
+    const cashPart=Math.floor(amt/50)*50;
+    const coinPart=amt-cashPart;
+    // coin decreases by full amount (customer gave us all coins)
+    // cash decreases by cashPart (we give notes back)
+    // coinPart goes back to customer — so coin also decreases by coinPart (net: coin -= amt, cash -= cashPart)
+    D.exchanges.push({from:'coin',to:'cash',amount:amt,cashOut:cashPart,coinBack:coinPart,date:nowFull(),ts:Date.now()});
   } else if(_exTo==='pc'){
     // e.g. bank 410 → 400 playcoins + 10 coin change back to customer
     const pcAmt=Math.floor(amt/20)*20;
@@ -1011,7 +1034,7 @@ function generateShiftPDF(){
   const f=fmt;
   // Use shift date for the filename / title
   const shiftDate=D.shift?D.shift.date.split(' ')[0]:nowDate();
-  const reportTitle=`${shiftDate}`;
+  const reportTitle=`${shiftDate} — Shift`;
 
   const exp=getExpected();
   // Expected total WITHOUT bank
@@ -1076,6 +1099,10 @@ function generateShiftPDF(){
         rPc-=d.pcOut||Math.floor(d.amount/20)*20;changed.add('pc');
         const chg=d.coinChange||(d.amount-Math.floor(d.amount/20)*20);
         if(chg){rCoin-=chg;changed.add('coin');}
+      } else if(d.from==='coin'&&d.to==='cash'){
+        const cashOut=d.cashOut!=null?d.cashOut:Math.floor(d.amount/50)*50;
+        rCoin-=d.amount;changed.add('coin');
+        rCash-=cashOut;changed.add('cash');
       } else {
         if(d.from==='bank'){rBank+=d.amount;changed.add('bank');}
         if(d.from==='pc'){rPc+=d.amount;changed.add('pc');}
@@ -1202,17 +1229,16 @@ function generateShiftPDF(){
     .summary-box .sub{font-size:11px;color:#3ecf8e;margin-top:3px}
     .footer{margin-top:32px;font-size:11px;color:#aaa;text-align:center;border-top:1px solid #eee;padding-top:12px}
     .exp-col{background:#fafbff}
-    /* Print: one continuous page, no forced page breaks */
+    /* Print styles */
     @media print{
-      body{padding:10px}
       button{display:none!important}
-      @page{size:auto;margin:15mm 10mm}
-      table{page-break-inside:auto}
+      @page{margin:12mm 10mm}
       tr{page-break-inside:avoid}
+      h2{page-break-after:avoid}
     }
   </style></head><body>
   <h1>${reportTitle}</h1>
-  <div class="meta">Casino</div>
+  <div class="meta">${D.shift?'Shift started: '+D.shift.date.split(' ')[0]:'No shift set'}</div>
   <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
     <button onclick="window.close()" style="padding:8px 18px;background:#fff;color:#1a1a2e;border:1px solid #1a1a2e;border-radius:6px;cursor:pointer;font-size:13px">← Back</button>
     <button onclick="window.print()" style="padding:8px 18px;background:#1a1a2e;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">🖨 Save as PDF</button>
@@ -1242,8 +1268,13 @@ function generateShiftPDF(){
   <div class="footer">${reportTitle} &nbsp;|&nbsp; Casino</div>
   </body></html>`;
 
-  const w=window.open('','_blank');
-  if(w){w.document.write(html);w.document.close();}
+  const blob=new Blob([html],{type:'text/html'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.target='_blank';a.rel='noopener';
+  document.body.appendChild(a);a.click();
+  document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url),10000);
 }
 
 function confirmReset(){
