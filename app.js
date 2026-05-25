@@ -1,13 +1,20 @@
-let D={shift:null,exchanges:[],cashpoints:[],fillups:[],additions:[],auditLog:[],archived:{exchanges:[],cashpoints:[],fillups:[],additions:[]},inputs:{home:{},shift:{},machines:{}},kfType:'kr'};
+let D={shift:null,exchanges:[],cashpoints:[],fillups:[],additions:[],expenses:[],winners:[],auditLog:[],archived:{exchanges:[],cashpoints:[],fillups:[],additions:[]},inputs:{home:{},shift:{},machines:{}},kfType:'kr'};
 
 function loadState(){
   const raw=localStorage.getItem('ccc_v5');
-  if(raw){const l=JSON.parse(raw);D={...D,...l};if(!D.inputs)D.inputs={home:{},shift:{},machines:{}};if(!D.exchanges)D.exchanges=[];if(!D.cashpoints)D.cashpoints=[];if(!D.auditLog)D.auditLog=[];if(!D.archived)D.archived={exchanges:[],cashpoints:[],fillups:[],additions:[]};if(!D.archived.exchanges)D.archived.exchanges=[];if(!D.archived.cashpoints)D.archived.cashpoints=[];if(!D.archived.fillups)D.archived.fillups=[];if(!D.archived.additions)D.archived.additions=[];}
+  if(raw){const l=JSON.parse(raw);D={...D,...l};if(!D.inputs)D.inputs={home:{},shift:{},machines:{}};if(!D.exchanges)D.exchanges=[];if(!D.cashpoints)D.cashpoints=[];if(!D.auditLog)D.auditLog=[];if(!D.expenses)D.expenses=[];if(!D.archived)D.archived={exchanges:[],cashpoints:[],fillups:[],additions:[]};if(!D.archived.exchanges)D.archived.exchanges=[];if(!D.archived.cashpoints)D.archived.cashpoints=[];if(!D.archived.fillups)D.archived.fillups=[];if(!D.archived.additions)D.archived.additions=[];if(!D.winners)D.winners=[];if(D.winner&&!Array.isArray(D.winner)){if(D.winner.amount&&D.winner.machineNr)D.winners.push(D.winner);delete D.winner;}}
 }
 function saveState(){localStorage.setItem('ccc_v5',JSON.stringify(D));}
 
-// Load state immediately on script execution
 loadState();
+
+// ── Haptic feedback ──
+function haptic(style='light'){
+  if(navigator.vibrate){
+    const patterns={light:10,medium:20,heavy:40,success:[10,30,10]};
+    navigator.vibrate(patterns[style]||10);
+  }
+}
 
 // ── Custom Modal ──
 function showModal({icon='',title='',msg='',buttons=[]}){
@@ -31,9 +38,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   document.getElementById('modal-overlay').addEventListener('click',e=>{
     if(e.target===document.getElementById('modal-overlay'))closeModal();
   });
-  // Restore inputs after DOM is ready
   restoreInputs();
-  // Re-init UI state
   if(D.kfType){
     _kfType=D.kfType;
     document.querySelectorAll('#page-machines .type-sel.cols-3 .tsb').forEach(b=>b.classList.remove('on'));
@@ -41,8 +46,11 @@ document.addEventListener('DOMContentLoaded',()=>{
     document.getElementById('kf-input-label').textContent={kr:'Win amount (kr)','1cr':'Credits on display','05cr':'Credits on display'}[D.kfType]||'Win amount (kr)';
   }
   selExFrom(_exFrom);
+  // Init cashpoint sign button visibility (bank is default, sign not needed)
+  const cpSb=document.getElementById('cp-sign-btn');
+  if(cpSb)cpSb.style.visibility='hidden';
   renderShiftInfo();renderHomeLog();renderExchangeList();renderCashpointList();renderAddList();renderKFLog();
-  renderShopItems();renderShopLog();
+  renderShopItems();renderShopLog();renderExpenseList();
   recalc();updateEstCalc();updateHomeEst();renderShopSummary();fillExpectedIntoCount();
   loadCoffeeTimer();
   checkBetbooksAlert();
@@ -55,9 +63,7 @@ function goPage(id,btn){
   if(id==='home'){fillExpectedIntoCount();recalc();renderHomeLog();renderExchangeList();renderShopSummary();}
   if(id==='machines'){renderKFLog();renderAddList();}
   if(id==='shift'){
-    renderShiftInfo();sPreview();renderCashpointList();updateEstCalc();
-    const dateEl=document.getElementById('w-date');
-    if(dateEl&&!dateEl.value)dateEl.value=nowDate();
+    renderShiftInfo();sPreview();renderCashpointList();renderExpenseList();renderWinnerLog();updateEstCalc();
   }
   if(id==='shop'){renderShopItems();renderShopLog();}
   if(id==='checklist'){renderChecklist();}
@@ -71,6 +77,21 @@ const nowFull=()=>nowDate()+' '+nowTime();
 const CAT_LABELS={cash:'Cash',pc:'Playcoins',coin:'Mønt',bank:'Bank'};
 
 function flash(id){const el=document.getElementById(id);if(!el)return;el.style.borderColor='var(--red)';el.focus();setTimeout(()=>el.style.borderColor='',1600);}
+
+// ── Split expense amount into cash (notes) and mønt (coins) by Danish denominations ──
+// Notes: 50, 100, 200, 500. Coins: 1, 2, 5, 10, 20.
+// Strategy: greedily use notes first, remainder is coins.
+function splitExpenseDenominations(amount){
+  const notes=[500,200,100,50];
+  let rem=Math.round(amount);
+  let cashPart=0;
+  for(const n of notes){
+    const count=Math.floor(rem/n);
+    cashPart+=count*n;
+    rem-=count*n;
+  }
+  return{cashPart,coinPart:rem};
+}
 
 function getExpected(){
   if(!D.shift)return{coin:0,cash:0,pc:0,bank:0,total:0};
@@ -108,6 +129,8 @@ function getExpected(){
     }
   });
   D.fillups.forEach(f=>{pc-=f.coins*20;});
+  // Expenses reduce cash (notes) and mønt (coins) by denomination
+  if(D.expenses){D.expenses.forEach(e=>{const{cashPart,coinPart}=splitExpenseDenominations(e.amount);cash-=cashPart;coin-=coinPart;});}
   return{coin,cash,pc,bank,total:coin+cash+pc+bank};
 }
 
@@ -123,6 +146,52 @@ function restoreInputs(){
   if(D.inputs.home){set('h-coin',D.inputs.home.coin);set('h-cash',D.inputs.home.cash);set('h-pc',D.inputs.home.pc);set('h-bank',D.inputs.home.bank);}
   if(D.inputs.shift){set('s-coin',D.inputs.shift.coin);set('s-cash',D.inputs.shift.cash);set('s-pc',D.inputs.shift.pc);set('s-bank',D.inputs.shift.bank);}
   if(D.inputs.machines){set('kf-machine',D.inputs.machines.machine);set('kf-val',D.inputs.machines.val);}
+  restoreWinner();
+}
+
+function saveWinner(){
+  // No-op: winner fields are not auto-saved as drafts.
+  // Winners are only committed to D.winners when the email is sent.
+}
+
+function restoreWinner(){
+  // Fields start blank — winners are stored in D.winners log, not as a draft.
+  const dateEl=document.getElementById('w-date');
+  if(dateEl&&!dateEl.value)dateEl.value=nowDate();
+  renderWinnerLog();
+}
+
+function renderWinnerLog(){
+  const el=document.getElementById('winner-log-list');
+  if(!el)return;
+  const winners=D.winners||[];
+  if(winners.length===0){
+    el.innerHTML='<div class="empty"><div class="empty-ico">🏆</div>No winners saved yet</div>';
+    return;
+  }
+  el.innerHTML='';
+  [...winners].reverse().forEach((w,ri)=>{
+    const i=winners.length-1-ri;
+    const d=document.createElement('div');
+    d.className='log-item';
+    d.innerHTML=`<div class="log-ico" style="background:var(--green-dim)">🏆</div>
+      <div class="log-body">
+        <div class="log-title">${w.amount} kr — ${w.shop}</div>
+        <div class="log-meta">Machine ${w.machineNr}${w.machineId?' · ID: '+w.machineId:''} · ${w.machineName}</div>
+        <div class="log-meta" style="margin-top:2px;color:var(--muted)">${w.date}</div>
+      </div>
+      <button class="log-del" onclick="delWinner(${i})">✕</button>`;
+    el.appendChild(d);
+  });
+}
+
+function delWinner(i){
+  showModal({title:'Remove winner',msg:'Remove this winner from the log and report?',buttons:[
+    {label:'Cancel',style:'modal-btn-ghost'},
+    {label:'Remove',style:'modal-btn-danger',action:()=>{
+      D.winners.splice(i,1);saveState();renderWinnerLog();
+    }}
+  ]});
 }
 
 function getFridgeTotal(){
@@ -131,15 +200,20 @@ function getFridgeTotal(){
   return Object.entries(products).reduce((s,[id,price])=>s+(D.shop.sold[id]||0)*price,0);
 }
 
-function renderHomeFridgeMini(){
-  renderShopSummary();
+// ── Fridge coin→cash conversion ──
+// Every 50kr of fridge coin revenue converts: -50 coin, +50 cash in expected
+function getFridgeCashConversion(){
+  const total=getFridgeTotal();
+  const cashPart=Math.floor(total/50)*50;
+  const coinPart=total-cashPart;
+  return{cashPart,coinPart};
 }
+
+function renderHomeFridgeMini(){renderShopSummary();}
 
 function updateHomeEst(){
   const exp=getExpected();
-  const fridge=getFridgeTotal();
-  const fridgeCash=fridge>0?Math.floor(fridge/50)*50:0;
-  const fridgeCoin=fridge>0?fridge-fridgeCash:0;
+  const {cashPart:fridgeCash,coinPart:fridgeCoin}=getFridgeCashConversion();
 
   const setV=(id,v,fridgePart)=>{
     const el=document.getElementById(id);
@@ -162,9 +236,7 @@ function updateHomeEst(){
 
 function updateHomeHints(){
   const exp=getExpected();
-  const fridge=getFridgeTotal();
-  const fridgeCash=fridge>0?Math.floor(fridge/50)*50:0;
-  const fridgeCoin=fridge>0?fridge-fridgeCash:0;
+  const {cashPart:fridgeCash,coinPart:fridgeCoin}=getFridgeCashConversion();
   const setH=(id,base,fridgePart)=>{
     const el=document.getElementById(id);if(!el)return;
     if(!D.shift){el.innerHTML='';return;}
@@ -181,16 +253,21 @@ function updateHomeHints(){
 function fillExpectedIntoCount(){
   if(!D.shift)return;
   const exp=getExpected();
-  const set=(id,v)=>{
+  const ids=['h-coin','h-cash','h-pc','h-bank'];
+  const vals=[exp.coin,exp.cash,exp.pc,exp.bank];
+  ids.forEach((id,i)=>{
     const el=document.getElementById(id);
     if(!el)return;
-    const rounded=Math.round(v);
+    const rounded=Math.round(vals[i]);
+    const prev=parseFloat(el.value)||0;
     el.value=rounded>0?rounded:'';
-  };
-  set('h-coin',exp.coin);
-  set('h-cash',exp.cash);
-  set('h-pc',exp.pc);
-  set('h-bank',exp.bank);
+    // Flash green if value changed
+    if(Math.round(prev)!==rounded){
+      el.style.borderColor='var(--accent)';
+      el.style.background='var(--accent-dim)';
+      setTimeout(()=>{el.style.borderColor='';el.style.background='';},700);
+    }
+  });
   stashInputs();
   recalc();
 }
@@ -312,6 +389,7 @@ function renderHomeLog(){
   const all=[
     ...D.fillups.map((f,i)=>({type:'fillup',i,ts:f.ts||0,data:f})),
     ...D.additions.map((a,i)=>({type:'addition',i,ts:a.ts||0,data:a})),
+    ...(D.expenses||[]).map((e,i)=>({type:'expense',i,ts:e.ts||0,data:e})),
     ...D.cashpoints.map((c,i)=>({type:'cashpoint',i,ts:c.ts||0,data:c}))
   ].sort((a,b)=>b.ts-a.ts);
   const el=document.getElementById('home-log');
@@ -342,6 +420,11 @@ function renderHomeLog(){
         <div class="log-body"><div class="log-title">Cashpoint<span class="cp-badge">${amtStr}</span></div><div class="log-meta">${isW?'Withdrawal':'Deposit'} · ${fl}</div></div>
         <div class="log-right"><div class="log-amt" style="color:${isW?'var(--blue)':'var(--purple)'}">${amtStr}</div><div class="log-time">${d.date}</div></div>
         <button class="log-del" onclick="delCashpoint(${entry.i})">✕</button>`;
+    } else if(entry.type==='expense'){
+      div.innerHTML=`<div class="log-ico" style="background:var(--red-dim)">💸</div>
+        <div class="log-body"><div class="log-title">Expense — ${d.reason||'No reason'}</div><div class="log-meta">${(()=>{const c=d.cashPart||0,m=d.coinPart||0;if(c&&m)return'−'+c.toLocaleString('no-NO')+' kr cash · −'+m.toLocaleString('no-NO')+' kr mønt';if(c)return'−'+c.toLocaleString('no-NO')+' kr cash';return'−'+m.toLocaleString('no-NO')+' kr mønt';})()} </div></div>
+        <div class="log-right"><div class="log-amt" style="color:var(--red)">−${fmt(d.amount)}</div><div class="log-time">${d.date}</div></div>
+        <button class="log-del" onclick="delExpense(${entry.i})">✕</button>`;
     } else {
       const icon=d.type==='playcoin'?'🪙':'💵',title=d.type==='playcoin'?'Playcoins Added':'Cash Added';
       div.innerHTML=`<div class="log-ico" style="background:var(--teal-dim)">${icon}</div>
@@ -426,6 +509,32 @@ function renderAddList(){
   renderLogPagination('add-list-pagination',_addListPage,totalPages,allItems.length,(p)=>{_addListPage=p;renderAddList();});
 }
 
+// ── Expense List ──
+let _expenseListPage=0;
+function renderExpenseList(){
+  const expenses=D.expenses||[];
+  const total=expenses.reduce((s,e)=>s+e.amount,0);
+  const countEl=document.getElementById('expense-count-label');
+  if(countEl)countEl.textContent=expenses.length>0?expenses.length+' · '+fmt(total):'';
+  const el=document.getElementById('expense-list');
+  if(!el)return;
+  const allItems=[...expenses].reverse().map((e,ri)=>({e,i:expenses.length-1-ri}));
+  if(allItems.length===0){el.innerHTML=`<div class="empty"><div class="empty-ico">💸</div>No expenses yet</div>`;renderLogPagination('expense-list-pagination',0,0,0);return;}
+  const totalPages=Math.ceil(allItems.length/LOG_PAGE_SIZE);
+  if(_expenseListPage>=totalPages)_expenseListPage=totalPages-1;
+  const pageItems=allItems.slice(_expenseListPage*LOG_PAGE_SIZE,(_expenseListPage+1)*LOG_PAGE_SIZE);
+  el.innerHTML='';
+  pageItems.forEach(({e,i})=>{
+    const d=document.createElement('div');d.className='log-item';
+    d.innerHTML=`<div class="log-ico" style="background:var(--red-dim)">💸</div>
+      <div class="log-body"><div class="log-title">${e.reason||'Expense'}</div><div class="log-meta">${(()=>{const c=e.cashPart||0,m=e.coinPart||0;if(c&&m)return'−'+c.toLocaleString('no-NO')+' kr cash · −'+m.toLocaleString('no-NO')+' kr mønt';if(c)return'−'+c.toLocaleString('no-NO')+' kr cash';return'−'+m.toLocaleString('no-NO')+' kr mønt';})()} </div></div>
+      <div class="log-right"><div class="log-amt" style="color:var(--red)">−${fmt(e.amount)}</div><div class="log-time">${e.date}</div></div>
+      <button class="log-del" onclick="delExpense(${i})">✕</button>`;
+    el.appendChild(d);
+  });
+  renderLogPagination('expense-list-pagination',_expenseListPage,totalPages,allItems.length,(p)=>{_expenseListPage=p;renderExpenseList();});
+}
+
 function renderLogPagination(containerId,currentPage,totalPages,totalItems,onPage){
   const el=document.getElementById(containerId);
   if(!el)return;
@@ -481,6 +590,57 @@ function delAddition(i){
     }}
   ]});
 }
+function delExpense(i){
+  showModal({title:'Remove expense',msg:'Remove this expense? This will affect the calculation.',buttons:[
+    {label:'Cancel',style:'modal-btn-ghost'},
+    {label:'Remove',style:'modal-btn-danger',action:()=>{
+      if(!D.expenses)D.expenses=[];
+      D.expenses.splice(i,1);saveState();renderHomeLog();renderExpenseList();recalc();updateEstCalc();fillExpectedIntoCount();
+    }}
+  ]});
+}
+
+// ── Expense save ──
+let _expAmt=0,_expAmtNeg=false;
+
+function expAmtToggleSign(){
+  _expAmtNeg=!_expAmtNeg;
+  const btn=document.getElementById('exp-sign-btn');
+  if(btn)btn.textContent=_expAmtNeg?'−':'+';
+}
+
+function saveExpense(){
+  const amt=parseFloat(document.getElementById('exp-amt').value);
+  const reason=document.getElementById('exp-reason').value.trim();
+  if(isNaN(amt)||amt<=0)return flash('exp-amt');
+  if(!reason)return flash('exp-reason');
+  if(!D.expenses)D.expenses=[];
+  const{cashPart:eCash,coinPart:eCoin}=splitExpenseDenominations(amt);
+  D.expenses.push({amount:amt,reason,cashPart:eCash,coinPart:eCoin,date:nowFull(),ts:Date.now()});
+  saveState();
+  document.getElementById('exp-amt').value='';
+  document.getElementById('exp-reason').value='';
+  document.getElementById('exp-save-btn').disabled=true;
+  renderExpenseList();renderHomeLog();recalc();updateEstCalc();fillExpectedIntoCount();
+  haptic('success');
+}
+
+function expCalcHint(){
+  const amt=parseFloat(document.getElementById('exp-amt').value)||0;
+  const reason=(document.getElementById('exp-reason').value||'').trim();
+  const btn=document.getElementById('exp-save-btn');
+  const hint=document.getElementById('exp-hint');
+  if(amt>0){
+    if(hint){hint.style.display='block';hint.innerHTML=`−${fmt(amt)} from expected cash balance`;}
+  } else {
+    if(hint)hint.style.display='none';
+  }
+  if(btn)btn.disabled=!(amt>0&&reason.length>0);
+}
+
+function expReasonInput(){
+  expCalcHint();
+}
 
 let _exFrom='cash',_exTo='pc';
 const EXCHANGE_RULES={
@@ -490,13 +650,26 @@ const EXCHANGE_RULES={
   bank:{canGive:['pc','cash','coin'],label:'Bank'}
 };
 
-function validateExchange(from, to, amt){
+const CASH_NOTES=[50,100,200,500];
+function isValidCashAmount(amt){
+  // Must be a sum of valid note denominations (50, 100, 200, 500)
+  // Simplest check: divisible by 50 and > 0
+  return amt>0&&amt%50===0;
+}
+
+function validateExchange(from,to,amt){
   if(isNaN(amt)||amt<=0) return null;
   if(from==='cash'){
     if(to==='coin'){
       if(amt%50!==0) return 'Cash must be in multiples of 50 kr (notes only)';
     } else if(to==='pc'){
       if(amt<50) return 'Minimum 50 kr for cash → playcoins';
+    }
+    return null;
+  }
+  if(from==='coin'){
+    if(to==='cash'){
+      if(!isValidCashAmount(amt)) return 'Mønt → Cash must be 50, 100, 200, 500 kr (note denominations only)';
     }
     return null;
   }
@@ -562,8 +735,11 @@ function exCalc(){
       hint.innerHTML=cn>0?`Give customer <b>${fmt(cp)}</b> cash + <b>${fmt(cn)}</b> mønt`:`Give customer <b>${fmt(cp)}</b> cash`;
     } else if(_exTo==='pc'){
       const pcAmt=Math.floor(amt/20)*20,change=amt-pcAmt;
-      if(change>0){hint.className='ex-hint-el info';hint.style.display='block';hint.innerHTML=`Give <b>${fmt(pcAmt)}</b> playcoins · <b>${fmt(change)}</b> change back`;}
-      else hint.style.display='none';
+      if(change>0){
+        // Show hint that 10kr coin is given back — for bank→pc (e.g. 410 → 400pc + 10 coin)
+        hint.className='ex-hint-el info';hint.style.display='block';
+        hint.innerHTML=`Give <b>${fmt(pcAmt)}</b> playcoins + <b>${fmt(change)}</b> mønt change`;
+      } else hint.style.display='none';
     } else hint.style.display='none';
     document.querySelectorAll('.ex-save-btn').forEach(b=>b.disabled=false);
   });
@@ -592,8 +768,14 @@ function saveExchange(){
     D.exchanges.push({from:'pc',to:'cash',amount:cp,date:nowFull(),ts:Date.now()});
     if(cn>0)D.exchanges.push({from:'pc',to:'coin',amount:cn,date:nowFull(),ts:Date.now()});
   } else if(_exTo==='pc'){
+    // e.g. bank 410 → 400 playcoins + 10 coin change back to customer
     const pcAmt=Math.floor(amt/20)*20;
+    const change=amt-pcAmt;
     D.exchanges.push({from:_exFrom,to:'pc',amount:pcAmt,date:nowFull(),ts:Date.now()});
+    if(change>0){
+      // We give change back in mønt — so coin decreases (we give coin to customer)
+      D.exchanges.push({from:_exFrom,to:'coin',amount:change,coinChange:change,date:nowFull(),ts:Date.now()});
+    }
   } else {
     D.exchanges.push({from:_exFrom,to:_exTo,amount:amt,date:nowFull(),ts:Date.now()});
   }
@@ -602,6 +784,7 @@ function saveExchange(){
   document.querySelectorAll('.ex-hint-el').forEach(el=>el.style.display='none');
   document.querySelectorAll('.ex-save-btn').forEach(btn=>btn.disabled=true);
   D.exchanges.slice(-2).forEach(e=>auditLog('add','exchange',e));
+  haptic('medium');
   renderExchangeList();renderHomeLog();recalc();updateEstCalc();fillExpectedIntoCount();
 }
 
@@ -610,63 +793,92 @@ function selCpFrom(type){
   document.querySelectorAll('#cp-from-buttons .tsb').forEach(b=>b.classList.remove('on'));
   document.getElementById('cp-from-'+type).classList.add('on');_cpFrom=type;
   const lbl=document.getElementById('cp-amt-label');
-  if(lbl) lbl.textContent=type==='cash'?'Amount (positive = deposit, negative = withdrawal)':'Cashpoint amount shown in system (kr)';
+  if(lbl) lbl.textContent=type==='cash'?'Amount paid out or deposited (use +/− to set direction)':'Cashpoint amount shown in system (kr)';
+  // Reset sign to positive when switching types
+  _cpSign=1;
+  const sb=document.getElementById('cp-sign-btn');
+  if(sb){sb.textContent='+';sb.style.color='var(--green)';sb.style.borderColor='var(--green-mid)';sb.style.background='var(--green-dim)';}
+  // Show/hide sign button — only meaningful for cash
+  if(sb) sb.style.visibility=type==='cash'?'visible':'hidden';
+  document.getElementById('cp-amt').value='';
+  document.getElementById('cp-hint').style.display='none';
+  document.getElementById('cp-save-btn').disabled=true;
   cpCalc();
 }
+
+// ── +/- toggle for cashpoint numeric input ──
+let _cpSign=1; // 1 = positive (deposit), -1 = negative (withdrawal/payout)
+function cpToggleSign(){
+  _cpSign*=-1;
+  const btn=document.getElementById('cp-sign-btn');
+  if(btn){
+    btn.textContent=_cpSign>0?'+':'−';
+    btn.style.color=_cpSign>0?'var(--green)':'var(--red)';
+    btn.style.borderColor=_cpSign>0?'var(--green-mid)':'var(--red-mid)';
+    btn.style.background=_cpSign>0?'var(--green-dim)':'var(--red-dim)';
+  }
+  cpCalc();
+}
+
 function cpCalc(){
   const raw=document.getElementById('cp-amt').value;
-  const amt=parseFloat(raw)||0;
+  const absAmt=parseFloat(raw)||0;
+  // For cash: apply sign. For bank: always positive.
+  const amt=_cpFrom==='cash'?absAmt*_cpSign:absAmt;
   const hint=document.getElementById('cp-hint'),saveBtn=document.getElementById('cp-save-btn');
-  if(amt<0 && _cpFrom==='bank'){
-    hint.className='error';hint.innerHTML='<b>Cannot withdraw from bank</b> — switch to Cash to record a withdrawal.';hint.style.display='block';
-    saveBtn.disabled=true;return;
-  }
-  const absAmt=Math.abs(amt);
   if(absAmt<20){
     if(absAmt>0){hint.className='error';hint.innerHTML='<b>Minimum:</b> 20 kr';hint.style.display='block';}
     else hint.style.display='none';
     saveBtn.disabled=true;return;
   }
-  const fl=_cpFrom==='bank'?'Bank/Card':'Cash';
-  if(amt>0){
-    hint.style.display='block';
-    if(_cpFrom==='cash'){
+  if(_cpFrom==='cash'){
+    if(amt>0){
+      // Deposit: customer brings cash in
       const cashPart=Math.floor(amt/50)*50;
       const coinPart=amt-cashPart;
       let splitStr='';
       if(cashPart>0&&coinPart>0) splitStr=` → <b>${fmt(cashPart)}</b> cash + <b>${fmt(coinPart)}</b> mønt`;
       else if(cashPart>0) splitStr=` → <b>${fmt(cashPart)}</b> cash`;
       else splitStr=` → <b>${fmt(coinPart)}</b> mønt`;
-      hint.className='cashpoint';hint.innerHTML=`Customer deposited <b>+${fmt(amt)}</b> via <b>Cash</b>${splitStr}`;
+      hint.className='cashpoint';hint.style.display='block';
+      hint.innerHTML=`Customer deposited <b>+${fmt(amt)}</b> via <b>Cash</b>${splitStr}`;
     } else {
-      hint.className='cashpoint';hint.innerHTML=`Customer deposited <b>+${fmt(amt)}</b> via <b>${fl}</b>. Adding to expected ${_cpFrom} balance.`;
+      // Withdrawal/payout: we give customer cash from drawer
+      hint.className='info';hint.style.display='block';
+      hint.innerHTML=`We pay out <b>${fmt(absAmt)}</b> cash to customer from drawer. Expected cash −${fmt(absAmt)}.`;
     }
   } else {
-    hint.className='info';hint.style.display='block';
-    hint.innerHTML=`Customer withdrew <b>${fmt(absAmt)}</b> from cashpoint in <b>Cash</b>. Subtracting from expected cash.`;
+    hint.className='cashpoint';hint.style.display='block';
+    hint.innerHTML=`Customer deposited <b>+${fmt(absAmt)}</b> via <b>Bank/Card</b>. Adding to expected bank balance.`;
   }
   saveBtn.disabled=false;
 }
+
 function saveCashpoint(){
-  const amt=parseFloat(document.getElementById('cp-amt').value);
-  if(isNaN(amt)||Math.abs(amt)<20)return flash('cp-amt');
-  if(amt<0&&_cpFrom==='bank')return flash('cp-amt');
+  const raw=parseFloat(document.getElementById('cp-amt').value);
+  if(isNaN(raw)||raw<=0)return flash('cp-amt');
+  const amt=_cpFrom==='cash'?raw*_cpSign:raw;
+  if(Math.abs(amt)<20)return flash('cp-amt');
   D.cashpoints.push({from:_cpFrom,amount:amt,date:nowFull(),ts:Date.now()});saveState();
   document.getElementById('cp-amt').value='';document.getElementById('cp-hint').style.display='none';document.getElementById('cp-save-btn').disabled=true;
+  // Reset sign
+  _cpSign=1;
+  const sb=document.getElementById('cp-sign-btn');
+  if(sb){sb.textContent='+';sb.style.color='var(--green)';sb.style.borderColor='var(--green-mid)';sb.style.background='var(--green-dim)';}
+  haptic('medium');
   renderCashpointList();renderHomeLog();recalc();updateEstCalc();fillExpectedIntoCount();
 }
 
 function doAdd(type){
   D.additions.push({type,amount:10000,date:nowFull(),ts:Date.now()});saveState();
+  haptic('success');
   renderAddList();renderHomeLog();recalc();updateEstCalc();updateHomeEst();fillExpectedIntoCount();
   const btn=event.currentTarget,orig=btn.innerHTML;
   btn.innerHTML='✓ Added!';btn.style.opacity='.6';
   setTimeout(()=>{btn.innerHTML=orig;btn.style.opacity='';},1300);
 }
 
-function updateEstCalc(){
-  updateHomeEst();
-}
+function updateEstCalc(){updateHomeEst();}
 
 let _kfType='kr';
 function selType(btn,type){
@@ -709,6 +921,7 @@ function saveKF(){
   coins=Math.ceil(Math.floor(kr/20)/5)*5||5;
   D.fillups.push({machine,type:_kfType,inputVal:raw,kr,coins,date:nowFull(),ts:Date.now()});saveState();
   document.getElementById('kf-val').value='';document.getElementById('kf-res').style.display='none';document.getElementById('kf-save-btn').disabled=true;
+  haptic('success');
   renderKFLog();renderHomeLog();recalc();updateEstCalc();updateHomeEst();fillExpectedIntoCount();
   const btn=document.getElementById('kf-save-btn');
   btn.innerHTML='✓ Saved!';btn.style.opacity='.6';setTimeout(()=>{btn.innerHTML='Save Fillup';btn.style.opacity='';},1500);
@@ -739,8 +952,8 @@ function renderKFLog(){
       <span style="flex:1;font-size:.77rem;color:var(--text)">Fill <b>${s.fill}</b> playcoins</span>
       <span style="font-size:.73rem;color:var(--sub);font-family:'JetBrains Mono',monospace">${(s.fill*20).toLocaleString('no-NO')} kr</span>
     </label>`;}).join('');
-    const inputLabels={kr:'Kr', '1cr':'Credit (1 kr)', '05cr':'Credit (0.5 kr)'};
-    const krStr = f.type!=='kr' ? ` = ${f.kr!=null?f.kr.toLocaleString('no-NO'):''} kr` : '';
+    const inputLabels={kr:'Kr','1cr':'Credit (1 kr)','05cr':'Credit (0.5 kr)'};
+    const krStr=f.type!=='kr'?` = ${f.kr!=null?f.kr.toLocaleString('no-NO'):''} kr`:'';
     const inputStr=`<div style="font-size:.72rem;color:var(--sub);margin-top:2px">${inputLabels[f.type]||f.type}: <b style="color:var(--text)">${f.inputVal!=null?f.inputVal.toLocaleString('no-NO'):f.kr.toLocaleString('no-NO')}</b>${krStr}</div>`;
     d.innerHTML=`<div class="mlog-top">
       <div class="mlog-title">🔑 Machine ${f.machine}</div>
@@ -764,7 +977,7 @@ function setShift(){
   }
   const total=coin+cash+pc+bank;
   D.shift={coin,cash,pc,bank,total,originalTotal:total,originalCoin:coin,originalCash:cash,originalPc:pc,originalBank:bank,date:nowFull()};
-  saveState();renderShiftInfo();recalc();updateEstCalc();updateHomeEst();
+  saveState();renderShiftInfo();recalc();updateEstCalc();updateHomeEst();haptic('success');
   const btn=event.currentTarget;btn.innerHTML='✓ Done!';btn.style.opacity='.7';
   setTimeout(()=>{btn.innerHTML='✓ Set as Start Total';btn.style.opacity='';},2000);
 }
@@ -785,7 +998,7 @@ function lockShiftInputs(locked){
 function renderShiftInfo(){
   const el=document.getElementById('shift-total-display'),date=document.getElementById('shift-date-display');
   if(D.shift){
-    const displayTotal = D.shift.originalTotal != null ? D.shift.originalTotal : D.shift.total;
+    const displayTotal=D.shift.originalTotal!=null?D.shift.originalTotal:D.shift.total;
     el.textContent=fmt(displayTotal);el.className='ssv';date.textContent='Set: '+D.shift.date;
     lockShiftInputs(true);
   } else {
@@ -794,71 +1007,42 @@ function renderShiftInfo(){
   }
 }
 
-// ── Helper: compute running expected totals after each transaction ──
-function getRunningExpected(){
-  if(!D.shift)return[];
-  let coin=D.shift.coin,cash=D.shift.cash,pc=D.shift.pc,bank=D.shift.bank;
-  const snapshots=[];
-
-  // Build a unified timeline of all events
-  const archived = D.archived || {exchanges:[],cashpoints:[],fillups:[],additions:[]};
-  const allAdditions=[...(archived.additions||[]),...D.additions].sort((a,b)=>(a.ts||0)-(b.ts||0));
-  const allFillups=[...(archived.fillups||[]),...D.fillups].sort((a,b)=>(a.ts||0)-(b.ts||0));
-  const allCashpoints=[...(archived.cashpoints||[]),...D.cashpoints].sort((a,b)=>(a.ts||0)-(b.ts||0));
-
-  // Apply additions
-  allAdditions.forEach(a=>{
-    if(a.type==='cash') cash+=a.amount;
-    else if(a.type==='playcoin') pc+=a.amount;
-    snapshots.push({label:a.type==='playcoin'?'Playcoins Added':'Cash Added',ts:a.ts||0,coin,cash,pc,bank,total:coin+cash+pc+bank});
-  });
-  // Apply cashpoints
-  allCashpoints.forEach(cp=>{
-    if(cp.from==='bank') bank+=cp.amount;
-    if(cp.from==='cash'){
-      if(cp.amount>=0){cash+=Math.floor(cp.amount/50)*50;coin+=cp.amount-Math.floor(cp.amount/50)*50;}
-      else cash+=cp.amount;
-    }
-    snapshots.push({label:'Cashpoint',ts:cp.ts||0,coin,cash,pc,bank,total:coin+cash+pc+bank});
-  });
-  // Apply fillups
-  allFillups.forEach(f=>{
-    pc-=f.coins*20;
-    snapshots.push({label:`Fillup M${f.machine}`,ts:f.ts||0,coin,cash,pc,bank,total:coin+cash+pc+bank});
-  });
-  return snapshots.sort((a,b)=>a.ts-b.ts);
-}
-
 function generateShiftPDF(){
-  const f=fmt,now=nowFull();
-  const exp=getExpected();
-  const fridge=getFridgeTotal();
-  const fridgeCash=Math.floor(fridge/50)*50;
-  const fridgeCoin=fridge-fridgeCash;
+  const f=fmt;
+  // Use shift date for the filename / title
+  const shiftDate=D.shift?D.shift.date.split(' ')[0]:nowDate();
+  const reportTitle=`${shiftDate}`;
 
-  const archived = D.archived || {exchanges:[],cashpoints:[],fillups:[],additions:[]};
-  const allFillups   = [...(archived.fillups||[]),   ...D.fillups];
-  const allAdditions = [...(archived.additions||[]), ...D.additions];
-  const allCashpoints= [...(archived.cashpoints||[]),...D.cashpoints];
-  const allExchanges = [...(archived.exchanges||[]), ...D.exchanges];
+  const exp=getExpected();
+  // Expected total WITHOUT bank
+  const expNoBank=exp.coin+exp.cash+exp.pc;
+
+  const fridge=getFridgeTotal();
+  const {cashPart:fridgeCash,coinPart:fridgeCoin}=getFridgeCashConversion();
+
+  const archived=D.archived||{exchanges:[],cashpoints:[],fillups:[],additions:[]};
+  const allFillups=[...(archived.fillups||[]),...D.fillups];
+  const allAdditions=[...(archived.additions||[]),...D.additions];
+  const allCashpoints=[...(archived.cashpoints||[]),...D.cashpoints];
+  const allExchanges=[...(archived.exchanges||[]),...D.exchanges];
+  const allExpenses=D.expenses||[];
 
   const todayLog=[
     ...allFillups.map(x=>({type:'fillup',ts:x.ts||0,data:x})),
     ...allAdditions.map(x=>({type:'addition',ts:x.ts||0,data:x})),
     ...allCashpoints.map(x=>({type:'cashpoint',ts:x.ts||0,data:x})),
+    ...allExpenses.map(x=>({type:'expense',ts:x.ts||0,data:x})),
   ].sort((a,b)=>b.ts-a.ts);
 
   const exchangeLog=[...allExchanges].sort((a,b)=>(b.ts||0)-(a.ts||0));
-
   const CAT={cash:'Cash',pc:'Playcoins',coin:'Mønt',bank:'Bank'};
 
-  // Build running expected for log rows
-  // We'll compute expected state after each event in chronological order
   const runningEvents=[
     ...allFillups.map(x=>({type:'fillup',ts:x.ts||0,data:x})),
     ...allAdditions.map(x=>({type:'addition',ts:x.ts||0,data:x})),
     ...allCashpoints.map(x=>({type:'cashpoint',ts:x.ts||0,data:x})),
     ...allExchanges.map(x=>({type:'exchange',ts:x.ts||0,data:x})),
+    ...allExpenses.map(x=>({type:'expense',ts:x.ts||0,data:x})),
   ].sort((a,b)=>a.ts-b.ts);
 
   let rCoin=D.shift?D.shift.coin:0;
@@ -866,7 +1050,6 @@ function generateShiftPDF(){
   let rPc=D.shift?D.shift.pc:0;
   let rBank=D.shift?D.shift.bank:0;
 
-  // Map ts → expected snapshot + which fields changed
   const expectedAfter={};
   runningEvents.forEach(ev=>{
     const d=ev.data;
@@ -902,6 +1085,10 @@ function generateShiftPDF(){
         if(d.to==='coin'&&d.from!=='cash'){rCoin-=d.amount;changed.add('coin');}
         if(d.to==='bank'){rBank-=d.amount;changed.add('bank');}
       }
+    } else if(ev.type==='expense'){
+      const{cashPart:eCash,coinPart:eCoin}=splitExpenseDenominations(d.amount);
+      if(eCash){rCash-=eCash;changed.add('cash');}
+      if(eCoin){rCoin-=eCoin;changed.add('coin');}
     }
     expectedAfter[ev.ts]={coin:rCoin,cash:rCash,pc:rPc,bank:rBank,total:rCoin+rCash+rPc+rBank,changed};
   });
@@ -918,8 +1105,10 @@ function generateShiftPDF(){
       const isW=d.amount<0;
       label='Cashpoint';detail=`${isW?'Withdrawal':'Deposit'} via ${d.from==='bank'?'Bank/Card':'Cash'}`;
       amount=(isW?'−':'+')+f(Math.abs(d.amount));
+    } else if(e.type==='expense'){
+      label='Expense';detail=d.reason||'—';
+      amount='−'+f(d.amount);
     }
-    // Get expected snapshot after this event — only show changed types
     const snap=expectedAfter[d.ts||e.ts];
     let expCell='—';
     if(snap&&snap.changed&&snap.changed.size>0){
@@ -933,19 +1122,12 @@ function generateShiftPDF(){
 
   let exchangeRows='';
   exchangeLog.forEach(d=>{
-    // Clean label — no bracket details
     let detail='';
-    if(d.from==='cash'&&d.to==='pc'){
-      detail='Cash → Playcoins';
-    } else if(d.from==='cash'&&d.to==='coin'){
-      detail='Cash → Mønt';
-    } else if(d.from==='pc'&&d.to==='cash'){
-      detail='Playcoins → Cash';
-    } else if(d.from==='pc'&&d.to==='coin'){
-      detail='Playcoins → Mønt';
-    } else {
-      detail=`${CAT[d.from]||d.from} → ${CAT[d.to]||d.to}`;
-    }
+    if(d.from==='cash'&&d.to==='pc') detail='Cash → Playcoins';
+    else if(d.from==='cash'&&d.to==='coin') detail='Cash → Mønt';
+    else if(d.from==='pc'&&d.to==='cash') detail='Playcoins → Cash';
+    else if(d.from==='pc'&&d.to==='coin') detail='Playcoins → Mønt';
+    else detail=`${CAT[d.from]||d.from} → ${CAT[d.to]||d.to}`;
     const snap=expectedAfter[d.ts];
     let expCell='—';
     if(snap&&snap.changed&&snap.changed.size>0){
@@ -958,38 +1140,52 @@ function generateShiftPDF(){
   });
 
   let fridgeRows='';
-  let totalStart=0, totalSold=0, totalFree=0, totalEnd=0, totalRev=0;
+  let totalStart=0,totalSold=0,totalFree=0,totalEnd=0,totalRev=0;
   if(D.shop){
     const products={sodavand:{n:'Sodavand',p:10},redbull:{n:'Redbull',p:20},vand:{n:'Vand',p:5},bounty:{n:'Bounty',p:10},bueno:{n:'Bueno',p:10},mars:{n:'Mars',p:10},snickers:{n:'Snickers',p:10},pringles:{n:'Pringles',p:10},lighter:{n:'Lighter',p:10}};
     Object.entries(products).forEach(([id,{n,p}])=>{
-      const sold=(D.shop.sold && D.shop.sold[id])||0;
-      const start=(D.shop.starts && D.shop.starts[id])||0;
-      const free=(D.shop.freeTakes && D.shop.freeTakes[id])||0;
+      const sold=(D.shop.sold&&D.shop.sold[id])||0;
+      const start=(D.shop.starts&&D.shop.starts[id])||0;
+      const free=(D.shop.freeTakes&&D.shop.freeTakes[id])||0;
       const end=start-sold-free;
       const rev=sold*p;
-      const freeNames=((D.shop && D.shop.log)||[]).filter(l=>l.id===id && l.free).map(l=>l.takenBy).filter(Boolean);
+      const freeNames=((D.shop&&D.shop.log)||[]).filter(l=>l.id===id&&l.free).map(l=>l.takenBy).filter(Boolean);
       let soldCell;
-      if(free>0){
-        const namesStr=freeNames.length>0?` (${freeNames.join(', ')})`:'';
-        soldCell=`${sold} + ${free} free${namesStr}`;
-      } else {
-        soldCell=`${sold}`;
-      }
-      totalStart+=start; totalSold+=sold; totalFree+=free; totalEnd+=end; totalRev+=rev;
+      if(free>0){const namesStr=freeNames.length>0?` (${freeNames.join(', ')})`:'';soldCell=`${sold} + ${free} free${namesStr}`;}
+      else soldCell=`${sold}`;
+      totalStart+=start;totalSold+=sold;totalFree+=free;totalEnd+=end;totalRev+=rev;
       fridgeRows+=`<tr><td>${n}</td><td style="text-align:center">${start}</td><td>${soldCell}</td><td style="text-align:center">${end}</td><td style="text-align:right;font-family:monospace">${f(rev)}</td></tr>`;
     });
-    const totalSoldCell = totalFree>0 ? `${totalSold} + ${totalFree} free` : `${totalSold}`;
+    const totalSoldCell=totalFree>0?`${totalSold} + ${totalFree} free`:`${totalSold}`;
     fridgeRows+=`<tr style="background:#f4f4f8;font-weight:700"><td>Total</td><td style="text-align:center">${totalStart}</td><td>${totalSoldCell}</td><td style="text-align:center">${totalEnd}</td><td style="text-align:right;font-family:monospace">${f(totalRev)}</td></tr>`;
   }
 
-  const displayStartTotal = D.shift
-    ? ((D.shift.originalCoin != null ? D.shift.originalCoin : D.shift.coin) || 0)
-      + ((D.shift.originalCash != null ? D.shift.originalCash : D.shift.cash) || 0)
-      + ((D.shift.originalPc   != null ? D.shift.originalPc   : D.shift.pc)   || 0)
-    : 0;
+
+
+  // Winners log — all saved winners
+  const allWinners=D.winners||[];
+  const winnerRows=allWinners.map(w=>`
+    <tr>
+      <td><b>${w.amount} kr</b></td>
+      <td>${w.date||''}</td>
+      <td>${w.machineNr||''}</td>
+      <td>${w.machineId||''}</td>
+      <td>${w.machineName||''}</td>
+      <td>${w.shop||''}</td>
+    </tr>`).join('');
+  const winnerSection=allWinners.length>0?`
+  <h2>Winner Report (${allWinners.length})</h2>
+  <table><thead><tr><th>Amount</th><th>Date</th><th>Machine Nr</th><th>Machine ID</th><th>Machine Name</th><th>Shop</th></tr></thead>
+  <tbody>${winnerRows}</tbody></table>`:'';
+
+  const displayStartTotal=D.shift
+    ?((D.shift.originalCoin!=null?D.shift.originalCoin:D.shift.coin)||0)
+      +((D.shift.originalCash!=null?D.shift.originalCash:D.shift.cash)||0)
+      +((D.shift.originalPc!=null?D.shift.originalPc:D.shift.pc)||0)
+    :0;
 
   const html=`<!DOCTYPE html><html><head><meta charset="UTF-8">
-  <title>Casino Shift Report</title>
+  <title>${reportTitle}</title>
   <style>
     body{font-family:Arial,sans-serif;font-size:13px;color:#111;padding:30px;max-width:760px;margin:0 auto}
     h1{font-size:20px;margin-bottom:2px;color:#1a1a2e}
@@ -1006,18 +1202,25 @@ function generateShiftPDF(){
     .summary-box .sub{font-size:11px;color:#3ecf8e;margin-top:3px}
     .footer{margin-top:32px;font-size:11px;color:#aaa;text-align:center;border-top:1px solid #eee;padding-top:12px}
     .exp-col{background:#fafbff}
-    @media print{body{padding:10px}button{display:none}}
+    /* Print: one continuous page, no forced page breaks */
+    @media print{
+      body{padding:10px}
+      button{display:none!important}
+      @page{size:auto;margin:15mm 10mm}
+      table{page-break-inside:auto}
+      tr{page-break-inside:avoid}
+    }
   </style></head><body>
-  <h1>Casino — Shift Report</h1>
-  <div class="meta">Generated: ${now}${D.shift?` &nbsp;|&nbsp; Shift started: ${D.shift.date}`:''}</div>
+  <h1>${reportTitle}</h1>
+  <div class="meta">Casino</div>
   <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
-    <button onclick="window.close()" style="padding:8px 18px;background:#fff;color:#1a1a2e;border:1px solid #1a1a2e;border-radius:6px;cursor:pointer;font-size:13px">← Back to App</button>
-    <button onclick="window.print()" style="padding:8px 18px;background:#1a1a2e;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">Save as PDF</button>
+    <button onclick="window.close()" style="padding:8px 18px;background:#fff;color:#1a1a2e;border:1px solid #1a1a2e;border-radius:6px;cursor:pointer;font-size:13px">← Back</button>
+    <button onclick="window.print()" style="padding:8px 18px;background:#1a1a2e;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">🖨 Save as PDF</button>
   </div>
   <h2>Summary</h2>
   <div class="summary-grid">
     <div class="summary-box"><div class="label">Start Total (excl. bank)</div><div class="value">${D.shift?f(displayStartTotal):'—'}</div></div>
-    <div class="summary-box"><div class="label">Expected Total</div><div class="value">${f(exp.total)}</div></div>
+    <div class="summary-box"><div class="label">Expected (Mønt + Cash + PC)</div><div class="value">${f(expNoBank)}</div></div>
     <div class="summary-box"><div class="label">Mønt Expected</div><div class="value">${f(exp.coin)}</div>${fridgeCoin>0?`<div class="sub">+ ${f(fridgeCoin)} fridge</div>`:''}</div>
     <div class="summary-box"><div class="label">Cash Expected</div><div class="value">${f(exp.cash)}</div>${fridgeCash>0?`<div class="sub">+ ${f(fridgeCash)} fridge</div>`:''}</div>
     <div class="summary-box"><div class="label">Playcoins Expected</div><div class="value">${f(exp.pc)}</div></div>
@@ -1034,7 +1237,9 @@ function generateShiftPDF(){
   ${exchangeLog.length===0?'<p style="color:#999">No exchanges recorded.</p>':`
   <table><thead><tr><th>Time</th><th>Detail</th><th style="text-align:right">Amount</th><th style="text-align:right" class="exp-col">Expected after</th></tr></thead>
   <tbody>${exchangeRows}</tbody></table>`}
-  <div class="footer">Casino Shift Report &nbsp;|&nbsp; ${now}</div>
+
+  ${winnerSection}
+  <div class="footer">${reportTitle} &nbsp;|&nbsp; Casino</div>
   </body></html>`;
 
   const w=window.open('','_blank');
@@ -1051,7 +1256,7 @@ function confirmReset(){
       {label:'Reset',style:'modal-btn-danger',action:()=>{
         const archived=D.archived||{exchanges:[],cashpoints:[],fillups:[],additions:[]};
         const hasArchived=(archived.exchanges&&archived.exchanges.length)||(archived.cashpoints&&archived.cashpoints.length)||(archived.fillups&&archived.fillups.length)||(archived.additions&&archived.additions.length);
-        const hasData=D.shift||(D.fillups&&D.fillups.length)||(D.cashpoints&&D.cashpoints.length)||(D.exchanges&&D.exchanges.length)||(D.additions&&D.additions.length)||hasArchived;
+        const hasData=D.shift||(D.fillups&&D.fillups.length)||(D.cashpoints&&D.cashpoints.length)||(D.exchanges&&D.exchanges.length)||(D.additions&&D.additions.length)||(D.expenses&&D.expenses.length)||hasArchived;
         if(hasData){
           showModal({
             icon:'📄',
@@ -1071,36 +1276,37 @@ function confirmReset(){
 }
 
 function doReset(){
-  D={shift:null,exchanges:[],cashpoints:[],fillups:[],additions:[],auditLog:[],archived:{exchanges:[],cashpoints:[],fillups:[],additions:[]},shop:{starts:{},sold:{},freeTakes:{},log:[]},inputs:{home:{},shift:{},machines:{}},kfType:'kr'};
-  _homeLogPage=0;_exListPage=0;_cpListPage=0;_addListPage=0;_kfLogPage=0;
+  D={shift:null,exchanges:[],cashpoints:[],fillups:[],additions:[],expenses:[],winners:[],auditLog:[],archived:{exchanges:[],cashpoints:[],fillups:[],additions:[]},shop:{starts:{},sold:{},freeTakes:{},log:[]},inputs:{home:{},shift:{},machines:{}},kfType:'kr'};
+  _homeLogPage=0;_exListPage=0;_cpListPage=0;_addListPage=0;_kfLogPage=0;_expenseListPage=0;
   Object.keys(_checkStates).forEach(k=>delete _checkStates[k]);
   _saveChecks();
   saveState();
   document.querySelectorAll('input[type=number],input[type=text]').forEach(el=>el.value='');
   document.getElementById('s-preview').textContent='0 kr';document.getElementById('h-current-total').textContent='0 kr';
-  renderShiftInfo();renderHomeLog();renderExchangeList();renderCashpointList();renderAddList();renderKFLog();recalc();updateEstCalc();updateHomeEst();
+  _cpSign=1;const sb=document.getElementById('cp-sign-btn');if(sb){sb.textContent='+';sb.style.color='var(--green)';}
+  renderShiftInfo();renderHomeLog();renderExchangeList();renderCashpointList();renderAddList();renderKFLog();renderExpenseList();recalc();updateEstCalc();updateHomeEst();
 }
 
 // ── SHOP ──
-const SHOP_PRODUCTS = [
-  { id:'sodavand', name:'Sodavand', icon:'🥤', price:10, unit:'coin' },
-  { id:'redbull',  name:'Redbull',  icon:'⚡', price:20, unit:'coin' },
-  { id:'vand',     name:'Vand',     icon:'💧', price:5,  unit:'coin' },
-  { id:'bounty',   name:'Bounty',   icon:'🍫', price:10, unit:'coin' },
-  { id:'bueno',    name:'Bueno',    icon:'🍫', price:10, unit:'coin' },
-  { id:'mars',     name:'Mars',     icon:'🍫', price:10, unit:'coin' },
-  { id:'snickers', name:'Snickers', icon:'🍫', price:10, unit:'coin' },
-  { id:'pringles', name:'Pringles', icon:'🍟', price:10, unit:'coin' },
-  { id:'lighter',  name:'Lighter',  icon:'🔥', price:10, unit:'coin' },
+const SHOP_PRODUCTS=[
+  {id:'sodavand',name:'Sodavand',icon:'🥤',price:10,unit:'coin'},
+  {id:'redbull',name:'Redbull',icon:'⚡',price:20,unit:'coin'},
+  {id:'vand',name:'Vand',icon:'💧',price:5,unit:'coin'},
+  {id:'bounty',name:'Bounty',icon:'🍫',price:10,unit:'coin'},
+  {id:'bueno',name:'Bueno',icon:'🍫',price:10,unit:'coin'},
+  {id:'mars',name:'Mars',icon:'🍫',price:10,unit:'coin'},
+  {id:'snickers',name:'Snickers',icon:'🍫',price:10,unit:'coin'},
+  {id:'pringles',name:'Pringles',icon:'🍟',price:10,unit:'coin'},
+  {id:'lighter',name:'Lighter',icon:'🔥',price:10,unit:'coin'},
 ];
 
 function initShop(){
-  if(!D.shop) D.shop={starts:{},sold:{},freeTakes:{}};
-  if(!D.shop.freeTakes) D.shop.freeTakes={};
+  if(!D.shop)D.shop={starts:{},sold:{},freeTakes:{}};
+  if(!D.shop.freeTakes)D.shop.freeTakes={};
   SHOP_PRODUCTS.forEach(p=>{
-    if(D.shop.starts[p.id]===undefined) D.shop.starts[p.id]=0;
-    if(D.shop.sold[p.id]===undefined)   D.shop.sold[p.id]=0;
-    if(D.shop.freeTakes[p.id]===undefined) D.shop.freeTakes[p.id]=0;
+    if(D.shop.starts[p.id]===undefined)D.shop.starts[p.id]=0;
+    if(D.shop.sold[p.id]===undefined)D.shop.sold[p.id]=0;
+    if(D.shop.freeTakes[p.id]===undefined)D.shop.freeTakes[p.id]=0;
   });
 }
 
@@ -1115,7 +1321,6 @@ function renderShopItems(){
     const end=start-sold-free;
     const revenue=sold*p.price;
 
-    // Build free takers list with undo buttons
     const freeLogs=(D.shop.log||[]).map((l,i)=>({...l,_i:i})).filter(l=>l.id===p.id&&l.free);
     let freeTakersHtml='';
     if(freeLogs.length>0){
@@ -1146,7 +1351,7 @@ function renderShopItems(){
           <div class="shop-item-controls">
             <button class="shop-counter-btn minus" onclick="shopSell('${p.id}',-1)">−</button>
             <div class="shop-count-display" id="shop-sold-${p.id}">${sold}</div>
-            <button class="shop-counter-btn plus" onclick="shopSell('${p.id}',1)">+</button>
+            <button class="shop-counter-btn plus" onclick="shopSell('${p.id}',1);haptic('light')">+</button>
           </div>
           <button class="shop-free-btn" onclick="shopFreeTake('${p.id}')">Take (free)</button>
         </div>
@@ -1164,7 +1369,7 @@ function renderShopItems(){
   if(coin||cash||pc||bank) recalc();
 }
 
-function setShopStart(id, val){
+function setShopStart(id,val){
   initShop();
   D.shop.starts[id]=parseInt(val)||0;
   saveState();
@@ -1178,7 +1383,7 @@ function setShopStart(id, val){
   updateHomeEst();
 }
 
-function _doShopSell(id, delta){
+function _doShopSell(id,delta){
   initShop();
   D.shop.sold[id]=Math.max(0,(D.shop.sold[id]||0)+delta);
   if(delta>0){
@@ -1196,8 +1401,9 @@ function _doShopSell(id, delta){
   renderHomeFridgeMini();
 }
 
-function shopSell(id, delta){
+function shopSell(id,delta){
   initShop();
+  if(delta>0)haptic('light');
   if(delta<0){
     if(D.shop.sold[id]<=0)return;
     const productName=SHOP_PRODUCTS.find(p=>p.id===id).name;
@@ -1215,8 +1421,7 @@ function shopSell(id, delta){
   _doShopSell(id,delta);
 }
 
-// ── Undo/Remove a free take ──
-function delFreeTake(id, logIndex){
+function delFreeTake(id,logIndex){
   initShop();
   const product=SHOP_PRODUCTS.find(p=>p.id===id);
   if(!product)return;
@@ -1241,8 +1446,7 @@ function delFreeTake(id, logIndex){
   });
 }
 
-// ── Free Take (no payment, with employee/staff name) ──
-function showNameModal(productName, onConfirm){
+function showNameModal(productName,onConfirm){
   document.getElementById('modal-icon').textContent='🎁';
   document.getElementById('modal-icon').style.display='block';
   document.getElementById('modal-title').textContent='Free Take — '+productName;
@@ -1262,43 +1466,26 @@ function showNameModal(productName, onConfirm){
     const name=document.getElementById('free-take-name').value.trim();
     if(!name){
       const inp=document.getElementById('free-take-name');
-      inp.style.borderColor='#f06b6b';
-      inp.focus();
-      setTimeout(()=>{inp.style.borderColor='';},1600);
-      return;
+      inp.style.borderColor='#f06b6b';inp.focus();
+      setTimeout(()=>{inp.style.borderColor='';},1600);return;
     }
-    closeModal();
-    onConfirm(name);
+    closeModal();onConfirm(name);
   };
-  btnsEl.appendChild(cancelBtn);
-  btnsEl.appendChild(okBtn);
+  btnsEl.appendChild(cancelBtn);btnsEl.appendChild(okBtn);
   document.getElementById('modal-overlay').classList.add('show');
-  setTimeout(()=>{
-    const inp=document.getElementById('free-take-name');
-    if(inp)inp.focus();
-  },120);
+  setTimeout(()=>{const inp=document.getElementById('free-take-name');if(inp)inp.focus();},120);
 }
 
 function shopFreeTake(id){
   initShop();
   const product=SHOP_PRODUCTS.find(p=>p.id===id);
   if(!product)return;
-  showNameModal(product.name, (name)=>{
+  showNameModal(product.name,(name)=>{
     D.shop.freeTakes[id]=(D.shop.freeTakes[id]||0)+1;
     if(!D.shop.log)D.shop.log=[];
-    D.shop.log.push({
-      id,
-      name:product.name,
-      price:product.price,
-      free:true,
-      takenBy:name,
-      ts:Date.now(),
-      date:nowFull()
-    });
+    D.shop.log.push({id,name:product.name,price:product.price,free:true,takenBy:name,ts:Date.now(),date:nowFull()});
     saveState();
-    renderShopItems();
-    renderShopLog();
-    renderHomeFridgeMini();
+    renderShopItems();renderShopLog();renderHomeFridgeMini();
   });
 }
 
@@ -1308,11 +1495,11 @@ function renderShopSummary(){
   const totalFree=SHOP_PRODUCTS.reduce((s,p)=>s+(D.shop.freeTakes[p.id]||0),0);
 
   const targets=[
-    {summaryEl:document.getElementById('shop-summary-rows'), labelEl:document.querySelector('#shop-summary .est-home-label')},
-    {summaryEl:document.getElementById('home-shop-summary-rows'), labelEl:document.getElementById('home-shop-summary-label')},
+    {summaryEl:document.getElementById('shop-summary-rows'),labelEl:document.querySelector('#shop-summary .est-home-label')},
+    {summaryEl:document.getElementById('home-shop-summary-rows'),labelEl:document.getElementById('home-shop-summary-label')},
   ];
 
-  if(totalRevenue===0 && totalFree===0){
+  if(totalRevenue===0&&totalFree===0){
     targets.forEach(({summaryEl,labelEl})=>{
       if(labelEl)labelEl.textContent='No sales recorded yet';
       if(summaryEl)summaryEl.innerHTML='';
@@ -1320,32 +1507,25 @@ function renderShopSummary(){
     return;
   }
 
-  const cashPart=Math.floor(totalRevenue/50)*50;
-  const coinPart=totalRevenue-cashPart;
+  const {cashPart,coinPart}=getFridgeCashConversion();
   let html='';
   SHOP_PRODUCTS.forEach(p=>{
     const sold=D.shop.sold[p.id]||0;
     const free=D.shop.freeTakes[p.id]||0;
-    if(sold===0 && free===0)return;
+    if(sold===0&&free===0)return;
     const rev=sold*p.price;
     const pCash=Math.floor(rev/50)*50;
     const pCoin=rev-pCash;
     let breakdown='';
-    if(rev===0){
-      breakdown='Free only';
-    } else if(pCash>0&&pCoin>0) breakdown=`Cash: ${pCash.toLocaleString('no-NO')} kr + Coin: ${pCoin.toLocaleString('no-NO')} kr`;
-    else if(pCash>0)      breakdown=`Cash: ${pCash.toLocaleString('no-NO')} kr`;
-    else                  breakdown=`Coin: ${pCoin.toLocaleString('no-NO')} kr`;
+    if(rev===0){breakdown='Free only';}
+    else if(pCash>0&&pCoin>0) breakdown=`Cash: ${pCash.toLocaleString('no-NO')} kr + Coin: ${pCoin.toLocaleString('no-NO')} kr`;
+    else if(pCash>0) breakdown=`Cash: ${pCash.toLocaleString('no-NO')} kr`;
+    else breakdown=`Coin: ${pCoin.toLocaleString('no-NO')} kr`;
     const start=D.shop.starts[p.id]||0;
     const end=start-sold-free;
     const endColor=end<0?'var(--red)':'var(--muted)';
-
-    const freeNames = (D.shop.log||[])
-      .filter(l=>l.id===p.id && l.free)
-      .map(l=>l.takenBy)
-      .filter(Boolean);
-    const freeNamesStr = freeNames.length>0 ? ` <span style="color:var(--accent)">(${freeNames.join(', ')})</span>` : '';
-
+    const freeNames=(D.shop.log||[]).filter(l=>l.id===p.id&&l.free).map(l=>l.takenBy).filter(Boolean);
+    const freeNamesStr=freeNames.length>0?` <span style="color:var(--accent)">(${freeNames.join(', ')})</span>`:'';
     html+=`<div style="padding:7px 0;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:8px">
       <div>
         <div style="font-size:.82rem;color:var(--sub)">${p.icon} ${p.name}</div>
@@ -1367,10 +1547,11 @@ function renderShopSummary(){
       <span style="font-family:'JetBrains Mono',monospace;font-weight:600;font-size:.78rem;color:var(--accent)">${totalFree} pcs</span>
     </div>`;
   }
-  if(cashPart>0||coinPart>0){
-    const parts=[];
-    if(cashPart>0) parts.push(`💵 ${cashPart.toLocaleString('no-NO')} kr cash`);
-    if(coinPart>0) parts.push(`💰 ${coinPart.toLocaleString('no-NO')} kr coin`);
+  // Show cash/coin breakdown of fridge revenue
+  const parts=[];
+  if(cashPart>0) parts.push(`💵 ${cashPart.toLocaleString('no-NO')} kr cash`);
+  if(coinPart>0) parts.push(`💰 ${coinPart.toLocaleString('no-NO')} kr coin`);
+  if(parts.length>0){
     html+=`<div style="margin-top:6px;font-size:.72rem;color:var(--sub);text-align:right">${parts.join(' + ')}</div>`;
   }
 
@@ -1398,9 +1579,10 @@ function renderShopLog(){
     const p=SHOP_PRODUCTS.find(x=>x.id===entry.id)||{icon:'🛒'};
     const d=document.createElement('div');d.className='log-item';
     if(entry.free){
-      d.innerHTML=`<div class="log-ico" style="background:var(--accent-dim)">🎁</div>
+      // Show product icon instead of gift, and "Free" label instead of amount
+      d.innerHTML=`<div class="log-ico" style="background:var(--accent-dim)">${p.icon}</div>
         <div class="log-body"><div class="log-title">${entry.name} <span style="font-size:.6rem;font-weight:700;padding:2px 7px;border-radius:999px;background:var(--accent-dim);color:var(--accent);border:1px solid var(--accent-mid);margin-left:4px;vertical-align:middle">FREE</span></div><div class="log-meta">Taken by <b style="color:var(--text)">${entry.takenBy||'—'}</b> · ${entry.date}</div></div>
-        <div class="log-right"><div class="log-amt" style="color:var(--accent)">— kr</div></div>`;
+        <div class="log-right"><div class="log-amt" style="color:var(--accent)">Free</div></div>`;
     } else {
       d.innerHTML=`<div class="log-ico" style="background:var(--green-dim)">${p.icon}</div>
         <div class="log-body"><div class="log-title">${entry.name}</div><div class="log-meta">${entry.date}</div></div>
@@ -1462,18 +1644,15 @@ function renderChecklist(){
   const state=loadChecklistState();
   const groups={opening:'cl-opening',day:'cl-day',closing:'cl-closing'};
   const counts={opening:'cl-opening-count',day:'cl-day-count',closing:'cl-closing-count'};
-
   Object.entries(CHECKLIST).forEach(([group,items])=>{
     const el=document.getElementById(groups[group]);
     if(!el)return;
     el.innerHTML='';
     let done=0;
-
     if(group==='day'){
       items.forEach(item=>{
         const div=document.createElement('div');
-        div.className='cl-item';
-        div.style.cursor='default';
+        div.className='cl-item';div.style.cursor='default';
         div.innerHTML=`<span style="width:6px;height:6px;border-radius:50%;background:var(--accent);flex-shrink:0;margin:0 4px"></span>
           <span class="cl-item-text">${item.text}</span>`;
         el.appendChild(div);
@@ -1496,14 +1675,13 @@ function renderChecklist(){
     const countEl=document.getElementById(counts[group]);
     if(countEl)countEl.textContent=`${done}/${items.length}`;
   });
-
   checkBetbooksAlert();
 }
 
 function toggleCheck(id,checked){
+  haptic('light');
   const state=loadChecklistState();
-  state[id]=checked;
-  saveChecklistState(state);
+  state[id]=checked;saveChecklistState(state);
   const labels=document.querySelectorAll('.cl-item');
   labels.forEach(l=>{
     const cb=l.querySelector('input[type=checkbox]');
@@ -1532,10 +1710,7 @@ function clearChecklist(){
     msg:'Reset all checkboxes for today?',
     buttons:[
       {label:'Cancel',style:'modal-btn-ghost'},
-      {label:'Clear All',style:'modal-btn-danger',action:()=>{
-        saveChecklistState({});
-        renderChecklist();
-      }}
+      {label:'Clear All',style:'modal-btn-danger',action:()=>{saveChecklistState({});renderChecklist();}}
     ]
   });
 }
@@ -1560,21 +1735,15 @@ function loadCoffeeTimer(){
   const saved=localStorage.getItem('ccc_coffee');
   if(saved){
     const data=JSON.parse(saved);
-    if(data.end&&Date.now()<data.end){
-      _coffeeEnd=data.end;
-      startCoffeeInterval();
-    } else {
-      localStorage.removeItem('ccc_coffee');
-    }
+    if(data.end&&Date.now()<data.end){_coffeeEnd=data.end;startCoffeeInterval();}
+    else localStorage.removeItem('ccc_coffee');
   }
   updateCoffeeDisplay();
 }
 
 function coffeeTimerToggle(){
   if(_coffeeInterval){
-    clearInterval(_coffeeInterval);
-    _coffeeInterval=null;
-    _coffeeEnd=null;
+    clearInterval(_coffeeInterval);_coffeeInterval=null;_coffeeEnd=null;
     localStorage.removeItem('ccc_coffee');
     document.getElementById('coffee-start-btn').textContent='Start Timer';
     document.getElementById('coffee-timer-status').textContent='Stopped';
@@ -1594,9 +1763,7 @@ function startCoffeeInterval(){
   _coffeeInterval=setInterval(()=>{
     const remaining=_coffeeEnd-Date.now();
     if(remaining<=0){
-      clearInterval(_coffeeInterval);
-      _coffeeInterval=null;
-      _coffeeEnd=null;
+      clearInterval(_coffeeInterval);_coffeeInterval=null;_coffeeEnd=null;
       localStorage.removeItem('ccc_coffee');
       document.getElementById('coffee-timer-display').textContent='Done!';
       document.getElementById('coffee-timer-display').style.color='var(--green)';
@@ -1614,8 +1781,7 @@ function updateCoffeeDisplay(){
   const st=document.getElementById('coffee-timer-status');
   if(!el)return;
   if(!_coffeeEnd||!_coffeeInterval){
-    el.textContent='2:00:00';
-    el.style.color='var(--accent)';
+    el.textContent='2:00:00';el.style.color='var(--accent)';
     if(st&&!_coffeeInterval)st.textContent='Ready to start';
     return;
   }
@@ -1631,8 +1797,7 @@ function updateCoffeeDisplay(){
 
 function coffeeTimerReset(){
   if(_coffeeInterval){clearInterval(_coffeeInterval);_coffeeInterval=null;}
-  _coffeeEnd=null;
-  localStorage.removeItem('ccc_coffee');
+  _coffeeEnd=null;localStorage.removeItem('ccc_coffee');
   document.getElementById('coffee-start-btn').textContent='Start Timer';
   document.getElementById('coffee-timer-status').textContent='Ready to start';
   document.getElementById('coffee-timer-display').style.color='var(--accent)';
@@ -1640,17 +1805,11 @@ function coffeeTimerReset(){
 }
 
 // ── WINNER EMAIL ──
-document.addEventListener('DOMContentLoaded',()=>{
-  const dateEl=document.getElementById('w-date');
-  if(dateEl&&!dateEl.value) dateEl.value=nowDate();
-});
 
 function clearWinnerFields(){
   ['w-amount','w-machine-nr','w-machine-id','w-machine-name','w-shop'].forEach(id=>{
-    const el=document.getElementById(id);
-    if(el)el.value='';
+    const el=document.getElementById(id);if(el)el.value='';
   });
-  // Reset date to today
   const dateEl=document.getElementById('w-date');
   if(dateEl)dateEl.value=nowDate();
 }
@@ -1662,22 +1821,21 @@ function sendWinnerEmail(){
   const machineName=document.getElementById('w-machine-name').value.trim();
   const shop=document.getElementById('w-shop').value.trim();
   const date=document.getElementById('w-date').value.trim()||nowDate();
-
   if(!amount){flash('w-amount');return;}
+  if(!date){flash('w-date');return;}
   if(!machineNr){flash('w-machine-nr');return;}
+  if(!machineId){flash('w-machine-id');return;}
+  if(!machineName){flash('w-machine-name');return;}
   if(!shop){flash('w-shop');return;}
-
+  // Save winner to log
+  if(!D.winners)D.winners=[];
+  D.winners.push({amount,date,machineNr,machineId,machineName,shop});
+  saveState();
+  renderWinnerLog();
+  // Open mail
   const subject=`Vi har en gevinst på ${amount} kr - ${shop}`;
-
-  const body=`Kære Casino,
-
-Vi har en gevinst på ${amount} kr i dag.
-
-Butik: ${shop}
-Beløb: ${amount} kr
-Dato: ${date}
-Maskin nummer: ${machineNr}${machineId?'\nMaskin id: '+machineId:''}${machineName?'\nMaskin navn: '+machineName:''}`;
-
-  const mailto=`mailto:kundeservice@casinohouse.dk?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-  window.location.href=mailto;
+  const body=`Kære Casino,\n\nVi har en gevinst på ${amount} kr i dag.\n\nButik: ${shop}\nBeløb: ${amount} kr\nDato: ${date}\nMaskin nummer: ${machineNr}${machineId?'\nMaskin id: '+machineId:''}${machineName?'\nMaskin navn: '+machineName:''}`;
+  window.location.href=`mailto:kundeservice@casinohouse.dk?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  // Clear fields for next winner
+  clearWinnerFields();
 }

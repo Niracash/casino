@@ -45,6 +45,15 @@
     .pag-btn:hover:not(:disabled){color:var(--accent);border-color:var(--accent-mid);background:var(--accent-dim)}
     .pag-btn:disabled{opacity:.25;cursor:not-allowed}
     .pag-info{font-size:.65rem;color:var(--muted);flex:1;text-align:center}
+    /* Sign toggle button */
+    .sign-toggle-btn{
+      background:var(--green-dim);border:1px solid var(--green-mid);color:var(--green);
+      border-radius:var(--rs);font-size:1.1rem;font-weight:700;padding:0 16px;cursor:pointer;
+      font-family:inherit;transition:all .15s;flex-shrink:0;min-width:44px;display:flex;align-items:center;justify-content:center;
+    }
+    .sign-toggle-btn:active{transform:scale(.93)}
+    .cp-amt-row{display:flex;gap:7px;align-items:stretch;}
+    .cp-amt-row input{flex:1}
   </style>
 </head>
 <body>
@@ -251,7 +260,10 @@
   </div>
   <div class="fg">
     <label class="fl" id="cp-amt-label">Cashpoint amount shown in system (kr)</label>
-    <input type="number" id="cp-amt" placeholder="0" inputmode="numeric" oninput="cpCalc()">
+    <div class="cp-amt-row">
+      <button class="sign-toggle-btn" id="cp-sign-btn" onclick="cpToggleSign()" style="color:var(--green);border-color:var(--green-mid);background:var(--green-dim)">+</button>
+      <input type="number" id="cp-amt" placeholder="0" inputmode="numeric" oninput="cpCalc()">
+    </div>
   </div>
   <div id="cp-hint" style="display:none"></div>
   <button class="btn btn-purple" id="cp-save-btn" onclick="saveCashpoint()" disabled>Save Cashpoint Entry</button>
@@ -261,6 +273,26 @@
     <div class="empty"><div class="empty-ico">🎲</div>No cashpoint entries</div>
   </div>
   <div id="cp-list-pagination"></div>
+
+  <!-- EXPENSES -->
+  <div class="sec-title" style="margin-top:22px"><span>Expenses</span></div>
+  <p class="caption">Record cash paid out from the drawer — e.g. machine ate money, technician payment, etc.</p>
+
+  <div class="fg">
+    <input type="number" id="exp-amt" placeholder="0" inputmode="numeric" min="0" oninput="expCalcHint()">
+  </div>
+  <div class="fg">
+    <label class="fl">Reason <span style="color:var(--red);font-size:.75em;font-weight:500">required</span></label>
+    <input type="text" id="exp-reason" placeholder="e.g. Machine ate money, Technician" oninput="expReasonInput()">
+  </div>
+  <div id="exp-hint" style="display:none;font-size:.74rem;color:var(--red);margin-bottom:10px;padding:0 1px"></div>
+  <button class="btn btn-red" id="exp-save-btn" onclick="saveExpense()" disabled>Save Expense</button>
+
+  <div class="sec-title" style="margin-top:18px"><span>Expense Log <span id="expense-count-label" style="font-weight:500;letter-spacing:0;text-transform:none;opacity:.7"></span></span></div>
+  <div class="log-list" id="expense-list">
+    <div class="empty"><div class="empty-ico">💸</div>No expenses yet</div>
+  </div>
+  <div id="expense-list-pagination"></div>
 
   <div style="margin-top:24px">
     <button class="btn btn-ghost" style="font-size:.75rem" onclick="generateShiftPDF()">📄 Download Shift Report</button>
@@ -272,37 +304,43 @@
   <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:14px;margin-bottom:10px">
     <div class="cgrid" style="margin-bottom:8px">
       <div class="cell">
-        <div class="cl">Amount (kr)</div>
-        <input type="text" id="w-amount" placeholder="Amount" style="font-size:.88rem;text-align:left">
+        <div class="cl">Amount (kr) <span style="color:var(--red);font-size:.7em">*</span></div>
+        <input type="text" id="w-amount" placeholder="Amount" style="font-size:.88rem;text-align:left" oninput="saveWinner()">
       </div>
       <div class="cell">
-        <div class="cl">Date</div>
-        <input type="text" id="w-date" placeholder="Date" style="font-size:.88rem;text-align:left">
+        <div class="cl">Date <span style="color:var(--red);font-size:.7em">*</span></div>
+        <input type="text" id="w-date" placeholder="Date" style="font-size:.88rem;text-align:left" oninput="saveWinner()">
       </div>
     </div>
     <div class="cgrid" style="margin-bottom:8px">
       <div class="cell">
-        <div class="cl">Machine number</div>
-        <input type="text" id="w-machine-nr" placeholder="Machine nr" style="font-size:.88rem;text-align:left">
+        <div class="cl">Machine number <span style="color:var(--red);font-size:.7em">*</span></div>
+        <input type="text" id="w-machine-nr" placeholder="Machine nr" style="font-size:.88rem;text-align:left" oninput="saveWinner()">
       </div>
       <div class="cell">
-        <div class="cl">Machine ID</div>
-        <input type="text" id="w-machine-id" placeholder="Machine id" style="font-size:.88rem;text-align:left">
+        <div class="cl">Machine ID <span style="color:var(--red);font-size:.7em">*</span></div>
+        <input type="text" id="w-machine-id" placeholder="Machine id" style="font-size:.88rem;text-align:left" oninput="saveWinner()">
       </div>
     </div>
     <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--rs);padding:8px 10px;margin-bottom:8px">
-      <div class="cl" style="font-size:.52rem;font-weight:700;color:var(--sub);text-transform:uppercase;letter-spacing:.9px;margin-bottom:5px">Machine name</div>
-      <input type="text" id="w-machine-name" placeholder="Enter machine name" style="font-size:.82rem;padding:8px 10px">
+      <div class="cl" style="font-size:.52rem;font-weight:700;color:var(--sub);text-transform:uppercase;letter-spacing:.9px;margin-bottom:5px">Machine name <span style="color:var(--red);font-size:.8em">*</span></div>
+      <input type="text" id="w-machine-name" placeholder="Enter machine name" style="font-size:.82rem;padding:8px 10px" oninput="saveWinner()">
     </div>
     <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--rs);padding:8px 10px">
-      <div class="cl" style="font-size:.52rem;font-weight:700;color:var(--sub);text-transform:uppercase;letter-spacing:.9px;margin-bottom:5px">Shop / Location</div>
-      <input type="text" id="w-shop" placeholder="Enter shop or location" style="font-size:.82rem;padding:8px 10px">
+      <div class="cl" style="font-size:.52rem;font-weight:700;color:var(--sub);text-transform:uppercase;letter-spacing:.9px;margin-bottom:5px">Shop / Location <span style="color:var(--red);font-size:.8em">*</span></div>
+      <input type="text" id="w-shop" placeholder="Enter shop or location" style="font-size:.82rem;padding:8px 10px" oninput="saveWinner()">
     </div>
   </div>
 
   <div class="btn-2" style="margin-bottom:8px">
     <button class="btn btn-primary" onclick="sendWinnerEmail()">Open in Mail App</button>
     <button class="btn btn-ghost" onclick="clearWinnerFields()">Clear Fields</button>
+  </div>
+
+  <div class="sec-title" style="margin-top:18px"><span>Winner Log</span></div>
+  <p class="caption">Saved when you tap "Open in Mail App". All winners appear in the shift report.</p>
+  <div class="log-list" id="winner-log-list">
+    <div class="empty"><div class="empty-ico">🏆</div>No winners saved yet</div>
   </div>
 
 </div>
