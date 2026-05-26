@@ -8,6 +8,14 @@ function saveState(){localStorage.setItem('ccc_v5',JSON.stringify(D));}
 
 loadState();
 
+// ── Haptic feedback ──
+function haptic(style='light'){
+  if(navigator.vibrate){
+    const patterns={light:10,medium:20,heavy:40,success:[10,30,10]};
+    navigator.vibrate(patterns[style]||10);
+  }
+}
+
 // ── Custom Modal ──
 function showModal({icon='',title='',msg='',buttons=[]}){
   document.getElementById('modal-icon').textContent=icon;
@@ -205,9 +213,8 @@ function getFridgeTotal(){
   return Object.entries(products).reduce((s,[id,price])=>s+(D.shop.sold[id]||0)*price,0);
 }
 
-// ── Fridge revenue split ──
-// Every 50kr of fridge revenue becomes a note (cash). Remainder stays as mønt.
-// Display: base shown WITHOUT fridge, bracket shows fridge on top.
+// ── Fridge coin→cash conversion ──
+// Every 50kr of fridge coin revenue converts: -50 coin, +50 cash in expected
 function getFridgeCashConversion(){
   const total=getFridgeTotal();
   const cashPart=Math.floor(total/50)*50;
@@ -225,15 +232,9 @@ function updateHomeEst(){
     const el=document.getElementById(id);
     if(!el)return;
     if(!D.shift){el.innerHTML='—';return;}
-    if(fridgePart>0){
-      // Base is total minus fridge part, bracket shows fridge addition
-      const baseVal=Math.round(v-fridgePart);
-      const base=baseVal.toLocaleString('no-NO')+' kr';
-      const bracket=` <span style="color:var(--green);font-size:.72rem">(+${fridgePart.toLocaleString('no-NO')} kr fridge = ${Math.round(v).toLocaleString('no-NO')} kr)</span>`;
-      el.innerHTML=base+bracket;
-    } else {
-      el.innerHTML=Math.round(v).toLocaleString('no-NO')+' kr';
-    }
+    const base=Math.round(v).toLocaleString('no-NO')+' kr';
+    const bracket=fridgePart>0?` <span style="color:var(--green);font-size:.72rem">(+${fridgePart.toLocaleString('no-NO')} kr)</span>`:'';
+    el.innerHTML=base+bracket;
   };
 
   setV('eh-coin',exp.coin,fridgeCoin);
@@ -249,17 +250,12 @@ function updateHomeEst(){
 function updateHomeHints(){
   const exp=getExpected();
   const {cashPart:fridgeCash,coinPart:fridgeCoin}=getFridgeCashConversion();
-  const setH=(id,total,fridgePart)=>{
+  const setH=(id,base,fridgePart)=>{
     const el=document.getElementById(id);if(!el)return;
     if(!D.shift){el.innerHTML='';return;}
-    if(fridgePart>0){
-      const baseVal=Math.round(total-fridgePart);
-      const baseStr=`Expected: <span>${baseVal.toLocaleString('no-NO')} kr</span>`;
-      const fridgeStr=` <span style="color:var(--green)">(+${fridgePart.toLocaleString('no-NO')} kr fridge = ${Math.round(total).toLocaleString('no-NO')} kr)</span>`;
-      el.innerHTML=baseStr+fridgeStr;
-    } else {
-      el.innerHTML=`Expected: <span>${Math.round(total).toLocaleString('no-NO')} kr</span>`;
-    }
+    const baseStr=`Expected: <span>${Math.round(base).toLocaleString('no-NO')} kr</span>`;
+    const fridgeStr=fridgePart>0?` <span style="color:var(--green)">(+${fridgePart.toLocaleString('no-NO')} kr fridge = ${Math.round(base+fridgePart).toLocaleString('no-NO')} kr)</span>`:'';
+    el.innerHTML=baseStr+fridgeStr;
   };
   setH('h-coin-hint',exp.coin,fridgeCoin);
   setH('h-cash-hint',exp.cash,fridgeCash);
@@ -639,6 +635,7 @@ function saveExpense(){
   document.getElementById('exp-reason').value='';
   document.getElementById('exp-save-btn').disabled=true;
   renderExpenseList();renderHomeLog();recalc();updateEstCalc();fillExpectedIntoCount();
+  haptic('success');
 }
 
 function expCalcHint(){
@@ -818,6 +815,7 @@ function saveExchange(){
   document.querySelectorAll('.ex-hint-el').forEach(el=>el.style.display='none');
   document.querySelectorAll('.ex-save-btn').forEach(btn=>btn.disabled=true);
   D.exchanges.slice(-2).forEach(e=>auditLog('add','exchange',e));
+  haptic('medium');
   renderExchangeList();renderHomeLog();recalc();updateEstCalc();fillExpectedIntoCount();
 }
 
@@ -898,11 +896,13 @@ function saveCashpoint(){
   _cpSign=1;
   const sb=document.getElementById('cp-sign-btn');
   if(sb){sb.textContent='+';sb.style.color='var(--green)';sb.style.borderColor='var(--green-mid)';sb.style.background='var(--green-dim)';}
+  haptic('medium');
   renderCashpointList();renderHomeLog();recalc();updateEstCalc();fillExpectedIntoCount();
 }
 
 function doAdd(type){
   D.additions.push({type,amount:10000,date:nowFull(),ts:Date.now()});saveState();
+  haptic('success');
   renderAddList();renderHomeLog();recalc();updateEstCalc();updateHomeEst();fillExpectedIntoCount();
   const btn=event.currentTarget,orig=btn.innerHTML;
   btn.innerHTML='✓ Added!';btn.style.opacity='.6';
@@ -952,6 +952,7 @@ function saveKF(){
   coins=Math.ceil(Math.floor(kr/20)/5)*5||5;
   D.fillups.push({machine,type:_kfType,inputVal:raw,kr,coins,date:nowFull(),ts:Date.now()});saveState();
   document.getElementById('kf-val').value='';document.getElementById('kf-res').style.display='none';document.getElementById('kf-save-btn').disabled=true;
+  haptic('success');
   renderKFLog();renderHomeLog();recalc();updateEstCalc();updateHomeEst();fillExpectedIntoCount();
   const btn=document.getElementById('kf-save-btn');
   btn.innerHTML='✓ Saved!';btn.style.opacity='.6';setTimeout(()=>{btn.innerHTML='Save Fillup';btn.style.opacity='';},1500);
@@ -1007,7 +1008,7 @@ function setShift(){
   }
   const total=coin+cash+pc+bank;
   D.shift={coin,cash,pc,bank,total,originalTotal:total,originalCoin:coin,originalCash:cash,originalPc:pc,originalBank:bank,date:nowFull()};
-  saveState();renderShiftInfo();recalc();updateEstCalc();updateHomeEst();
+  saveState();renderShiftInfo();recalc();updateEstCalc();updateHomeEst();haptic('success');
   const btn=event.currentTarget;btn.innerHTML='✓ Done!';btn.style.opacity='.7';
   setTimeout(()=>{btn.innerHTML='✓ Set as Start Total';btn.style.opacity='';},2000);
 }
@@ -1395,7 +1396,7 @@ function renderShopItems(){
           <div class="shop-item-controls">
             <button class="shop-counter-btn minus" onclick="shopSell('${p.id}',-1)">−</button>
             <div class="shop-count-display" id="shop-sold-${p.id}">${sold}</div>
-            <button class="shop-counter-btn plus" onclick="shopSell('${p.id}',1)">+</button>
+            <button class="shop-counter-btn plus" onclick="shopSell('${p.id}',1);haptic('light')">+</button>
           </div>
           <button class="shop-free-btn" onclick="shopFreeTake('${p.id}')">Take (free)</button>
         </div>
@@ -1447,7 +1448,7 @@ function _doShopSell(id,delta){
 
 function shopSell(id,delta){
   initShop();
-  if(delta>0)
+  if(delta>0)haptic('light');
   if(delta<0){
     if(D.shop.sold[id]<=0)return;
     const productName=SHOP_PRODUCTS.find(p=>p.id===id).name;
@@ -1591,10 +1592,10 @@ function renderShopSummary(){
       <span style="font-family:'JetBrains Mono',monospace;font-weight:600;font-size:.78rem;color:var(--accent)">${totalFree} pcs</span>
     </div>`;
   }
-  const {cashPart,coinPart}=getFridgeCashConversion();
+  // Show cash/coin breakdown of fridge revenue
   const parts=[];
   if(cashPart>0) parts.push(`💵 ${cashPart.toLocaleString('no-NO')} kr cash`);
-  if(coinPart>0) parts.push(`💰 ${coinPart.toLocaleString('no-NO')} kr mønt`);
+  if(coinPart>0) parts.push(`💰 ${coinPart.toLocaleString('no-NO')} kr coin`);
   if(parts.length>0){
     html+=`<div style="margin-top:6px;font-size:.72rem;color:var(--sub);text-align:right">${parts.join(' + ')}</div>`;
   }
@@ -1723,6 +1724,7 @@ function renderChecklist(){
 }
 
 function toggleCheck(id,checked){
+  haptic('light');
   const state=loadChecklistState();
   state[id]=checked;saveChecklistState(state);
   const labels=document.querySelectorAll('.cl-item');
