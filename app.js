@@ -110,7 +110,7 @@ function getExpected(){
     if(e.from==='coin'&&e.to==='cash'){
       // Customer gives coins, we give notes out; coin remainder goes back to customer
       const cashOut=e.cashOut!=null?e.cashOut:Math.floor(e.amount/50)*50;
-      coin-=e.amount; // we receive all coins from customer
+      coin+=e.amount; // we receive all coins from customer
       cash-=cashOut;  // we give notes out of drawer
       return;
     }
@@ -750,9 +750,9 @@ function exCalc(){
       const cashPart=Math.floor(amt/50)*50,coinPart=amt-cashPart;
       hint.className='ex-hint-el success';hint.style.display='block';
       if(coinPart>0){
-        hint.innerHTML=`Give customer <b>${fmt(cashPart)}</b> cash + <b>${fmt(coinPart)}</b> mønt back · −${fmt(amt)} mønt, +${fmt(cashPart)} cash`;
+        hint.innerHTML=`Give customer <b>${fmt(cashPart)}</b> cash + <b>${fmt(coinPart)}</b> mønt back · +${fmt(amt)} mønt, -${fmt(cashPart)} cash`;
       } else {
-        hint.innerHTML=`Give customer <b>${fmt(cashPart)}</b> cash · −${fmt(amt)} mønt, +${fmt(cashPart)} cash`;
+        hint.innerHTML=`Give customer <b>${fmt(cashPart)}</b> cash · +${fmt(amt)} mønt, -${fmt(cashPart)} cash`;
       }
     } else if(_exTo==='pc'){
       const pcAmt=Math.floor(amt/20)*20,change=amt-pcAmt;
@@ -1109,7 +1109,7 @@ function generateShiftPDF(){
         if(chg){rCoin-=chg;changed.add('coin');}
       } else if(d.from==='coin'&&d.to==='cash'){
         const cashOut=d.cashOut!=null?d.cashOut:Math.floor(d.amount/50)*50;
-        rCoin-=d.amount;changed.add('coin');
+        rCoin+=d.amount;changed.add('coin');
         rCash-=cashOut;changed.add('cash');
       } else if(d.from==='bank'&&d.to==='cash'){
         const cashOut=Math.floor(d.amount/50)*50;
