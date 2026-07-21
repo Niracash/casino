@@ -250,6 +250,8 @@
     <button class="btn btn-red" style="width:auto;padding:7px 13px;font-size:.74rem" onclick="confirmReset()">Reset</button>
   </div>
 
+  <button class="btn btn-ghost" style="font-size:.75rem;margin-bottom:22px" onclick="generateShiftPDF()">📄 Download Shift Report</button>
+
   <div class="sec-title"><span>Cashpoint</span></div>
   <p class="caption">Customer bets at the counter and pays with bank or cash. Enter the amount shown in the Cashpoint system. No payout to customer. Min. 20 kr.</p>
 
@@ -296,10 +298,6 @@
     <div class="empty"><div class="empty-ico">💸</div>No entries yet</div>
   </div>
   <div id="expense-list-pagination"></div>
-
-  <div style="margin-top:24px">
-    <button class="btn btn-ghost" style="font-size:.75rem" onclick="generateShiftPDF()">📄 Download Shift Report</button>
-  </div>
 
   <!-- WINNER SECTION -->
   <div class="sec-title" style="margin-top:32px"><span>Winner Report</span></div>
@@ -403,8 +401,6 @@
 
   <div class="sec-title"><span>Closing <span id="cl-closing-count" style="font-weight:500;letter-spacing:0;text-transform:none;opacity:.7"></span></span></div>
   <div class="checklist-group" id="cl-closing"></div>
-
-  <button class="btn btn-ghost" onclick="clearChecklist()" style="margin-top:18px;margin-bottom:4px">↺ Clear All Checkboxes</button>
 
 </div>
 
