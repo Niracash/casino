@@ -78,9 +78,10 @@ const CAT_LABELS={cash:'Cash',pc:'Playcoins',coin:'Mønt',bank:'Bank'};
 
 function flash(id){const el=document.getElementById(id);if(!el)return;el.style.borderColor='var(--red)';el.focus();setTimeout(()=>el.style.borderColor='',1600);}
 
-// ── Split expense amount into cash (notes) and mønt (coins) by Danish denominations ──
+// ── Split an amount into cash (notes) and mønt (coins) by Danish denominations ──
 // Notes: 50, 100, 200, 500. Coins: 1, 2, 5, 10, 20.
 // Strategy: greedily use notes first, remainder is coins.
+// Always operates on a positive magnitude — direction (added/removed) is tracked separately via a `sign` field.
 function splitExpenseDenominations(amount){
   const notes=[500,200,100,50];
   let rem=Math.round(amount);
@@ -142,8 +143,13 @@ function getExpected(){
     }
   });
   D.fillups.forEach(f=>{pc-=f.coins*20;});
-  // Expenses reduce cash (notes) and mønt (coins) by denomination
-  if(D.expenses){D.expenses.forEach(e=>{const{cashPart,coinPart}=splitExpenseDenominations(e.amount);cash-=cashPart;coin-=coinPart;});}
+  // Unexpected changes: sign = -1 (removed from drawer) or +1 (added to drawer). Legacy entries with no
+  // sign default to -1 (removal) to preserve the old "expense" behavior.
+  if(D.expenses){D.expenses.forEach(e=>{
+    const sign=e.sign||-1;
+    cash+=sign*(e.cashPart||0);
+    coin+=sign*(e.coinPart||0);
+  });}
   return{coin,cash,pc,bank,total:coin+cash+pc+bank};
 }
 
@@ -190,7 +196,7 @@ function renderWinnerLog(){
     d.innerHTML=`<div class="log-ico" style="background:var(--green-dim)">🏆</div>
       <div class="log-body">
         <div class="log-title">${w.amount} kr — ${w.shop}</div>
-        <div class="log-meta">Machine ${w.machineNr}${w.machineId?' · ID: '+w.machineId:''} · ${w.machineName}</div>
+        <div class="log-meta">Machine ${w.machineNr}${w.machineId?' · ID: '+w.machineId:''} · ${w.machineName}${w.gameName?' · '+w.gameName:''}</div>
         <div class="log-meta" style="margin-top:2px;color:var(--muted)">${w.date}</div>
       </div>
       <button class="log-del" onclick="delWinner(${i})">✕</button>`;
@@ -209,7 +215,7 @@ function delWinner(i){
 
 function getFridgeTotal(){
   if(!D.shop||!D.shop.sold)return 0;
-  const products={sodavand:10,redbull:20,vand:5,bounty:10,bueno:10,mars:10,snickers:10,pringles:10,lighter:10};
+  const products={sodavand:10,redbull:20,vand:5,bounty:10,bueno:10,mars:10,snickers:10,pringles:10,lighter:5};
   return Object.entries(products).reduce((s,[id,price])=>s+(D.shop.sold[id]||0)*price,0);
 }
 
@@ -434,9 +440,17 @@ function renderHomeLog(){
         <div class="log-right"><div class="log-amt" style="color:${isW?'var(--blue)':'var(--purple)'}">${amtStr}</div><div class="log-time">${d.date}</div></div>
         <button class="log-del" onclick="delCashpoint(${entry.i})">✕</button>`;
     } else if(entry.type==='expense'){
-      div.innerHTML=`<div class="log-ico" style="background:var(--red-dim)">💸</div>
-        <div class="log-body"><div class="log-title">Expense — ${d.reason||'No reason'}</div><div class="log-meta">${(()=>{const c=d.cashPart||0,m=d.coinPart||0;if(c&&m)return'−'+c.toLocaleString('no-NO')+' kr cash · −'+m.toLocaleString('no-NO')+' kr mønt';if(c)return'−'+c.toLocaleString('no-NO')+' kr cash';return'−'+m.toLocaleString('no-NO')+' kr mønt';})()} </div></div>
-        <div class="log-right"><div class="log-amt" style="color:var(--red)">−${fmt(d.amount)}</div><div class="log-time">${d.date}</div></div>
+      const isAdd=(d.sign||-1)>0;
+      const c=d.cashPart||0,m=d.coinPart||0;
+      const metaStr=(()=>{
+        const sgn=isAdd?'+':'−';
+        if(c&&m)return sgn+c.toLocaleString('no-NO')+' kr cash · '+sgn+m.toLocaleString('no-NO')+' kr mønt';
+        if(c)return sgn+c.toLocaleString('no-NO')+' kr cash';
+        return sgn+m.toLocaleString('no-NO')+' kr mønt';
+      })();
+      div.innerHTML=`<div class="log-ico" style="background:${isAdd?'var(--green-dim)':'var(--red-dim)'}">💸</div>
+        <div class="log-body"><div class="log-title">${isAdd?'Added':'Removed'} — ${d.reason||'No reason'}</div><div class="log-meta">${metaStr}</div></div>
+        <div class="log-right"><div class="log-amt" style="color:${isAdd?'var(--green)':'var(--red)'}">${isAdd?'+':'−'}${fmt(d.amount)}</div><div class="log-time">${d.date}</div></div>
         <button class="log-del" onclick="delExpense(${entry.i})">✕</button>`;
     } else {
       const icon=d.type==='playcoin'?'🪙':'💵',title=d.type==='playcoin'?'Playcoins Added':'Cash Added';
@@ -522,26 +536,34 @@ function renderAddList(){
   renderLogPagination('add-list-pagination',_addListPage,totalPages,allItems.length,(p)=>{_addListPage=p;renderAddList();});
 }
 
-// ── Expense List ──
+// ── Unexpected Change List ──
 let _expenseListPage=0;
 function renderExpenseList(){
   const expenses=D.expenses||[];
-  const total=expenses.reduce((s,e)=>s+e.amount,0);
+  const total=expenses.reduce((s,e)=>s+((e.sign||-1)*e.amount),0);
   const countEl=document.getElementById('expense-count-label');
-  if(countEl)countEl.textContent=expenses.length>0?expenses.length+' · '+fmt(total):'';
+  if(countEl)countEl.textContent=expenses.length>0?expenses.length+' · '+(total>=0?'+':'−')+fmt(total):'';
   const el=document.getElementById('expense-list');
   if(!el)return;
   const allItems=[...expenses].reverse().map((e,ri)=>({e,i:expenses.length-1-ri}));
-  if(allItems.length===0){el.innerHTML=`<div class="empty"><div class="empty-ico">💸</div>No expenses yet</div>`;renderLogPagination('expense-list-pagination',0,0,0);return;}
+  if(allItems.length===0){el.innerHTML=`<div class="empty"><div class="empty-ico">💸</div>No entries yet</div>`;renderLogPagination('expense-list-pagination',0,0,0);return;}
   const totalPages=Math.ceil(allItems.length/LOG_PAGE_SIZE);
   if(_expenseListPage>=totalPages)_expenseListPage=totalPages-1;
   const pageItems=allItems.slice(_expenseListPage*LOG_PAGE_SIZE,(_expenseListPage+1)*LOG_PAGE_SIZE);
   el.innerHTML='';
   pageItems.forEach(({e,i})=>{
+    const isAdd=(e.sign||-1)>0;
     const d=document.createElement('div');d.className='log-item';
-    d.innerHTML=`<div class="log-ico" style="background:var(--red-dim)">💸</div>
-      <div class="log-body"><div class="log-title">${e.reason||'Expense'}</div><div class="log-meta">${(()=>{const c=e.cashPart||0,m=e.coinPart||0;if(c&&m)return'−'+c.toLocaleString('no-NO')+' kr cash · −'+m.toLocaleString('no-NO')+' kr mønt';if(c)return'−'+c.toLocaleString('no-NO')+' kr cash';return'−'+m.toLocaleString('no-NO')+' kr mønt';})()} </div></div>
-      <div class="log-right"><div class="log-amt" style="color:var(--red)">−${fmt(e.amount)}</div><div class="log-time">${e.date}</div></div>
+    const c=e.cashPart||0,m=e.coinPart||0;
+    const metaStr=(()=>{
+      const sgn=isAdd?'+':'−';
+      if(c&&m)return sgn+c.toLocaleString('no-NO')+' kr cash · '+sgn+m.toLocaleString('no-NO')+' kr mønt';
+      if(c)return sgn+c.toLocaleString('no-NO')+' kr cash';
+      return sgn+m.toLocaleString('no-NO')+' kr mønt';
+    })();
+    d.innerHTML=`<div class="log-ico" style="background:${isAdd?'var(--green-dim)':'var(--red-dim)'}">💸</div>
+      <div class="log-body"><div class="log-title">${e.reason||(isAdd?'Added':'Removed')}</div><div class="log-meta">${metaStr}</div></div>
+      <div class="log-right"><div class="log-amt" style="color:${isAdd?'var(--green)':'var(--red)'}">${isAdd?'+':'−'}${fmt(e.amount)}</div><div class="log-time">${e.date}</div></div>
       <button class="log-del" onclick="delExpense(${i})">✕</button>`;
     el.appendChild(d);
   });
@@ -604,7 +626,7 @@ function delAddition(i){
   ]});
 }
 function delExpense(i){
-  showModal({title:'Remove expense',msg:'Remove this expense? This will affect the calculation.',buttons:[
+  showModal({title:'Remove entry',msg:'Remove this unexpected change entry? This will affect the calculation.',buttons:[
     {label:'Cancel',style:'modal-btn-ghost'},
     {label:'Remove',style:'modal-btn-danger',action:()=>{
       if(!D.expenses)D.expenses=[];
@@ -613,13 +635,20 @@ function delExpense(i){
   ]});
 }
 
-// ── Expense save ──
-let _expAmt=0,_expAmtNeg=false;
+// ── Unexpected Change save ──
+// _expSign: -1 = money removed from drawer, +1 = money added to drawer. Defaults to removal (matches old "Expense" behavior).
+let _expSign=-1;
 
 function expAmtToggleSign(){
-  _expAmtNeg=!_expAmtNeg;
+  _expSign*=-1;
   const btn=document.getElementById('exp-sign-btn');
-  if(btn)btn.textContent=_expAmtNeg?'−':'+';
+  if(btn){
+    btn.textContent=_expSign>0?'+':'−';
+    btn.style.color=_expSign>0?'var(--green)':'var(--red)';
+    btn.style.borderColor=_expSign>0?'var(--green-mid)':'var(--red-mid)';
+    btn.style.background=_expSign>0?'var(--green-dim)':'var(--red-dim)';
+  }
+  expCalcHint();
 }
 
 function saveExpense(){
@@ -629,11 +658,15 @@ function saveExpense(){
   if(!reason)return flash('exp-reason');
   if(!D.expenses)D.expenses=[];
   const{cashPart:eCash,coinPart:eCoin}=splitExpenseDenominations(amt);
-  D.expenses.push({amount:amt,reason,cashPart:eCash,coinPart:eCoin,date:nowFull(),ts:Date.now()});
+  D.expenses.push({amount:amt,sign:_expSign,reason,cashPart:eCash,coinPart:eCoin,date:nowFull(),ts:Date.now()});
   saveState();
   document.getElementById('exp-amt').value='';
   document.getElementById('exp-reason').value='';
   document.getElementById('exp-save-btn').disabled=true;
+  // Reset sign back to default (removal) after each save
+  _expSign=-1;
+  const sb=document.getElementById('exp-sign-btn');
+  if(sb){sb.textContent='−';sb.style.color='var(--red)';sb.style.borderColor='var(--red-mid)';sb.style.background='var(--red-dim)';}
   renderExpenseList();renderHomeLog();recalc();updateEstCalc();fillExpectedIntoCount();
   haptic('success');
 }
@@ -644,7 +677,11 @@ function expCalcHint(){
   const btn=document.getElementById('exp-save-btn');
   const hint=document.getElementById('exp-hint');
   if(amt>0){
-    if(hint){hint.style.display='block';hint.innerHTML=`−${fmt(amt)} from expected cash balance`;}
+    if(hint){
+      hint.style.display='block';
+      hint.style.color=_expSign>0?'var(--green)':'var(--red)';
+      hint.innerHTML=_expSign>0?`+${fmt(amt)} added to expected cash balance`:`−${fmt(amt)} removed from expected cash balance`;
+    }
   } else {
     if(hint)hint.style.display='none';
   }
@@ -1058,16 +1095,14 @@ function generateShiftPDF(){
   const allExchanges=[...(archived.exchanges||[]),...D.exchanges];
   const allExpenses=D.expenses||[];
 
-  const todayLog=[
-    ...allFillups.map(x=>({type:'fillup',ts:x.ts||0,data:x})),
-    ...allAdditions.map(x=>({type:'addition',ts:x.ts||0,data:x})),
-    ...allCashpoints.map(x=>({type:'cashpoint',ts:x.ts||0,data:x})),
-    ...allExpenses.map(x=>({type:'expense',ts:x.ts||0,data:x})),
-  ].sort((a,b)=>b.ts-a.ts);
-
-  const exchangeLog=[...allExchanges].sort((a,b)=>(b.ts||0)-(a.ts||0));
   const CAT={cash:'Cash',pc:'Playcoins',coin:'Mønt',bank:'Bank'};
 
+  // ── Chronological replay ──
+  // This mirrors getExpected() exactly, so the "Expected after" column always matches
+  // what the homepage's Expected Amounts panel would have shown at that moment.
+  // The snapshot is attached directly onto each event object (not looked up by timestamp),
+  // so two entries created in the same millisecond (e.g. a split pc→cash+mønt exchange)
+  // never overwrite each other's snapshot.
   const runningEvents=[
     ...allFillups.map(x=>({type:'fillup',ts:x.ts||0,data:x})),
     ...allAdditions.map(x=>({type:'addition',ts:x.ts||0,data:x})),
@@ -1081,109 +1116,98 @@ function generateShiftPDF(){
   let rPc=D.shift?D.shift.pc:0;
   let rBank=D.shift?D.shift.bank:0;
 
-  const expectedAfter={};
   runningEvents.forEach(ev=>{
     const d=ev.data;
-    const changed=new Set();
     if(ev.type==='addition'){
-      if(d.type==='cash'){rCash+=d.amount;changed.add('cash');}
-      else if(d.type==='playcoin'){rPc+=d.amount;changed.add('pc');}
+      if(d.type==='cash'){rCash+=d.amount;}
+      else if(d.type==='playcoin'){rPc+=d.amount;}
     } else if(ev.type==='cashpoint'){
-      if(d.from==='bank'){rBank+=d.amount;changed.add('bank');}
+      if(d.from==='bank'){rBank+=d.amount;}
       else if(d.from==='cash'){
         if(d.amount>=0){
           const cp=Math.floor(d.amount/50)*50,cn=d.amount-cp;
-          if(cp){rCash+=cp;changed.add('cash');}
-          if(cn){rCoin+=cn;changed.add('coin');}
-        } else {rCash+=d.amount;changed.add('cash');}
+          rCash+=cp;rCoin+=cn;
+        } else {rCash+=d.amount;}
       }
     } else if(ev.type==='fillup'){
-      rPc-=d.coins*20;changed.add('pc');
+      rPc-=d.coins*20;
     } else if(ev.type==='exchange'){
       if(d.from==='cash'&&d.to==='coin'){
-        rCash+=d.amount;rCoin-=d.amount;changed.add('cash');changed.add('coin');
+        rCash+=d.amount;rCoin-=d.amount;
       } else if(d.from==='cash'&&d.to==='pc'){
-        rCash+=d.amount;changed.add('cash');
-        rPc-=d.pcOut||Math.floor(d.amount/20)*20;changed.add('pc');
+        rCash+=d.amount;
+        rPc-=d.pcOut||Math.floor(d.amount/20)*20;
         const chg=d.coinChange||(d.amount-Math.floor(d.amount/20)*20);
-        if(chg){rCoin-=chg;changed.add('coin');}
+        if(chg)rCoin-=chg;
       } else if(d.from==='coin'&&d.to==='cash'){
         const cashOut=d.cashOut!=null?d.cashOut:Math.floor(d.amount/50)*50;
-        rCoin+=d.amount;changed.add('coin');
-        rCash-=cashOut;changed.add('cash');
+        rCoin+=d.amount;rCash-=cashOut;
       } else if(d.from==='bank'&&d.to==='cash'){
         const cashOut=Math.floor(d.amount/50)*50;
         const coinOut=d.amount-cashOut;
-        rBank+=d.amount;changed.add('bank');
-        rCash-=cashOut;changed.add('cash');
-        if(coinOut){rCoin-=coinOut;changed.add('coin');}
+        rBank+=d.amount;rCash-=cashOut;if(coinOut)rCoin-=coinOut;
       } else {
-        if(d.from==='bank'){rBank+=d.amount;changed.add('bank');}
-        if(d.from==='pc'){rPc+=d.amount;changed.add('pc');}
-        if(d.from==='coin'){rCoin+=d.amount;changed.add('coin');}
-        if(d.to==='cash'){rCash-=d.amount;changed.add('cash');}
-        if(d.to==='pc'){rPc-=d.amount;changed.add('pc');}
-        if(d.to==='coin'&&d.from!=='cash'){rCoin-=d.amount;changed.add('coin');}
-        if(d.to==='bank'){rBank-=d.amount;changed.add('bank');}
+        if(d.from==='bank')rBank+=d.amount;
+        if(d.from==='pc')rPc+=d.amount;
+        if(d.from==='coin')rCoin+=d.amount;
+        if(d.to==='cash')rCash-=d.amount;
+        if(d.to==='pc')rPc-=d.amount;
+        if(d.to==='coin'&&d.from!=='cash')rCoin-=d.amount;
+        if(d.to==='bank')rBank-=d.amount;
       }
     } else if(ev.type==='expense'){
-      const{cashPart:eCash,coinPart:eCoin}=splitExpenseDenominations(d.amount);
-      if(eCash){rCash-=eCash;changed.add('cash');}
-      if(eCoin){rCoin-=eCoin;changed.add('coin');}
+      const sign=d.sign||-1;
+      rCash+=sign*(d.cashPart||0);
+      rCoin+=sign*(d.coinPart||0);
     }
-    expectedAfter[ev.ts]={coin:rCoin,cash:rCash,pc:rPc,bank:rBank,total:rCoin+rCash+rPc+rBank,changed};
+    ev.snapshot={coin:rCoin,cash:rCash,pc:rPc,bank:rBank};
   });
 
+  const expCellHtml=(snap)=>{
+    if(!snap)return'—';
+    return `<span style="font-size:10px;color:#555">Mønt: <b>${Math.round(snap.coin).toLocaleString('no-NO')} kr</b> &nbsp;·&nbsp; Cash: <b>${Math.round(snap.cash).toLocaleString('no-NO')} kr</b> &nbsp;·&nbsp; Playcoins: <b>${Math.round(snap.pc).toLocaleString('no-NO')} kr</b> &nbsp;·&nbsp; Bank: <b>${Math.round(snap.bank).toLocaleString('no-NO')} kr</b></span>`;
+  };
+
+  const todayEntries=[...runningEvents].filter(ev=>ev.type!=='exchange').sort((a,b)=>b.ts-a.ts);
+  const exchangeEntries=[...runningEvents].filter(ev=>ev.type==='exchange').sort((a,b)=>b.ts-a.ts);
+
   let logRows='';
-  todayLog.forEach(e=>{
-    const d=e.data;
+  todayEntries.forEach(ev=>{
+    const d=ev.data;
     let label='',detail='',amount='';
-    if(e.type==='fillup'){
+    if(ev.type==='fillup'){
       label='Key Fillup';detail=`Machine ${d.machine} — ${d.coins} coins`;amount=f(d.coins*20);
-    } else if(e.type==='addition'){
+    } else if(ev.type==='addition'){
       label=d.type==='playcoin'?'Playcoins Added':'Cash Added';detail='Replenishment';amount=f(d.amount);
-    } else if(e.type==='cashpoint'){
+    } else if(ev.type==='cashpoint'){
       const isW=d.amount<0;
       label='Cashpoint';detail=`${isW?'Withdrawal':'Deposit'} via ${d.from==='bank'?'Bank/Card':'Cash'}`;
       amount=(isW?'−':'+')+f(Math.abs(d.amount));
-    } else if(e.type==='expense'){
-      label='Expense';detail=d.reason||'—';
-      amount='−'+f(d.amount);
+    } else if(ev.type==='expense'){
+      const isAdd=(d.sign||-1)>0;
+      label=isAdd?'Unexpected Change (Added)':'Unexpected Change (Removed)';
+      detail=d.reason||'—';
+      amount=(isAdd?'+':'−')+f(d.amount);
     }
-    const snap=expectedAfter[d.ts||e.ts];
-    let expCell='—';
-    if(snap&&snap.changed&&snap.changed.size>0){
-      const labels={coin:'Mønt',cash:'Cash',pc:'Playcoins',bank:'Bank'};
-      const vals={coin:snap.coin,cash:snap.cash,pc:snap.pc,bank:snap.bank};
-      const parts=[...snap.changed].map(k=>`${labels[k]}: <b>${Math.round(vals[k]).toLocaleString('no-NO')} kr</b>`);
-      expCell=`<span style="font-size:10px;color:#555">${parts.join(' &nbsp;·&nbsp; ')}</span>`;
-    }
-    logRows+=`<tr><td>${d.date||''}</td><td>${label}</td><td>${detail}</td><td style="text-align:right;font-family:monospace">${amount}</td><td style="text-align:right">${expCell}</td></tr>`;
+    logRows+=`<tr><td>${d.date||''}</td><td>${label}</td><td>${detail}</td><td style="text-align:right;font-family:monospace">${amount}</td><td style="text-align:right">${expCellHtml(ev.snapshot)}</td></tr>`;
   });
 
   let exchangeRows='';
-  exchangeLog.forEach(d=>{
+  exchangeEntries.forEach(ev=>{
+    const d=ev.data;
     let detail='';
     if(d.from==='cash'&&d.to==='pc') detail='Cash → Playcoins';
     else if(d.from==='cash'&&d.to==='coin') detail='Cash → Mønt';
     else if(d.from==='pc'&&d.to==='cash') detail='Playcoins → Cash';
     else if(d.from==='pc'&&d.to==='coin') detail='Playcoins → Mønt';
     else detail=`${CAT[d.from]||d.from} → ${CAT[d.to]||d.to}`;
-    const snap=expectedAfter[d.ts];
-    let expCell='—';
-    if(snap&&snap.changed&&snap.changed.size>0){
-      const labels={coin:'Mønt',cash:'Cash',pc:'Playcoins',bank:'Bank'};
-      const vals={coin:snap.coin,cash:snap.cash,pc:snap.pc,bank:snap.bank};
-      const parts=[...snap.changed].map(k=>`${labels[k]}: <b>${Math.round(vals[k]).toLocaleString('no-NO')} kr</b>`);
-      expCell=`<span style="font-size:10px;color:#555">${parts.join(' &nbsp;·&nbsp; ')}</span>`;
-    }
-    exchangeRows+=`<tr><td>${d.date||''}</td><td>${detail}</td><td style="text-align:right;font-family:monospace">${f(d.amount)}</td><td style="text-align:right">${expCell}</td></tr>`;
+    exchangeRows+=`<tr><td>${d.date||''}</td><td>${detail}</td><td style="text-align:right;font-family:monospace">${f(d.amount)}</td><td style="text-align:right">${expCellHtml(ev.snapshot)}</td></tr>`;
   });
 
   let fridgeRows='';
   let totalStart=0,totalSold=0,totalFree=0,totalEnd=0,totalRev=0;
   if(D.shop){
-    const products={sodavand:{n:'Sodavand',p:10},redbull:{n:'Redbull',p:20},vand:{n:'Vand',p:5},bounty:{n:'Bounty',p:10},bueno:{n:'Bueno',p:10},mars:{n:'Mars',p:10},snickers:{n:'Snickers',p:10},pringles:{n:'Pringles',p:10},lighter:{n:'Lighter',p:10}};
+    const products={sodavand:{n:'Sodavand',p:10},redbull:{n:'Redbull',p:20},vand:{n:'Vand',p:5},bounty:{n:'Bounty',p:10},bueno:{n:'Bueno',p:10},mars:{n:'Mars',p:10},snickers:{n:'Snickers',p:10},pringles:{n:'Pringles',p:10},lighter:{n:'Lighter',p:5}};
     Object.entries(products).forEach(([id,{n,p}])=>{
       const sold=(D.shop.sold&&D.shop.sold[id])||0;
       const start=(D.shop.starts&&D.shop.starts[id])||0;
@@ -1201,8 +1225,6 @@ function generateShiftPDF(){
     fridgeRows+=`<tr style="background:#f4f4f8;font-weight:700"><td>Total</td><td style="text-align:center">${totalStart}</td><td>${totalSoldCell}</td><td style="text-align:center">${totalEnd}</td><td style="text-align:right;font-family:monospace">${f(totalRev)}</td></tr>`;
   }
 
-
-
   // Winners log — all saved winners
   const allWinners=D.winners||[];
   const winnerRows=allWinners.map(w=>`
@@ -1212,11 +1234,12 @@ function generateShiftPDF(){
       <td>${w.machineNr||''}</td>
       <td>${w.machineId||''}</td>
       <td>${w.machineName||''}</td>
+      <td>${w.gameName||''}</td>
       <td>${w.shop||''}</td>
     </tr>`).join('');
   const winnerSection=allWinners.length>0?`
   <h2>Winner Report (${allWinners.length})</h2>
-  <table><thead><tr><th>Amount</th><th>Date</th><th>Machine Nr</th><th>Machine ID</th><th>Machine Name</th><th>Shop</th></tr></thead>
+  <table><thead><tr><th>Amount</th><th>Date</th><th>Machine Nr</th><th>Machine ID</th><th>Machine Name</th><th>Game Name</th><th>Shop</th></tr></thead>
   <tbody>${winnerRows}</tbody></table>`:'';
 
   const displayStartTotal=D.shift
@@ -1269,12 +1292,12 @@ function generateShiftPDF(){
   <h2>Fridge Revenue${fridge>0?` — ${f(fridge)}`:''}</h2>
   <table><thead><tr><th>Product</th><th style="text-align:center">Start</th><th>Sold</th><th style="text-align:center">End</th><th style="text-align:right">Revenue</th></tr></thead>
   <tbody>${fridgeRows}</tbody></table>
-  <h2>Today's Log (${todayLog.length} entries)</h2>
-  ${todayLog.length===0?'<p style="color:#999">No entries recorded.</p>':`
+  <h2>Today's Log (${todayEntries.length} entries)</h2>
+  ${todayEntries.length===0?'<p style="color:#999">No entries recorded.</p>':`
   <table><thead><tr><th>Time</th><th>Type</th><th>Detail</th><th style="text-align:right">Amount</th><th style="text-align:right" class="exp-col">Expected after</th></tr></thead>
   <tbody>${logRows}</tbody></table>`}
-  <h2>Exchange Log (${exchangeLog.length} entries)</h2>
-  ${exchangeLog.length===0?'<p style="color:#999">No exchanges recorded.</p>':`
+  <h2>Exchange Log (${exchangeEntries.length} entries)</h2>
+  ${exchangeEntries.length===0?'<p style="color:#999">No exchanges recorded.</p>':`
   <table><thead><tr><th>Time</th><th>Detail</th><th style="text-align:right">Amount</th><th style="text-align:right" class="exp-col">Expected after</th></tr></thead>
   <tbody>${exchangeRows}</tbody></table>`}
 
@@ -1325,11 +1348,14 @@ function doReset(){
   _homeLogPage=0;_exListPage=0;_cpListPage=0;_addListPage=0;_kfLogPage=0;_expenseListPage=0;
   Object.keys(_checkStates).forEach(k=>delete _checkStates[k]);
   _saveChecks();
+  // Reset the Opening/Day/Closing checklist too
+  saveChecklistState({});
   saveState();
   document.querySelectorAll('input[type=number],input[type=text]').forEach(el=>el.value='');
   document.getElementById('s-preview').textContent='0 kr';document.getElementById('h-current-total').textContent='0 kr';
-  _cpSign=1;const sb=document.getElementById('cp-sign-btn');if(sb){sb.textContent='+';sb.style.color='var(--green)';}
-  renderShiftInfo();renderHomeLog();renderExchangeList();renderCashpointList();renderAddList();renderKFLog();renderExpenseList();recalc();updateEstCalc();updateHomeEst();
+  _cpSign=1;const sb=document.getElementById('cp-sign-btn');if(sb){sb.textContent='+';sb.style.color='var(--green)';sb.style.borderColor='var(--green-mid)';sb.style.background='var(--green-dim)';}
+  _expSign=-1;const eb=document.getElementById('exp-sign-btn');if(eb){eb.textContent='−';eb.style.color='var(--red)';eb.style.borderColor='var(--red-mid)';eb.style.background='var(--red-dim)';}
+  renderShiftInfo();renderHomeLog();renderExchangeList();renderCashpointList();renderAddList();renderKFLog();renderExpenseList();renderChecklist();recalc();updateEstCalc();updateHomeEst();
 }
 
 // ── SHOP ──
@@ -1342,7 +1368,7 @@ const SHOP_PRODUCTS=[
   {id:'mars',name:'Mars',icon:'🍫',price:10,unit:'coin'},
   {id:'snickers',name:'Snickers',icon:'🍫',price:10,unit:'coin'},
   {id:'pringles',name:'Pringles',icon:'🍟',price:10,unit:'coin'},
-  {id:'lighter',name:'Lighter',icon:'🔥',price:10,unit:'coin'},
+  {id:'lighter',name:'Lighter',icon:'🔥',price:5,unit:'coin'},
 ];
 
 function initShop(){
@@ -1852,7 +1878,7 @@ function coffeeTimerReset(){
 // ── WINNER EMAIL ──
 
 function clearWinnerFields(){
-  ['w-amount','w-machine-nr','w-machine-id','w-machine-name','w-shop'].forEach(id=>{
+  ['w-amount','w-machine-nr','w-machine-id','w-machine-name','w-game-name','w-shop'].forEach(id=>{
     const el=document.getElementById(id);if(el)el.value='';
   });
   const dateEl=document.getElementById('w-date');
@@ -1864,6 +1890,7 @@ function sendWinnerEmail(){
   const machineNr=document.getElementById('w-machine-nr').value.trim();
   const machineId=document.getElementById('w-machine-id').value.trim();
   const machineName=document.getElementById('w-machine-name').value.trim();
+  const gameName=document.getElementById('w-game-name').value.trim();
   const shop=document.getElementById('w-shop').value.trim();
   const date=document.getElementById('w-date').value.trim()||nowDate();
   if(!amount){flash('w-amount');return;}
@@ -1871,15 +1898,16 @@ function sendWinnerEmail(){
   if(!machineNr){flash('w-machine-nr');return;}
   if(!machineId){flash('w-machine-id');return;}
   if(!machineName){flash('w-machine-name');return;}
+  if(!gameName){flash('w-game-name');return;}
   if(!shop){flash('w-shop');return;}
   // Save winner to log
   if(!D.winners)D.winners=[];
-  D.winners.push({amount,date,machineNr,machineId,machineName,shop});
+  D.winners.push({amount,date,machineNr,machineId,machineName,gameName,shop});
   saveState();
   renderWinnerLog();
   // Open mail
   const subject=`Vi har en gevinst på ${amount} kr - ${shop}`;
-  const body=`Kære Casino,\n\nVi har en gevinst på ${amount} kr i dag.\n\nButik: ${shop}\nBeløb: ${amount} kr\nDato: ${date}\nMaskin nummer: ${machineNr}${machineId?'\nMaskin id: '+machineId:''}${machineName?'\nMaskin navn: '+machineName:''}`;
+  const body=`Kære Casino,\n\nVi har en gevinst på ${amount} kr i dag.\n\nButik: ${shop}\nBeløb: ${amount} kr\nDato: ${date}\nMaskin nummer: ${machineNr}${machineId?'\nMaskin id: '+machineId:''}${machineName?'\nMaskin navn: '+machineName:''}${gameName?'\nSpil navn: '+gameName:''}`;
   window.location.href=`mailto:kundeservice@casinohouse.dk?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   // Clear fields for next winner
   clearWinnerFields();
