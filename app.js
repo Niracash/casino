@@ -1774,18 +1774,6 @@ function renderChecklistCounts(){
   });
 }
 
-function clearChecklist(){
-  showModal({
-    icon:'↺',
-    title:'Clear Checklist',
-    msg:'Reset all checkboxes for today?',
-    buttons:[
-      {label:'Cancel',style:'modal-btn-ghost'},
-      {label:'Clear All',style:'modal-btn-danger',action:()=>{saveChecklistState({});renderChecklist();}}
-    ]
-  });
-}
-
 function checkBetbooksAlert(){
   const el=document.getElementById('betbooks-alert');
   if(!el)return;
