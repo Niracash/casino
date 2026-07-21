@@ -1700,12 +1700,12 @@ const CHECKLIST={
     {id:'cl8',text:'Do drinks and snacks calculation and insert in file',time:'23:30'},
     {id:'cl1',text:'Clean smoke area (After customers are gone)'},
     {id:'cl5',text:'Sweep floor last time if dirty'},
+    {id:'cl13',text:'Turn off AC'},
     {id:'cl9',text:'Turn off Touchsell'},
+    {id:'cl14',text:'Turn off Counting Machine'},
     {id:'cl10',text:'Turn off fridge lights'},
     {id:'cl11',text:'Make sure all screens are off'},
     {id:'cl12',text:'Make sure all machines are off'},
-    {id:'cl13',text:'Turn off AC'},
-    {id:'cl14',text:'Turn off Counting Machine'},
   ]
 };
 
