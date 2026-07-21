@@ -1703,7 +1703,7 @@ const CHECKLIST={
     {id:'cl13',text:'Turn off AC'},
     {id:'cl9',text:'Turn off Touchsell'},
     {id:'cl14',text:'Turn off Counting Machine'},
-    {id:'cl10',text:'Turn off fridge lights'},
+    {id:'cl10',text:'Turn off fridge light'},
     {id:'cl11',text:'Make sure all screens are off'},
     {id:'cl12',text:'Make sure all machines are off'},
   ]
