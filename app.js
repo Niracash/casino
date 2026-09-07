@@ -233,10 +233,23 @@ function getFridgeTotal(){
 // ── Fridge revenue buckets ──
 // Full 50 kr blocks are shown as the fridge "(+...)" cash amount; any remainder stays on the mønt side.
 // getExpected() separately applies the denomination shift requested for each full 50: +50 mønt / -50 cash.
+function getFridgeYesterdayMoney(){
+  return Math.max(0,Math.round((D.shop&&D.shop.yesterdayMoney)||0));
+}
+
+function getFridgeCombinedTotal(){
+  return getFridgeYesterdayMoney()+getFridgeTotal();
+}
+
 function getFridgeCashConversion(){
-  const total=getFridgeTotal();
-  const cashPart=Math.floor(total/50)*50;
-  const coinPart=total-cashPart;
+  const yesterday=getFridgeYesterdayMoney();
+  const today=getFridgeTotal();
+  // Only count NEW 50 kr thresholds crossed today. Example: yesterday 85 + today 15 = 100,
+  // so one new 50 kr transfer is triggered today (from the 50-level to the 100-level).
+  const startBlocks=Math.floor(yesterday/50);
+  const endBlocks=Math.floor((yesterday+today)/50);
+  const cashPart=Math.max(0,(endBlocks-startBlocks)*50);
+  const coinPart=Math.max(0,today-cashPart);
   return{cashPart,coinPart};
 }
 
@@ -1098,6 +1111,8 @@ function generateShiftPDF(){
   const expNoBank=exp.coin+exp.cash+exp.pc;
 
   const fridge=getFridgeTotal();
+  const fridgeYesterday=getFridgeYesterdayMoney();
+  const fridgeCombined=fridgeYesterday+fridge;
   const {cashPart:fridgeCash,coinPart:fridgeCoin}=getFridgeCashConversion();
 
   const archived=D.archived||{exchanges:[],cashpoints:[],fillups:[],additions:[]};
@@ -1233,8 +1248,7 @@ function generateShiftPDF(){
       totalStart+=start;totalSold+=sold;totalFree+=free;totalEnd+=end;totalRev+=rev;
       fridgeRows+=`<tr><td>${n}</td><td style="text-align:center">${start}</td><td>${soldCell}</td><td style="text-align:center">${end}</td><td style="text-align:right;font-family:monospace">${f(rev)}</td></tr>`;
     });
-    const totalSoldCell=totalFree>0?`${totalSold} + ${totalFree} free`:`${totalSold}`;
-    fridgeRows+=`<tr style="background:#f4f4f8;font-weight:700"><td>Total</td><td style="text-align:center">${totalStart}</td><td>${totalSoldCell}</td><td style="text-align:center">${totalEnd}</td><td style="text-align:right;font-family:monospace">${f(totalRev)}</td></tr>`;
+    fridgeRows+=`<tr style="background:#f4f4f8;font-weight:700;border-top:2px solid #ccc"><td>Total</td><td></td><td colspan="2" style="text-align:right;font-family:monospace;font-size:13px">${totalRev.toLocaleString('no-NO')} + ${fridgeYesterday.toLocaleString('no-NO')} →</td><td style="text-align:right;font-family:monospace;font-size:14px">${fridgeCombined.toLocaleString('no-NO')} kr</td></tr>`;
   }
 
   // Winners log — all saved winners
@@ -1301,9 +1315,10 @@ function generateShiftPDF(){
     <div class="summary-box"><div class="label">Playcoins Expected</div><div class="value">${f(exp.pc)}</div></div>
     <div class="summary-box"><div class="label">Bank Expected</div><div class="value">${f(exp.bank)}</div></div>
   </div>
-  <h2>Fridge Revenue${fridge>0?` — ${f(fridge)}`:''}</h2>
-  <table><thead><tr><th>Product</th><th style="text-align:center">Start</th><th>Sold</th><th style="text-align:center">End</th><th style="text-align:right">Revenue</th></tr></thead>
+  <h2>Fridge</h2>
+  <table><thead><tr><th>Items</th><th style="text-align:center">Start</th><th>Sold</th><th style="text-align:center">End</th><th style="text-align:right">Amount</th></tr></thead>
   <tbody>${fridgeRows}</tbody></table>
+  <div style="text-align:right;color:#777;font-size:11px;margin-bottom:8px">Today + yesterday money = fridge total</div>
   <h2>Today's Log (${todayEntries.length} entries)</h2>
   ${todayEntries.length===0?'<p style="color:#999">No entries recorded.</p>':`
   <table><thead><tr><th>Time</th><th>Type</th><th>Detail</th><th style="text-align:right">Amount</th><th style="text-align:right" class="exp-col">Expected after</th></tr></thead>
@@ -1356,7 +1371,7 @@ function confirmReset(){
 }
 
 function doReset(){
-  D={shift:null,exchanges:[],cashpoints:[],fillups:[],additions:[],expenses:[],winners:[],auditLog:[],archived:{exchanges:[],cashpoints:[],fillups:[],additions:[]},shop:{starts:{},sold:{},freeTakes:{},log:[]},inputs:{home:{},shift:{},machines:{}},kfType:'kr'};
+  D={shift:null,exchanges:[],cashpoints:[],fillups:[],additions:[],expenses:[],winners:[],auditLog:[],archived:{exchanges:[],cashpoints:[],fillups:[],additions:[]},shop:{starts:{},sold:{},freeTakes:{},log:[],yesterdayMoney:0},inputs:{home:{},shift:{},machines:{}},kfType:'kr'};
   _homeLogPage=0;_exListPage=0;_cpListPage=0;_addListPage=0;_kfLogPage=0;_expenseListPage=0;
   Object.keys(_checkStates).forEach(k=>delete _checkStates[k]);
   _saveChecks();
@@ -1384,8 +1399,9 @@ const SHOP_PRODUCTS=[
 ];
 
 function initShop(){
-  if(!D.shop)D.shop={starts:{},sold:{},freeTakes:{}};
+  if(!D.shop)D.shop={starts:{},sold:{},freeTakes:{},log:[],yesterdayMoney:0};
   if(!D.shop.freeTakes)D.shop.freeTakes={};
+  if(D.shop.yesterdayMoney===undefined)D.shop.yesterdayMoney=0;
   SHOP_PRODUCTS.forEach(p=>{
     if(D.shop.starts[p.id]===undefined)D.shop.starts[p.id]=0;
     if(D.shop.sold[p.id]===undefined)D.shop.sold[p.id]=0;
@@ -1393,8 +1409,25 @@ function initShop(){
   });
 }
 
+function setFridgeYesterdayMoney(val){
+  initShop();
+  const n=Math.max(0,Math.round(parseFloat(val)||0));
+  D.shop.yesterdayMoney=n;
+  saveState();
+  renderShopSummary();
+  recalc();
+  updateHomeEst();
+}
+
+function renderFridgeCarryInput(){
+  initShop();
+  const el=document.getElementById('fridge-yesterday-money');
+  if(el&&document.activeElement!==el)el.value=D.shop.yesterdayMoney||'';
+}
+
 function renderShopItems(){
   initShop();
+  renderFridgeCarryInput();
   const el=document.getElementById('shop-items-list');
   el.innerHTML='';
   SHOP_PRODUCTS.forEach(p=>{
@@ -1575,6 +1608,8 @@ function shopFreeTake(id){
 function renderShopSummary(){
   initShop();
   const totalRevenue=SHOP_PRODUCTS.reduce((s,p)=>s+(D.shop.sold[p.id]||0)*p.price,0);
+  const yesterdayMoney=getFridgeYesterdayMoney();
+  const combinedRevenue=yesterdayMoney+totalRevenue;
   const totalFree=SHOP_PRODUCTS.reduce((s,p)=>s+(D.shop.freeTakes[p.id]||0),0);
 
   const targets=[
@@ -1582,7 +1617,7 @@ function renderShopSummary(){
     {summaryEl:document.getElementById('home-shop-summary-rows'),labelEl:document.getElementById('home-shop-summary-label')},
   ];
 
-  if(totalRevenue===0&&totalFree===0){
+  if(totalRevenue===0&&totalFree===0&&yesterdayMoney===0){
     targets.forEach(({summaryEl,labelEl})=>{
       if(labelEl)labelEl.textContent='No sales recorded yet';
       if(summaryEl)summaryEl.innerHTML='';
@@ -1620,9 +1655,19 @@ function renderShopSummary(){
       </div>
     </div>`;
   });
-  html+=`<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border2);display:flex;justify-content:space-between;align-items:center">
-    <span style="font-size:.78rem;font-weight:700;color:var(--green)">Total revenue</span>
-    <span style="font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--green)">${totalRevenue.toLocaleString('no-NO')} kr</span>
+  html+=`<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border2)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
+      <span style="font-size:.72rem;color:var(--sub)">Today's sales</span>
+      <span style="font-family:'JetBrains Mono',monospace;font-size:.78rem;color:var(--text)">${totalRevenue.toLocaleString('no-NO')} kr</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:7px">
+      <span style="font-size:.72rem;color:var(--sub)">Money from yesterday</span>
+      <span style="font-family:'JetBrains Mono',monospace;font-size:.78rem;color:var(--text)">${yesterdayMoney.toLocaleString('no-NO')} kr</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;padding-top:8px;border-top:1px solid var(--border2)">
+      <span style="font-size:.78rem;font-weight:700;color:var(--green)">Fridge total</span>
+      <span style="font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--green)">${totalRevenue.toLocaleString('no-NO')} + ${yesterdayMoney.toLocaleString('no-NO')} → ${combinedRevenue.toLocaleString('no-NO')} kr</span>
+    </div>
   </div>`;
   if(totalFree>0){
     html+=`<div style="margin-top:4px;display:flex;justify-content:space-between;align-items:center">
@@ -1639,7 +1684,7 @@ function renderShopSummary(){
   }
 
   targets.forEach(({summaryEl,labelEl})=>{
-    if(labelEl)labelEl.textContent='Total revenue breakdown';
+    if(labelEl)labelEl.textContent='Today + yesterday';
     if(summaryEl)summaryEl.innerHTML=html;
   });
 }

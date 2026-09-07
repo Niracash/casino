@@ -353,6 +353,17 @@
 <!-- SHOP / FRIDGE -->
 <div class="page" id="page-shop">
 
+  <div class="sec-title"><span>Money carried from yesterday</span></div>
+  <div class="est-home" style="margin-bottom:14px">
+    <div class="est-home-label">Money already in the fridge before today's sales</div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <input type="number" id="fridge-yesterday-money" min="0" inputmode="numeric" placeholder="0"
+        oninput="setFridgeYesterdayMoney(this.value)"
+        style="flex:1;background:var(--inp);border:1px solid var(--border2);border-radius:var(--rs);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:1.05rem;font-weight:600;padding:11px 12px;outline:none;text-align:right">
+      <span style="font-family:'JetBrains Mono',monospace;color:var(--sub);font-weight:600">kr</span>
+    </div>
+  </div>
+
   <div class="sec-title"><span>Products</span></div>
   <p class="caption">Set start count at the beginning of your shift. Tap + to record a sale, − to undo.</p>
   <div id="shop-items-list"></div>
