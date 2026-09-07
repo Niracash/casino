@@ -213,6 +213,10 @@
     .checklist-group{display:flex;flex-direction:column;gap:5px}
     .cl-item{background:var(--card);border:1px solid var(--border);border-radius:var(--rs);padding:12px 14px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:border-color .2s,background .2s;-webkit-tap-highlight-color:transparent}
     .cl-item.done{background:var(--green-dim);border-color:var(--green-mid)}
+    .cl-item.important{border-color:var(--red-mid);background:var(--red-dim)}
+    .cl-item.important .cl-item-text{color:var(--red);font-weight:700}
+    .cl-item.important.done{border-color:var(--red-mid);background:var(--red-dim)}
+    .cl-item.important.done .cl-item-text{color:var(--red)}
     .cl-item input[type=checkbox]{width:18px;height:18px;accent-color:var(--green);flex-shrink:0;cursor:pointer;border-radius:4px}
     .cl-item-text{font-size:.84rem;color:var(--text);line-height:1.4;flex:1}
     .cl-item.done .cl-item-text{color:var(--sub);text-decoration:line-through;text-decoration-color:var(--muted)}

@@ -53,7 +53,6 @@ document.addEventListener('DOMContentLoaded',()=>{
   renderShopItems();renderShopLog();renderExpenseList();
   recalc();updateEstCalc();updateHomeEst();renderShopSummary();fillExpectedIntoCount();
   loadCoffeeTimer();
-  checkBetbooksAlert();
 });
 
 function goPage(id,btn){
@@ -143,6 +142,18 @@ function getExpected(){
     }
   });
   D.fillups.forEach(f=>{pc-=f.coins*20;});
+
+  // Fridge denomination shift:
+  // Every full 50 kr of paid fridge revenue moves 50 kr from expected cash to expected mønt.
+  // The total expected drawer value stays unchanged; only the expected denomination changes.
+  // Example: cash 13,500 / mønt 400 + 50 kr fridge => cash 13,450 / mønt 450,
+  // while the UI can still show the 50 kr fridge amount next to cash as "(+50)".
+  const {cashPart:fridgeFifties}=getFridgeCashConversion();
+  if(fridgeFifties>0){
+    coin+=fridgeFifties;
+    cash-=fridgeFifties;
+  }
+
   // Unexpected changes: sign = -1 (removed from drawer) or +1 (added to drawer). Legacy entries with no
   // sign default to -1 (removal) to preserve the old "expense" behavior.
   if(D.expenses){D.expenses.forEach(e=>{
@@ -219,8 +230,9 @@ function getFridgeTotal(){
   return Object.entries(products).reduce((s,[id,price])=>s+(D.shop.sold[id]||0)*price,0);
 }
 
-// ── Fridge coin→cash conversion ──
-// Every 50kr of fridge coin revenue converts: -50 coin, +50 cash in expected
+// ── Fridge revenue buckets ──
+// Full 50 kr blocks are shown as the fridge "(+...)" cash amount; any remainder stays on the mønt side.
+// getExpected() separately applies the denomination shift requested for each full 50: +50 mønt / -50 cash.
 function getFridgeCashConversion(){
   const total=getFridgeTotal();
   const cashPart=Math.floor(total/50)*50;
@@ -260,7 +272,7 @@ function updateHomeHints(){
     const el=document.getElementById(id);if(!el)return;
     if(!D.shift){el.innerHTML='';return;}
     const baseStr=`Expected: <span>${Math.round(base).toLocaleString('no-NO')} kr</span>`;
-    const fridgeStr=fridgePart>0?` <span style="color:var(--green)">(+${fridgePart.toLocaleString('no-NO')} kr fridge = ${Math.round(base+fridgePart).toLocaleString('no-NO')} kr)</span>`:'';
+    const fridgeStr=fridgePart>0?` <span style="color:var(--green)">(+${fridgePart.toLocaleString('no-NO')} kr fridge)</span>`:'';
     el.innerHTML=baseStr+fridgeStr;
   };
   setH('h-coin-hint',exp.coin,fridgeCoin);
@@ -1709,6 +1721,37 @@ const CHECKLIST={
   ]
 };
 
+function getChecklistItems(group){
+  const items=[...(CHECKLIST[group]||[])];
+  const now=new Date();
+  const y=now.getFullYear();
+  const m=String(now.getMonth()+1).padStart(2,'0');
+  const d=String(now.getDate()).padStart(2,'0');
+  const dateKey=`${y}-${m}-${d}`;
+  const reminderText='⚠️ IMPORTANT: Print and delete on Betbooks and GWT machine';
+  const lastDay=new Date(y,now.getMonth()+1,0).getDate();
+
+  // Monday: important reminder is the very first opening item.
+  if(group==='opening'&&now.getDay()===1){
+    items.unshift({
+      id:`important_monday_${dateKey}`,
+      text:reminderText,
+      important:true
+    });
+  }
+
+  // Last calendar day of the month: important reminder is the very last closing item.
+  if(group==='closing'&&now.getDate()===lastDay){
+    items.push({
+      id:`important_monthend_${dateKey}`,
+      text:reminderText,
+      important:true
+    });
+  }
+
+  return items;
+}
+
 function loadChecklistState(){return JSON.parse(localStorage.getItem('ccc_checklist')||'{}');}
 function saveChecklistState(state){localStorage.setItem('ccc_checklist',JSON.stringify(state));}
 
@@ -1716,7 +1759,8 @@ function renderChecklist(){
   const state=loadChecklistState();
   const groups={opening:'cl-opening',day:'cl-day',closing:'cl-closing'};
   const counts={opening:'cl-opening-count',day:'cl-day-count',closing:'cl-closing-count'};
-  Object.entries(CHECKLIST).forEach(([group,items])=>{
+  Object.keys(CHECKLIST).forEach(group=>{
+    const items=getChecklistItems(group);
     const el=document.getElementById(groups[group]);
     if(!el)return;
     el.innerHTML='';
@@ -1737,7 +1781,7 @@ function renderChecklist(){
       const checked=!!state[item.id];
       if(checked)done++;
       const div=document.createElement('label');
-      div.className='cl-item'+(checked?' done':'');
+      div.className='cl-item'+(item.important?' important':'')+(checked?' done':'');
       div.innerHTML=`
         <input type="checkbox" ${checked?'checked':''} onchange="toggleCheck('${item.id}',this.checked)">
         <span class="cl-item-text">${item.text}</span>
@@ -1747,7 +1791,6 @@ function renderChecklist(){
     const countEl=document.getElementById(counts[group]);
     if(countEl)countEl.textContent=`${done}/${items.length}`;
   });
-  checkBetbooksAlert();
 }
 
 function toggleCheck(id,checked){
@@ -1768,24 +1811,16 @@ function renderChecklistCounts(){
   const state=loadChecklistState();
   const groups={opening:'cl-opening-count',closing:'cl-closing-count'};
   Object.entries(groups).forEach(([group,countId])=>{
-    const items=CHECKLIST[group];
+    const items=getChecklistItems(group);
     const done=items.filter(i=>state[i.id]).length;
     const el=document.getElementById(countId);
     if(el)el.textContent=`${done}/${items.length}`;
   });
 }
 
-function checkBetbooksAlert(){
-  const el=document.getElementById('betbooks-alert');
-  if(!el)return;
-  const now=new Date();
-  const day=now.getDay();
-  const date=now.getDate();
-  const lastDay=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
-  const isMonday=day===1;
-  const isLastDay=date===lastDay;
-  el.style.display=(isMonday||isLastDay)?'block':'none';
-}
+// Kept as a compatibility no-op for older cached HTML/app versions.
+// Important Betbooks/GWT reminders now live directly in the checklist.
+function checkBetbooksAlert(){}
 
 // ── COFFEE TIMER ──
 let _coffeeInterval=null;
