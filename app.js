@@ -1,8 +1,8 @@
-let D={shift:null,exchanges:[],cashpoints:[],fillups:[],additions:[],expenses:[],winners:[],auditLog:[],archived:{exchanges:[],cashpoints:[],fillups:[],additions:[]},inputs:{home:{},shift:{},machines:{}},settings:{fullName:'',shops:[],mailLanguage:'da',autoDownloadOnReset:false,downloadFolderName:''},kfType:'kr'};
+let D={shift:null,exchanges:[],cashpoints:[],fillups:[],additions:[],expenses:[],winners:[],auditLog:[],archived:{exchanges:[],cashpoints:[],fillups:[],additions:[]},inputs:{home:{},shift:{},machines:{}},settings:{fullName:'',shops:[],mailLanguage:'da'},kfType:'kr'};
 
 function loadState(){
   const raw=localStorage.getItem('ccc_v5');
-  if(raw){const l=JSON.parse(raw);D={...D,...l};if(!D.inputs)D.inputs={home:{},shift:{},machines:{}};if(!D.exchanges)D.exchanges=[];if(!D.cashpoints)D.cashpoints=[];if(!D.auditLog)D.auditLog=[];if(!D.expenses)D.expenses=[];if(!D.archived)D.archived={exchanges:[],cashpoints:[],fillups:[],additions:[]};if(!D.archived.exchanges)D.archived.exchanges=[];if(!D.archived.cashpoints)D.archived.cashpoints=[];if(!D.archived.fillups)D.archived.fillups=[];if(!D.archived.additions)D.archived.additions=[];if(!D.winners)D.winners=[];if(!D.settings)D.settings={fullName:'',shops:[],mailLanguage:'da',autoDownloadOnReset:false,downloadFolderName:''};if(!Array.isArray(D.settings.shops))D.settings.shops=[];if(!['da','en'].includes(D.settings.mailLanguage))D.settings.mailLanguage='da';if(typeof D.settings.autoDownloadOnReset!=='boolean')D.settings.autoDownloadOnReset=false;if(D.winner&&!Array.isArray(D.winner)){if(D.winner.amount&&D.winner.machineNr)D.winners.push(D.winner);delete D.winner;}}
+  if(raw){const l=JSON.parse(raw);D={...D,...l};if(!D.inputs)D.inputs={home:{},shift:{},machines:{}};if(!D.exchanges)D.exchanges=[];if(!D.cashpoints)D.cashpoints=[];if(!D.auditLog)D.auditLog=[];if(!D.expenses)D.expenses=[];if(!D.archived)D.archived={exchanges:[],cashpoints:[],fillups:[],additions:[]};if(!D.archived.exchanges)D.archived.exchanges=[];if(!D.archived.cashpoints)D.archived.cashpoints=[];if(!D.archived.fillups)D.archived.fillups=[];if(!D.archived.additions)D.archived.additions=[];if(!D.winners)D.winners=[];if(!D.settings)D.settings={fullName:'',shops:[],mailLanguage:'da'};if(!Array.isArray(D.settings.shops))D.settings.shops=[];if(!['da','en'].includes(D.settings.mailLanguage))D.settings.mailLanguage='da';delete D.settings.autoDownloadOnReset;delete D.settings.downloadFolderName;if(D.winner&&!Array.isArray(D.winner)){if(D.winner.amount&&D.winner.machineNr)D.winners.push(D.winner);delete D.winner;}}
 }
 function saveState(){localStorage.setItem('ccc_v5',JSON.stringify(D));}
 
@@ -327,12 +327,10 @@ function recalc(){
   const db=document.getElementById('diff-block'),dv=document.getElementById('diff-val'),ds=document.getElementById('diff-sub');
   const hp=document.getElementById('hdr-pill'),br=document.getElementById('diff-breakdown');
   const bp=document.getElementById('db-phys'),ba=document.getElementById('db-adj'),bf=document.getElementById('db-fridge');
-  const updBtn=document.getElementById('update-expected-btn');
 
   if(!D.shift){
     db.className='diff idle';dv.textContent='—';ds.textContent='Set your start of shift first';
     hp.className='hdr-pill idle';hp.textContent='No shift';br.classList.remove('on');
-    if(updBtn)updBtn.style.display='none';
     return;
   }
 
@@ -355,7 +353,6 @@ function recalc(){
     ba.textContent='—';ba.className='bv muted';db.className='diff idle';dv.textContent='—';
     ds.textContent='Expected: '+fmt(expected)+' · Count your drawer';
     hp.className='hdr-pill idle';hp.textContent='Shift active';
-    if(updBtn){updBtn.style.display='none';}
     return;
   }
 
@@ -375,7 +372,6 @@ function recalc(){
     }
     hp.className='hdr-pill ok';hp.textContent='Balanced ✓';
     ba.textContent='0 kr ✓';ba.className='bv green';
-    if(updBtn){updBtn.style.display='';updBtn.disabled=false;}
   } else if(absDiffWithFridge<1){
     db.className='diff ok';
     dv.innerHTML=`<span style="font-size:1.3rem">0 kr</span> <span style="color:var(--green);font-size:.72rem">with fridge</span>`;
@@ -383,7 +379,6 @@ function recalc(){
     hp.className='hdr-pill ok';hp.textContent='Balanced with fridge ✓';
     ba.innerHTML=`<span style="color:var(--sub);font-size:.8rem">−${fmt(absDiffNoFridge)}</span> <span style="color:var(--green);font-size:.75rem">(+fridge: 0)</span>`;
     ba.className='bv';
-    if(updBtn){updBtn.style.display='none';}
   } else {
     db.className='diff off';
     const showVal=diffNoFridge;
@@ -393,38 +388,73 @@ function recalc(){
     ds.textContent=subText;
     hp.className='hdr-pill off';hp.textContent='Off '+fmt(absDiffNoFridge);
     ba.textContent=(showVal>0?'+':'−')+fmt(showVal);ba.className=showVal>0?'bv green':'bv red';
-    if(updBtn){updBtn.style.display='none';}
   }
   updateEstCalc();
 }
 
-function updateExpectedFromCount(){
-  const coin=g('h-coin'),cash=g('h-cash'),pc=g('h-pc'),bank=g('h-bank');
-  const hasCurrent=coin>0||cash>0||pc>0||bank>0;
-  if(!D.shift||!hasCurrent)return;
+const COUNT_BALANCE_META={
+  coin:{id:'h-coin',label:'Mønt',step:1,note:'Danish coins can make any whole-kr amount.'},
+  cash:{id:'h-cash',label:'Cash',step:50,note:'Cash must be a multiple of 50 kr (50/100/200/500 notes).'},
+  pc:{id:'h-pc',label:'Playcoins',step:20,note:'Playcoins must be a multiple of 20 kr (1 playcoin = 20 kr).'},
+  bank:{id:'h-bank',label:'Bank',step:1,note:'Bank can balance any whole-kr amount.'}
+};
+
+function getBalanceTarget(type){
+  if(!D.shift||!COUNT_BALANCE_META[type])return null;
   const exp=getExpected();
-  const diff=Math.abs(Math.round((coin+cash+pc+bank)-exp.total));
-  if(diff>=1)return;
+  const values={coin:g('h-coin'),cash:g('h-cash'),pc:g('h-pc'),bank:g('h-bank')};
+  const otherTotal=Object.entries(values).reduce((sum,[k,v])=>k===type?sum:sum+v,0);
+  return Math.round(exp.total-otherTotal);
+}
 
-  if(!D.archived) D.archived={exchanges:[],cashpoints:[],fillups:[],additions:[]};
-  D.archived.exchanges.push(...D.exchanges);
-  D.archived.cashpoints.push(...D.cashpoints);
-  D.archived.fillups.push(...D.fillups);
-  D.archived.additions.push(...D.additions);
+function confirmBalanceCount(type){
+  if(!D.shift){
+    showModal({icon:'⚠️',title:'No active shift',msg:'Set the start of shift before balancing a count.',buttons:[{label:'OK',style:'modal-btn-primary'}]});
+    return;
+  }
+  const meta=COUNT_BALANCE_META[type];
+  if(!meta)return;
+  const target=getBalanceTarget(type);
+  const old=Math.round(g(meta.id));
+  if(target==null)return;
 
-  D.shift.coin=coin;D.shift.cash=cash;D.shift.pc=pc;D.shift.bank=bank;
-  D.shift.total=coin+cash+pc+bank;
-  D.exchanges=[];D.cashpoints=[];D.fillups=[];D.additions=[];
-  saveState();
-  ['h-coin','h-cash','h-pc','h-bank'].forEach(id=>document.getElementById(id).value='');
-  D.inputs.home={};
-  saveState();
-  document.getElementById('update-expected-btn').style.display='none';
-  renderHomeLog();renderKFLog();renderAddList();renderExchangeList();renderCashpointList();
-  recalc();updateEstCalc();updateHomeEst();
-  const btn=document.getElementById('update-expected-btn');
-  btn.innerHTML='✓ Updated!';btn.disabled=true;btn.style.display='';
-  setTimeout(()=>{btn.style.display='none';btn.innerHTML='↺ Update Expected to Current Count';},1800);
+  if(target<0){
+    showModal({icon:'⚠️',title:'Cannot balance with '+meta.label,msg:'The other three boxes already total more than the full expected amount. '+meta.label+' would need to become '+target.toLocaleString('no-NO')+' kr, which is not possible.',buttons:[{label:'OK',style:'modal-btn-primary'}]});
+    return;
+  }
+  if(target%meta.step!==0){
+    showModal({icon:'⚠️',title:'Invalid '+meta.label+' amount',msg:'Balancing would require '+target.toLocaleString('no-NO')+' kr in '+meta.label+'. '+meta.note+' Choose another box to balance instead.',buttons:[{label:'OK',style:'modal-btn-primary'}]});
+    return;
+  }
+  if(target===old){
+    showModal({icon:'✓',title:meta.label+' is already correct',msg:meta.label+' is already '+old.toLocaleString('no-NO')+' kr. No change is needed.',buttons:[{label:'OK',style:'modal-btn-primary'}]});
+    return;
+  }
+
+  const direction=target>old?'increase':'decrease';
+  const delta=Math.abs(target-old);
+  showModal({
+    icon:'⚠️',
+    title:'Update '+meta.label+'?',
+    msg:`Are you sure you want to ${direction} ${meta.label} from ${old.toLocaleString('no-NO')} kr to ${target.toLocaleString('no-NO')} kr (${direction==='increase'?'+':'−'}${delta.toLocaleString('no-NO')} kr) so the total balances?`,
+    buttons:[
+      {label:'Cancel',style:'modal-btn-ghost'},
+      {label:'Yes, update '+meta.label,style:'modal-btn-primary',action:()=>applyBalanceCount(type,target)}
+    ]
+  });
+}
+
+function applyBalanceCount(type,target){
+  const meta=COUNT_BALANCE_META[type];
+  if(!meta)return;
+  const el=document.getElementById(meta.id);
+  if(!el)return;
+  el.value=target;
+  el.style.borderColor='var(--green)';
+  el.style.background='var(--green-dim)';
+  setTimeout(()=>{el.style.borderColor='';el.style.background='';},900);
+  stashInputs();
+  recalc();
 }
 
 // ── Log Pagination ──
@@ -1340,14 +1370,11 @@ function confirmReset(){
         const archived=D.archived||{exchanges:[],cashpoints:[],fillups:[],additions:[]};
         const hasArchived=(archived.exchanges&&archived.exchanges.length)||(archived.cashpoints&&archived.cashpoints.length)||(archived.fillups&&archived.fillups.length)||(archived.additions&&archived.additions.length);
         const hasData=D.shift||(D.fillups&&D.fillups.length)||(D.cashpoints&&D.cashpoints.length)||(D.exchanges&&D.exchanges.length)||(D.additions&&D.additions.length)||(D.expenses&&D.expenses.length)||hasArchived;
-        if(hasData&&D.settings&&D.settings.autoDownloadOnReset){
-          await autoSaveShiftReport();
-          doReset();
-        } else if(hasData){
+        if(hasData){
           showModal({
             icon:'📄',
             title:"Download Today's Report?",
-            msg:"Save a copy of today's shift log before resetting.",
+            msg:"Save a copy of today's shift log before resetting. The browser/device chooses where the downloaded file is saved.",
             buttons:[
               {label:'Skip & Reset',style:'modal-btn-ghost',action:doReset},
               {label:'Download & Reset',style:'modal-btn-green',action:()=>{generateShiftPDF();doReset();}},
@@ -1360,7 +1387,7 @@ function confirmReset(){
 }
 
 function doReset(){
-  const savedSettings={...(D.settings||{fullName:'',shops:[],mailLanguage:'da',autoDownloadOnReset:false,downloadFolderName:''})};
+  const savedSettings={...(D.settings||{fullName:'',shops:[],mailLanguage:'da'})};delete savedSettings.autoDownloadOnReset;delete savedSettings.downloadFolderName;
   D={shift:null,exchanges:[],cashpoints:[],fillups:[],additions:[],expenses:[],winners:[],auditLog:[],archived:{exchanges:[],cashpoints:[],fillups:[],additions:[]},shop:{starts:{},sold:{},freeTakes:{},log:[],yesterdayMoney:0},inputs:{home:{},shift:{},machines:{}},settings:savedSettings,kfType:'kr'};
   _homeLogPage=0;_exListPage=0;_cpListPage=0;_addListPage=0;_kfLogPage=0;_expenseListPage=0;
   Object.keys(_checkStates).forEach(k=>delete _checkStates[k]);
@@ -1376,7 +1403,7 @@ function doReset(){
 
 // ── SETTINGS / PERSISTENT PROFILE ──
 function ensureSettings(){
-  if(!D.settings)D.settings={fullName:'',shops:[],mailLanguage:'da',autoDownloadOnReset:false,downloadFolderName:''};
+  if(!D.settings)D.settings={fullName:'',shops:[],mailLanguage:'da'};
   if(!Array.isArray(D.settings.shops))D.settings.shops=[];
   return D.settings;
 }
@@ -1384,16 +1411,12 @@ function renderSettings(){
   const st=ensureSettings();
   const name=document.getElementById('set-full-name');if(name&&document.activeElement!==name)name.value=st.fullName||'';
   const lang=document.getElementById('set-mail-language');if(lang)lang.value=st.mailLanguage||'da';
-  const auto=document.getElementById('set-auto-download');if(auto)auto.checked=!!st.autoDownloadOnReset;
-  const folder=document.getElementById('set-download-folder-name');if(folder)folder.textContent=st.downloadFolderName||'No folder selected';
   const list=document.getElementById('settings-shop-list');
   if(list){
     list.innerHTML='';
     st.shops.forEach((shop,i)=>{const row=document.createElement('div');row.className='settings-list-row';row.innerHTML=`<span>${escapeHtml(shop)}</span><button type="button" class="settings-remove" onclick="removeSavedShop(${i})">✕</button>`;list.appendChild(row);});
     if(!st.shops.length)list.innerHTML='<div class="settings-empty">No shop locations saved</div>';
   }
-  const folderBtn=document.getElementById('choose-download-folder');
-  if(folderBtn&&!('showDirectoryPicker' in window)){folderBtn.disabled=true;folderBtn.textContent='Folder selection not supported on this device';}
 }
 function saveSettingsField(field,value){const st=ensureSettings();st[field]=value;saveState();if(field==='shops')renderWinnerShopOptions();}
 function addSavedShop(){
@@ -1410,26 +1433,6 @@ function renderWinnerShopOptions(){
   if(shops.includes(current))sel.value=current;else if(shops.length===1)sel.value=shops[0];
 }
 function escapeHtml(v){return String(v).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
-
-const REPORT_DB='casino_settings_db',REPORT_STORE='handles',REPORT_HANDLE_KEY='report_directory';
-function openReportDB(){return new Promise((resolve,reject)=>{const r=indexedDB.open(REPORT_DB,1);r.onupgradeneeded=()=>{if(!r.result.objectStoreNames.contains(REPORT_STORE))r.result.createObjectStore(REPORT_STORE)};r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});}
-async function storeReportDirectory(handle){const db=await openReportDB();await new Promise((resolve,reject)=>{const tx=db.transaction(REPORT_STORE,'readwrite');tx.objectStore(REPORT_STORE).put(handle,REPORT_HANDLE_KEY);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)});db.close();}
-async function getReportDirectory(){try{const db=await openReportDB();const handle=await new Promise((resolve,reject)=>{const r=db.transaction(REPORT_STORE).objectStore(REPORT_STORE).get(REPORT_HANDLE_KEY);r.onsuccess=()=>resolve(r.result||null);r.onerror=()=>reject(r.error)});db.close();return handle;}catch{return null;}}
-async function chooseDownloadFolder(){
-  if(!('showDirectoryPicker' in window)){showModal({title:'Not supported',msg:'This browser does not allow the app to choose a download folder. Automatic reset downloads will use the browser default download behavior.',buttons:[{label:'OK',style:'modal-btn-primary'}]});return;}
-  try{const handle=await window.showDirectoryPicker({mode:'readwrite'});await storeReportDirectory(handle);ensureSettings().downloadFolderName=handle.name;saveState();renderSettings();}catch(e){if(e&&e.name!=='AbortError')console.warn(e);}
-}
-async function autoSaveShiftReport(){
-  const report=generateShiftPDF({returnData:true});if(!report)return false;
-  const handle=await getReportDirectory();
-  if(handle){
-    try{
-      let perm=await handle.queryPermission({mode:'readwrite'});if(perm!=='granted')perm=await handle.requestPermission({mode:'readwrite'});
-      if(perm==='granted'){const fh=await handle.getFileHandle(report.filename,{create:true});const w=await fh.createWritable();await w.write(report.html);await w.close();return true;}
-    }catch(e){console.warn('Automatic folder save failed',e);}
-  }
-  const blob=new Blob([report.html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=report.filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000);return true;
-}
 
 // ── SHOP ──
 const SHOP_PRODUCTS=[
@@ -2043,9 +2046,22 @@ ${fullName}`;
 }
 function openWinnerMail(app,data){
   const to='kundeservice@casinohouse.dk';
-  if(app==='gmail')window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(to)}&su=${encodeURIComponent(data.subject)}&body=${encodeURIComponent(data.body)}`,'_blank','noopener');
-  else if(app==='outlook')window.open(`https://outlook.live.com/mail/0/deeplink/compose?to=${encodeURIComponent(to)}&subject=${encodeURIComponent(data.subject)}&body=${encodeURIComponent(data.body)}`,'_blank','noopener');
-  else window.location.href=`mailto:${to}?subject=${encodeURIComponent(data.subject)}&body=${encodeURIComponent(data.body)}`;
+  const subject=encodeURIComponent(data.subject),body=encodeURIComponent(data.body),recipient=encodeURIComponent(to);
+  if(app==='gmail'){
+    const ua=navigator.userAgent||'';
+    if(/android/i.test(ua)){
+      // Open the installed Gmail Android app directly. If Gmail is not installed, Android may show that no app can handle it.
+      window.location.href=`intent://co?to=${recipient}&subject=${subject}&body=${body}#Intent;scheme=googlegmail;package=com.google.android.gm;end`;
+    } else if(/iphone|ipad|ipod/i.test(ua)){
+      // Gmail's iOS URL scheme opens the installed Gmail app directly.
+      window.location.href=`googlegmail:///co?to=${recipient}&subject=${subject}&body=${body}`;
+    } else {
+      // Desktop has no Gmail app URL scheme, so use Gmail on the web there.
+      window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${recipient}&su=${subject}&body=${body}`,'_blank','noopener');
+    }
+  }
+  else if(app==='outlook')window.open(`https://outlook.live.com/mail/0/deeplink/compose?to=${recipient}&subject=${subject}&body=${body}`,'_blank','noopener');
+  else window.location.href=`mailto:${recipient}?subject=${subject}&body=${body}`;
 }
 function commitWinnerAndOpen(app,data){
   if(!D.winners)D.winners=[];
@@ -2056,7 +2072,7 @@ function sendWinnerEmail(){
   const data=buildWinnerMailData();if(!data)return;
   showModal({icon:'✉️',title:'Choose mail app',msg:'Which mail app do you want to open?',buttons:[
     {label:'Default mail app',style:'modal-btn-primary',action:()=>commitWinnerAndOpen('default',data)},
-    {label:'Gmail',style:'modal-btn-ghost',action:()=>commitWinnerAndOpen('gmail',data)},
+    {label:'Gmail app',style:'modal-btn-ghost',action:()=>commitWinnerAndOpen('gmail',data)},
     {label:'Outlook',style:'modal-btn-ghost',action:()=>commitWinnerAndOpen('outlook',data)},
     {label:'Cancel',style:'modal-btn-ghost'}
   ]});

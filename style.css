@@ -47,8 +47,8 @@
     body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-height:100dvh;overflow-x:hidden}
 
     .hdr{position:fixed;top:0;left:0;right:0;height:calc(var(--hdr-h) + env(safe-area-inset-top, 0px));background:var(--surf);border-bottom:1px solid var(--border);display:flex;align-items:flex-end;padding:0 16px 10px;padding-top:calc(env(safe-area-inset-top, 0px) + 10px);z-index:50;gap:9px}
-    .hdr-logo{font-size:.92rem;font-weight:700;flex:1;color:var(--text)}
-    .hdr-pill{font-size:.57rem;font-weight:600;letter-spacing:.5px;text-transform:uppercase;padding:4px 10px;border-radius:999px;border:1px solid transparent;transition:all .3s}
+    .hdr-logo{font-size:.92rem;font-weight:700;flex:1;color:var(--text);min-width:0}
+    .hdr-pill{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);font-size:.57rem;font-weight:600;letter-spacing:.5px;text-transform:uppercase;padding:4px 10px;border-radius:999px;border:1px solid transparent;transition:all .3s;white-space:nowrap;max-width:42vw;overflow:hidden;text-overflow:ellipsis;text-align:center}
     .hdr-pill.ok  {background:var(--green-dim);color:var(--green);border-color:var(--green-mid)}
     .hdr-pill.off {background:var(--red-dim);color:var(--red);border-color:var(--red-mid)}
     .hdr-pill.idle{background:var(--card2);color:var(--muted);border-color:var(--border)}
@@ -80,6 +80,10 @@
     .cell input{width:100%;background:var(--inp);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:1.05rem;font-weight:600;padding:8px 9px;outline:none;text-align:right;-webkit-appearance:none;appearance:none;transition:border-color .2s;font-family:'JetBrains Mono',monospace}
     .cell input:focus{border-color:var(--accent)}
     .cell input::placeholder{color:var(--muted)}
+
+    .count-balance-btn{width:100%;margin-top:8px;padding:7px 8px;border-radius:7px;border:1px solid var(--accent-mid);background:var(--accent-dim);color:var(--accent);font-family:'Inter',sans-serif;font-size:.62rem;font-weight:700;cursor:pointer;transition:opacity .15s,transform .1s,border-color .15s}
+    .count-balance-btn:active{transform:scale(.97);opacity:.85}
+    .count-balance-btn:disabled{opacity:.24;cursor:not-allowed}
     .exp-hint{font-size:.67rem;color:var(--sub);margin-top:4px;min-height:15px;font-family:'JetBrains Mono',monospace}
     .exp-hint span{color:var(--accent);font-weight:500}
 
@@ -267,7 +271,7 @@
     .fridge-mini-empty{font-size:.75rem;color:var(--muted);text-align:center;padding:6px 0}
 
 /* ── Settings ── */
-.hdr-settings-btn{width:34px;height:30px;border-radius:9px;border:1px solid var(--border2);background:var(--card2);color:var(--text);display:flex;align-items:center;justify-content:center;font-size:.9rem;cursor:pointer;flex-shrink:0}
+.hdr-settings-btn{height:30px;border-radius:9px;border:1px solid var(--border2);background:var(--card2);color:var(--text);display:flex;align-items:center;justify-content:center;font-size:.68rem;font-weight:700;padding:0 11px;cursor:pointer;flex-shrink:0;font-family:inherit}
 .hdr-settings-btn:active{transform:scale(.94)}
 select{width:100%;background:var(--inp);border:1px solid var(--border2);border-radius:var(--rs);color:var(--text);font-size:1rem;padding:10px 12px;outline:none;font-family:'Inter',sans-serif}
 select:focus{border-color:var(--accent)}

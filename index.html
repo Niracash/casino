@@ -62,7 +62,7 @@
   <span>🎰</span>
   <div class="hdr-logo">Casino</div>
   <span class="hdr-pill idle" id="hdr-pill">No shift</span>
-  <button class="hdr-settings-btn" type="button" onclick="goPage('settings')" aria-label="Open settings">⚙️</button>
+  <button class="hdr-settings-btn" type="button" onclick="goPage('settings')" aria-label="Open settings">Settings</button>
 </header>
 
 <!-- HOME -->
@@ -111,21 +111,25 @@
       <div class="cl">💰 Mønt (coins)</div>
       <input type="number" id="h-coin" placeholder="0" min="0" inputmode="numeric" oninput="recalc();stashInputs()">
       <div class="exp-hint" id="h-coin-hint"></div>
+      <button class="count-balance-btn" type="button" onclick="confirmBalanceCount('coin')">Balance with Mønt</button>
     </div>
     <div class="cell">
       <div class="cl">💵 Cash</div>
       <input type="number" id="h-cash" placeholder="0" min="0" inputmode="numeric" oninput="recalc();stashInputs()">
       <div class="exp-hint" id="h-cash-hint"></div>
+      <button class="count-balance-btn" type="button" onclick="confirmBalanceCount('cash')">Balance with Cash</button>
     </div>
     <div class="cell">
       <div class="cl">🪙 Playcoins</div>
       <input type="number" id="h-pc" placeholder="0" min="0" inputmode="numeric" oninput="recalc();stashInputs()">
       <div class="exp-hint" id="h-pc-hint"></div>
+      <button class="count-balance-btn" type="button" onclick="confirmBalanceCount('pc')">Balance with Playcoins</button>
     </div>
     <div class="cell">
       <div class="cl">💳 Bank</div>
       <input type="number" id="h-bank" placeholder="0" min="0" inputmode="numeric" oninput="recalc();stashInputs()">
       <div class="exp-hint" id="h-bank-hint"></div>
+      <button class="count-balance-btn" type="button" onclick="confirmBalanceCount('bank')">Balance with Bank</button>
     </div>
   </div>
 
@@ -146,9 +150,6 @@
     <div class="brow"><span class="bl">Fridge revenue</span><span class="bv muted" id="db-fridge">—</span></div>
   </div>
 
-  <button class="btn btn-ghost" id="update-expected-btn" onclick="updateExpectedFromCount()" style="margin-bottom:12px;display:none" disabled>
-    ↺ Update Expected to Current Count
-  </button>
 
   <div class="sec-title"><span>Fridge Revenue</span></div>
   <div class="est-home" id="home-shop-summary">
@@ -437,22 +438,6 @@
       <button class="btn btn-primary" type="button" onclick="addSavedShop()">Add</button>
     </div>
     <div id="settings-shop-list" class="settings-list"></div>
-  </div>
-
-  <div class="sec-title"><span>Reports & Reset</span></div>
-  <div class="settings-card">
-    <div class="settings-folder-row">
-      <div>
-        <div class="settings-label">Download folder</div>
-        <div class="settings-value" id="set-download-folder-name">No folder selected</div>
-      </div>
-      <button class="btn btn-ghost" id="choose-download-folder" type="button" onclick="chooseDownloadFolder()">Choose folder</button>
-    </div>
-    <div class="settings-note">For privacy, supported browsers show only the selected folder name, not the full device path.</div>
-    <label class="settings-toggle-row">
-      <span><b>Auto download on reset</b><small>Save the shift report automatically before clearing the day.</small></span>
-      <input type="checkbox" id="set-auto-download" onchange="saveSettingsField('autoDownloadOnReset',this.checked)">
-    </label>
   </div>
 
   <button class="btn btn-ghost" type="button" onclick="goPage('home',document.querySelector('.nav .nb'))">← Back to Home</button>
