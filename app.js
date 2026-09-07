@@ -1,8 +1,8 @@
-let D={shift:null,exchanges:[],cashpoints:[],fillups:[],additions:[],expenses:[],winners:[],auditLog:[],archived:{exchanges:[],cashpoints:[],fillups:[],additions:[]},inputs:{home:{},shift:{},machines:{}},kfType:'kr'};
+let D={shift:null,exchanges:[],cashpoints:[],fillups:[],additions:[],expenses:[],winners:[],auditLog:[],archived:{exchanges:[],cashpoints:[],fillups:[],additions:[]},inputs:{home:{},shift:{},machines:{}},settings:{fullName:'',shops:[],mailLanguage:'da',autoDownloadOnReset:false,downloadFolderName:''},kfType:'kr'};
 
 function loadState(){
   const raw=localStorage.getItem('ccc_v5');
-  if(raw){const l=JSON.parse(raw);D={...D,...l};if(!D.inputs)D.inputs={home:{},shift:{},machines:{}};if(!D.exchanges)D.exchanges=[];if(!D.cashpoints)D.cashpoints=[];if(!D.auditLog)D.auditLog=[];if(!D.expenses)D.expenses=[];if(!D.archived)D.archived={exchanges:[],cashpoints:[],fillups:[],additions:[]};if(!D.archived.exchanges)D.archived.exchanges=[];if(!D.archived.cashpoints)D.archived.cashpoints=[];if(!D.archived.fillups)D.archived.fillups=[];if(!D.archived.additions)D.archived.additions=[];if(!D.winners)D.winners=[];if(D.winner&&!Array.isArray(D.winner)){if(D.winner.amount&&D.winner.machineNr)D.winners.push(D.winner);delete D.winner;}}
+  if(raw){const l=JSON.parse(raw);D={...D,...l};if(!D.inputs)D.inputs={home:{},shift:{},machines:{}};if(!D.exchanges)D.exchanges=[];if(!D.cashpoints)D.cashpoints=[];if(!D.auditLog)D.auditLog=[];if(!D.expenses)D.expenses=[];if(!D.archived)D.archived={exchanges:[],cashpoints:[],fillups:[],additions:[]};if(!D.archived.exchanges)D.archived.exchanges=[];if(!D.archived.cashpoints)D.archived.cashpoints=[];if(!D.archived.fillups)D.archived.fillups=[];if(!D.archived.additions)D.archived.additions=[];if(!D.winners)D.winners=[];if(!D.settings)D.settings={fullName:'',shops:[],mailLanguage:'da',autoDownloadOnReset:false,downloadFolderName:''};if(!Array.isArray(D.settings.shops))D.settings.shops=[];if(!['da','en'].includes(D.settings.mailLanguage))D.settings.mailLanguage='da';if(typeof D.settings.autoDownloadOnReset!=='boolean')D.settings.autoDownloadOnReset=false;if(D.winner&&!Array.isArray(D.winner)){if(D.winner.amount&&D.winner.machineNr)D.winners.push(D.winner);delete D.winner;}}
 }
 function saveState(){localStorage.setItem('ccc_v5',JSON.stringify(D));}
 
@@ -58,7 +58,8 @@ document.addEventListener('DOMContentLoaded',()=>{
 function goPage(id,btn){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
   document.querySelectorAll('.nb').forEach(b=>b.classList.remove('on'));
-  document.getElementById('page-'+id).classList.add('on');btn.classList.add('on');
+  const page=document.getElementById('page-'+id);if(page)page.classList.add('on');
+  if(btn&&btn.classList)btn.classList.add('on');
   if(id==='home'){fillExpectedIntoCount();recalc();renderHomeLog();renderExchangeList();renderShopSummary();}
   if(id==='machines'){renderKFLog();renderAddList();}
   if(id==='shift'){
@@ -66,6 +67,7 @@ function goPage(id,btn){
   }
   if(id==='shop'){renderShopItems();renderShopLog();}
   if(id==='checklist'){renderChecklist();}
+  if(id==='settings'){renderSettings();}
 }
 
 const g=id=>parseFloat(document.getElementById(id).value)||0;
@@ -725,33 +727,35 @@ const EXCHANGE_RULES={
   bank:{canGive:['pc','cash','coin'],label:'Bank'}
 };
 
-const CASH_NOTES=[50,100,200,500];
-function isValidCashAmount(amt){
-  // Must be a sum of valid note denominations (50, 100, 200, 500)
-  // Simplest check: divisible by 50 and > 0
-  return amt>0&&amt%50===0;
+const DANISH_COIN_DENOMS=[20,10,5,2,1];
+const DANISH_CASH_DENOMS=[500,200,100,50];
+const PLAYCOIN_VALUE=20;
+
+function denomBreakdown(amount,denoms){
+  let rem=Math.max(0,Math.round(amount));
+  const parts=[];
+  denoms.forEach(d=>{const n=Math.floor(rem/d);if(n){parts.push(`${n}×${d}`);rem-=n*d;}});
+  return{parts,remainder:rem,text:parts.join(' + ')};
+}
+function playcoinText(value){
+  const count=Math.floor(value/PLAYCOIN_VALUE);
+  return `${count} playcoin${count===1?'':'s'} (${fmt(value)})`;
+}
+function coinText(value){
+  const b=denomBreakdown(value,DANISH_COIN_DENOMS);
+  return `${fmt(value)} mønt${b.text?` (${b.text})`:''}`;
+}
+function cashText(value){
+  const b=denomBreakdown(value,DANISH_CASH_DENOMS);
+  return `${fmt(value)} cash${b.text?` (${b.text})`:''}`;
 }
 
 function validateExchange(from,to,amt){
-  if(isNaN(amt)||amt<=0) return null;
-  if(from==='cash'){
-    if(to==='coin'){
-      if(amt%50!==0) return 'Cash must be in multiples of 50 kr (notes only)';
-    } else if(to==='pc'){
-      if(amt<50) return 'Minimum 50 kr for cash → playcoins';
-    }
-    return null;
-  }
-  if(from==='coin'){
-    if(to==='cash'){
-      if(!isValidCashAmount(amt)) return 'Mønt → Cash must be 50, 100, 200, 500 kr (note denominations only)';
-    }
-    return null;
-  }
-  if(from==='pc'){
-    if(amt%20!==0) return 'Playcoins must be multiples of 20 kr';
-    return null;
-  }
+  if(isNaN(amt)||amt<=0)return null;
+  if(!Number.isInteger(amt))return 'Amounts must be whole kroner';
+  if(from==='cash'&&amt%50!==0)return 'Cash received must be Danish notes: 50, 100, 200 or 500 kr';
+  if(from==='pc'&&amt%PLAYCOIN_VALUE!==0)return 'Playcoins must be multiples of 20 kr (1 playcoin = 20 kr)';
+  if(to==='cash'&&amt<50)return 'At least 50 kr is needed to give cash notes; smaller remainder is returned as mønt';
   return null;
 }
 
@@ -792,37 +796,19 @@ function exCalc(){
     }
     if(amt<=0){hint.style.display='none';document.querySelectorAll('.ex-save-btn').forEach(b=>b.disabled=true);return;}
 
-    if(_exFrom==='cash'&&_exTo==='coin'){
-      hint.className='ex-hint-el info';hint.style.display='block';
-      hint.innerHTML=`Give customer <b>${fmt(amt)}</b> in coins (mønt) · +${fmt(amt)} cash, −${fmt(amt)} mønt`;
-    } else if(_exFrom==='cash'&&_exTo==='pc'){
-      const pcAmt=Math.floor(amt/20)*20;
+    hint.className='ex-hint-el success';hint.style.display='block';
+    if(_exTo==='pc'){
+      const pcAmt=Math.floor(amt/PLAYCOIN_VALUE)*PLAYCOIN_VALUE;
       const change=amt-pcAmt;
-      hint.className='ex-hint-el success';hint.style.display='block';
-      if(change>0){
-        hint.innerHTML=`Give <b>${fmt(pcAmt)}</b> playcoins + <b>${fmt(change)}</b> coin change back · +${fmt(amt)} cash, −${fmt(pcAmt)} pc, −${fmt(change)} mønt`;
-      } else {
-        hint.innerHTML=`Give customer <b>${fmt(pcAmt)}</b> playcoins · +${fmt(amt)} cash, −${fmt(pcAmt)} pc`;
-      }
-    } else if((_exFrom==='pc'||_exFrom==='bank')&&_exTo==='cash'){
-      const cp=Math.floor(amt/50)*50,cn=amt-cp;
-      hint.className='ex-hint-el success';hint.style.display='block';
-      hint.innerHTML=cn>0?`Give customer <b>${fmt(cp)}</b> cash + <b>${fmt(cn)}</b> mønt`:`Give customer <b>${fmt(cp)}</b> cash`;
-    } else if(_exFrom==='coin'&&_exTo==='cash'){
-      const cashPart=Math.floor(amt/50)*50,coinPart=amt-cashPart;
-      hint.className='ex-hint-el success';hint.style.display='block';
-      if(coinPart>0){
-        hint.innerHTML=`Give customer <b>${fmt(cashPart)}</b> cash + <b>${fmt(coinPart)}</b> mønt back · +${fmt(amt)} mønt, -${fmt(cashPart)} cash`;
-      } else {
-        hint.innerHTML=`Give customer <b>${fmt(cashPart)}</b> cash · +${fmt(amt)} mønt, -${fmt(cashPart)} cash`;
-      }
-    } else if(_exTo==='pc'){
-      const pcAmt=Math.floor(amt/20)*20,change=amt-pcAmt;
-      if(change>0){
-        // Show hint that 10kr coin is given back — for bank→pc (e.g. 410 → 400pc + 10 coin)
-        hint.className='ex-hint-el info';hint.style.display='block';
-        hint.innerHTML=`Give <b>${fmt(pcAmt)}</b> playcoins + <b>${fmt(change)}</b> mønt change`;
-      } else hint.style.display='none';
+      const receive=_exFrom==='cash'?`+${fmt(amt)} cash`:_exFrom==='coin'?`+${fmt(amt)} mønt`:`+${fmt(amt)} bank`;
+      hint.innerHTML=`Give customer <b>${playcoinText(pcAmt)}</b>${change>0?` + <b>${coinText(change)}</b> back`:''} · ${receive}, −${fmt(pcAmt)} pc${change>0?`, −${fmt(change)} mønt`:''}`;
+    } else if(_exTo==='cash'){
+      const cashPart=Math.floor(amt/50)*50;
+      const coinPart=amt-cashPart;
+      const receive=_exFrom==='pc'?`+${fmt(amt)} pc`:_exFrom==='coin'?`+${fmt(amt)} mønt`:`+${fmt(amt)} bank`;
+      hint.innerHTML=`Give customer <b>${cashText(cashPart)}</b>${coinPart>0?` + <b>${coinText(coinPart)}</b> back`:''} · ${receive}, −${fmt(cashPart)} cash${coinPart>0?`, −${fmt(coinPart)} mønt`:''}`;
+    } else if(_exTo==='coin'){
+      hint.innerHTML=`Give customer <b>${coinText(amt)}</b> · +${fmt(amt)} ${_exFrom==='cash'?'cash':_exFrom==='pc'?'pc':'bank'}, −${fmt(amt)} mønt`;
     } else hint.style.display='none';
     document.querySelectorAll('.ex-save-btn').forEach(b=>b.disabled=false);
   });
@@ -843,7 +829,7 @@ function saveExchange(){
   if(_exFrom==='cash'&&_exTo==='coin'){
     D.exchanges.push({from:'cash',to:'coin',amount:amt,date:nowFull(),ts:Date.now()});
   } else if(_exFrom==='cash'&&_exTo==='pc'){
-    const pcAmt=Math.floor(amt/20)*20;
+    const pcAmt=Math.floor(amt/PLAYCOIN_VALUE)*PLAYCOIN_VALUE;
     const change=amt-pcAmt;
     D.exchanges.push({from:'cash',to:'pc',amount:amt,pcOut:pcAmt,coinChange:change,date:nowFull(),ts:Date.now()});
   } else if(_exFrom==='pc'&&_exTo==='cash'){
@@ -862,7 +848,7 @@ function saveExchange(){
     D.exchanges.push({from:'coin',to:'cash',amount:amt,cashOut:cashPart,coinBack:coinPart,date:nowFull(),ts:Date.now()});
   } else if(_exTo==='pc'){
     // e.g. bank 410 → 400 playcoins + 10 coin change back to customer
-    const pcAmt=Math.floor(amt/20)*20;
+    const pcAmt=Math.floor(amt/PLAYCOIN_VALUE)*PLAYCOIN_VALUE;
     const change=amt-pcAmt;
     D.exchanges.push({from:_exFrom,to:'pc',amount:pcAmt,date:nowFull(),ts:Date.now()});
     if(change>0){
@@ -1100,7 +1086,7 @@ function renderShiftInfo(){
   }
 }
 
-function generateShiftPDF(){
+function generateShiftPDF(options={}){
   const f=fmt;
   // Use shift date for the filename / title
   const shiftDate=D.shift?D.shift.date.split(' ')[0]:nowDate();
@@ -1332,6 +1318,8 @@ function generateShiftPDF(){
   <div class="footer">${reportTitle} &nbsp;|&nbsp; Casino</div>
   </body></html>`;
 
+  const filename=`Casino Shift Report ${reportTitle.replaceAll('/','-')}.html`;
+  if(options&&options.returnData)return{html,filename};
   const blob=new Blob([html],{type:'text/html'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
@@ -1348,11 +1336,14 @@ function confirmReset(){
     msg:'This clears all data for the day. Are you sure?',
     buttons:[
       {label:'Cancel',style:'modal-btn-ghost'},
-      {label:'Reset',style:'modal-btn-danger',action:()=>{
+      {label:'Reset',style:'modal-btn-danger',action:async()=>{
         const archived=D.archived||{exchanges:[],cashpoints:[],fillups:[],additions:[]};
         const hasArchived=(archived.exchanges&&archived.exchanges.length)||(archived.cashpoints&&archived.cashpoints.length)||(archived.fillups&&archived.fillups.length)||(archived.additions&&archived.additions.length);
         const hasData=D.shift||(D.fillups&&D.fillups.length)||(D.cashpoints&&D.cashpoints.length)||(D.exchanges&&D.exchanges.length)||(D.additions&&D.additions.length)||(D.expenses&&D.expenses.length)||hasArchived;
-        if(hasData){
+        if(hasData&&D.settings&&D.settings.autoDownloadOnReset){
+          await autoSaveShiftReport();
+          doReset();
+        } else if(hasData){
           showModal({
             icon:'📄',
             title:"Download Today's Report?",
@@ -1362,27 +1353,82 @@ function confirmReset(){
               {label:'Download & Reset',style:'modal-btn-green',action:()=>{generateShiftPDF();doReset();}},
             ]
           });
-        } else {
-          doReset();
-        }
+        } else doReset();
       }}
     ]
   });
 }
 
 function doReset(){
-  D={shift:null,exchanges:[],cashpoints:[],fillups:[],additions:[],expenses:[],winners:[],auditLog:[],archived:{exchanges:[],cashpoints:[],fillups:[],additions:[]},shop:{starts:{},sold:{},freeTakes:{},log:[],yesterdayMoney:0},inputs:{home:{},shift:{},machines:{}},kfType:'kr'};
+  const savedSettings={...(D.settings||{fullName:'',shops:[],mailLanguage:'da',autoDownloadOnReset:false,downloadFolderName:''})};
+  D={shift:null,exchanges:[],cashpoints:[],fillups:[],additions:[],expenses:[],winners:[],auditLog:[],archived:{exchanges:[],cashpoints:[],fillups:[],additions:[]},shop:{starts:{},sold:{},freeTakes:{},log:[],yesterdayMoney:0},inputs:{home:{},shift:{},machines:{}},settings:savedSettings,kfType:'kr'};
   _homeLogPage=0;_exListPage=0;_cpListPage=0;_addListPage=0;_kfLogPage=0;_expenseListPage=0;
   Object.keys(_checkStates).forEach(k=>delete _checkStates[k]);
   _saveChecks();
-  // Reset the Opening/Day/Closing checklist too
   saveChecklistState({});
   saveState();
-  document.querySelectorAll('input[type=number],input[type=text]').forEach(el=>el.value='');
+  document.querySelectorAll('#page-home input[type=number],#page-home input[type=text],#page-machines input[type=number],#page-machines input[type=text],#page-shift input[type=number],#page-shift input[type=text],#page-shop input[type=number],#page-shop input[type=text]').forEach(el=>el.value='');
   document.getElementById('s-preview').textContent='0 kr';document.getElementById('h-current-total').textContent='0 kr';
   _cpSign=1;const sb=document.getElementById('cp-sign-btn');if(sb){sb.textContent='+';sb.style.color='var(--green)';sb.style.borderColor='var(--green-mid)';sb.style.background='var(--green-dim)';}
   _expSign=-1;const eb=document.getElementById('exp-sign-btn');if(eb){eb.textContent='−';eb.style.color='var(--red)';eb.style.borderColor='var(--red-mid)';eb.style.background='var(--red-dim)';}
-  renderShiftInfo();renderHomeLog();renderExchangeList();renderCashpointList();renderAddList();renderKFLog();renderExpenseList();renderChecklist();recalc();updateEstCalc();updateHomeEst();
+  renderShiftInfo();renderHomeLog();renderExchangeList();renderCashpointList();renderAddList();renderKFLog();renderExpenseList();renderChecklist();renderWinnerShopOptions();recalc();updateEstCalc();updateHomeEst();
+}
+
+// ── SETTINGS / PERSISTENT PROFILE ──
+function ensureSettings(){
+  if(!D.settings)D.settings={fullName:'',shops:[],mailLanguage:'da',autoDownloadOnReset:false,downloadFolderName:''};
+  if(!Array.isArray(D.settings.shops))D.settings.shops=[];
+  return D.settings;
+}
+function renderSettings(){
+  const st=ensureSettings();
+  const name=document.getElementById('set-full-name');if(name&&document.activeElement!==name)name.value=st.fullName||'';
+  const lang=document.getElementById('set-mail-language');if(lang)lang.value=st.mailLanguage||'da';
+  const auto=document.getElementById('set-auto-download');if(auto)auto.checked=!!st.autoDownloadOnReset;
+  const folder=document.getElementById('set-download-folder-name');if(folder)folder.textContent=st.downloadFolderName||'No folder selected';
+  const list=document.getElementById('settings-shop-list');
+  if(list){
+    list.innerHTML='';
+    st.shops.forEach((shop,i)=>{const row=document.createElement('div');row.className='settings-list-row';row.innerHTML=`<span>${escapeHtml(shop)}</span><button type="button" class="settings-remove" onclick="removeSavedShop(${i})">✕</button>`;list.appendChild(row);});
+    if(!st.shops.length)list.innerHTML='<div class="settings-empty">No shop locations saved</div>';
+  }
+  const folderBtn=document.getElementById('choose-download-folder');
+  if(folderBtn&&!('showDirectoryPicker' in window)){folderBtn.disabled=true;folderBtn.textContent='Folder selection not supported on this device';}
+}
+function saveSettingsField(field,value){const st=ensureSettings();st[field]=value;saveState();if(field==='shops')renderWinnerShopOptions();}
+function addSavedShop(){
+  const input=document.getElementById('set-shop-input');if(!input)return;
+  const name=input.value.trim();if(!name)return;
+  const st=ensureSettings();if(!st.shops.some(s=>s.toLowerCase()===name.toLowerCase()))st.shops.push(name);
+  input.value='';saveState();renderSettings();renderWinnerShopOptions();
+}
+function removeSavedShop(i){const st=ensureSettings();st.shops.splice(i,1);saveState();renderSettings();renderWinnerShopOptions();}
+function renderWinnerShopOptions(){
+  const sel=document.getElementById('w-shop');if(!sel)return;
+  const current=sel.value;const shops=ensureSettings().shops;
+  sel.innerHTML='<option value="">Choose saved shop</option>'+shops.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+  if(shops.includes(current))sel.value=current;else if(shops.length===1)sel.value=shops[0];
+}
+function escapeHtml(v){return String(v).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
+
+const REPORT_DB='casino_settings_db',REPORT_STORE='handles',REPORT_HANDLE_KEY='report_directory';
+function openReportDB(){return new Promise((resolve,reject)=>{const r=indexedDB.open(REPORT_DB,1);r.onupgradeneeded=()=>{if(!r.result.objectStoreNames.contains(REPORT_STORE))r.result.createObjectStore(REPORT_STORE)};r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});}
+async function storeReportDirectory(handle){const db=await openReportDB();await new Promise((resolve,reject)=>{const tx=db.transaction(REPORT_STORE,'readwrite');tx.objectStore(REPORT_STORE).put(handle,REPORT_HANDLE_KEY);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)});db.close();}
+async function getReportDirectory(){try{const db=await openReportDB();const handle=await new Promise((resolve,reject)=>{const r=db.transaction(REPORT_STORE).objectStore(REPORT_STORE).get(REPORT_HANDLE_KEY);r.onsuccess=()=>resolve(r.result||null);r.onerror=()=>reject(r.error)});db.close();return handle;}catch{return null;}}
+async function chooseDownloadFolder(){
+  if(!('showDirectoryPicker' in window)){showModal({title:'Not supported',msg:'This browser does not allow the app to choose a download folder. Automatic reset downloads will use the browser default download behavior.',buttons:[{label:'OK',style:'modal-btn-primary'}]});return;}
+  try{const handle=await window.showDirectoryPicker({mode:'readwrite'});await storeReportDirectory(handle);ensureSettings().downloadFolderName=handle.name;saveState();renderSettings();}catch(e){if(e&&e.name!=='AbortError')console.warn(e);}
+}
+async function autoSaveShiftReport(){
+  const report=generateShiftPDF({returnData:true});if(!report)return false;
+  const handle=await getReportDirectory();
+  if(handle){
+    try{
+      let perm=await handle.queryPermission({mode:'readwrite'});if(perm!=='granted')perm=await handle.requestPermission({mode:'readwrite'});
+      if(perm==='granted'){const fh=await handle.getFileHandle(report.filename,{create:true});const w=await fh.createWritable();await w.write(report.html);await w.close();return true;}
+    }catch(e){console.warn('Automatic folder save failed',e);}
+  }
+  const blob=new Blob([report.html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=report.filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000);return true;
 }
 
 // ── SHOP ──
@@ -1947,14 +1993,12 @@ function coffeeTimerReset(){
 // ── WINNER EMAIL ──
 
 function clearWinnerFields(){
-  ['w-amount','w-machine-nr','w-machine-id','w-machine-name','w-game-name','w-shop'].forEach(id=>{
-    const el=document.getElementById(id);if(el)el.value='';
-  });
-  const dateEl=document.getElementById('w-date');
-  if(dateEl)dateEl.value=nowDate();
+  ['w-amount','w-machine-nr','w-machine-id','w-machine-name','w-game-name'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  const shop=document.getElementById('w-shop');if(shop)shop.value='';
+  const dateEl=document.getElementById('w-date');if(dateEl)dateEl.value=nowDate();
 }
 
-function sendWinnerEmail(){
+function buildWinnerMailData(){
   const amount=document.getElementById('w-amount').value.trim();
   const machineNr=document.getElementById('w-machine-nr').value.trim();
   const machineId=document.getElementById('w-machine-id').value.trim();
@@ -1962,22 +2006,59 @@ function sendWinnerEmail(){
   const gameName=document.getElementById('w-game-name').value.trim();
   const shop=document.getElementById('w-shop').value.trim();
   const date=document.getElementById('w-date').value.trim()||nowDate();
-  if(!amount){flash('w-amount');return;}
-  if(!date){flash('w-date');return;}
-  if(!machineNr){flash('w-machine-nr');return;}
-  if(!machineId){flash('w-machine-id');return;}
-  if(!machineName){flash('w-machine-name');return;}
-  if(!gameName){flash('w-game-name');return;}
-  if(!shop){flash('w-shop');return;}
-  // Save winner to log
-  if(!D.winners)D.winners=[];
-  D.winners.push({amount,date,machineNr,machineId,machineName,gameName,shop});
-  saveState();
-  renderWinnerLog();
-  // Open mail
-  const subject=`Vi har en gevinst på ${amount} kr - ${shop}`;
-  const body=`Kære Casino,\n\nVi har en gevinst på ${amount} kr i dag.\n\nButik: ${shop}\nBeløb: ${amount} kr\nDato: ${date}\nMaskin nummer: ${machineNr}${machineId?'\nMaskin id: '+machineId:''}${machineName?'\nMaskin navn: '+machineName:''}${gameName?'\nSpil navn: '+gameName:''}`;
-  window.location.href=`mailto:kundeservice@casinohouse.dk?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-  // Clear fields for next winner
-  clearWinnerFields();
+  if(!amount){flash('w-amount');return null;}if(!date){flash('w-date');return null;}if(!machineNr){flash('w-machine-nr');return null;}if(!machineId){flash('w-machine-id');return null;}if(!machineName){flash('w-machine-name');return null;}if(!gameName){flash('w-game-name');return null;}if(!shop){flash('w-shop');return null;}
+  const st=ensureSettings();const fullName=(st.fullName||'').trim();
+  const lang=st.mailLanguage==='en'?'en':'da';
+  const subject=lang==='en'?`We have a win of ${amount} kr - ${shop}`:`Vi har en gevinst på ${amount} kr - ${shop}`;
+  const body=lang==='en'
+    ?`Dear Casino,
+
+We have a win of ${amount} kr today.
+
+Shop: ${shop}
+Amount: ${amount} kr
+Date: ${date}
+Machine number: ${machineNr}
+Machine ID: ${machineId}
+Machine name: ${machineName}
+Game name: ${gameName}
+
+Kind regards
+${fullName}`
+    :`Kære Casino,
+
+Vi har en gevinst på ${amount} kr i dag.
+
+Butik: ${shop}
+Beløb: ${amount} kr
+Dato: ${date}
+Maskin nummer: ${machineNr}
+Maskin ID: ${machineId}
+Maskin navn: ${machineName}
+Spil navn: ${gameName}
+
+Med venlig hilsen
+${fullName}`;
+  return{amount,date,machineNr,machineId,machineName,gameName,shop,subject,body};
 }
+function openWinnerMail(app,data){
+  const to='kundeservice@casinohouse.dk';
+  if(app==='gmail')window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(to)}&su=${encodeURIComponent(data.subject)}&body=${encodeURIComponent(data.body)}`,'_blank','noopener');
+  else if(app==='outlook')window.open(`https://outlook.live.com/mail/0/deeplink/compose?to=${encodeURIComponent(to)}&subject=${encodeURIComponent(data.subject)}&body=${encodeURIComponent(data.body)}`,'_blank','noopener');
+  else window.location.href=`mailto:${to}?subject=${encodeURIComponent(data.subject)}&body=${encodeURIComponent(data.body)}`;
+}
+function commitWinnerAndOpen(app,data){
+  if(!D.winners)D.winners=[];
+  D.winners.push({amount:data.amount,date:data.date,machineNr:data.machineNr,machineId:data.machineId,machineName:data.machineName,gameName:data.gameName,shop:data.shop});
+  saveState();renderWinnerLog();openWinnerMail(app,data);clearWinnerFields();
+}
+function sendWinnerEmail(){
+  const data=buildWinnerMailData();if(!data)return;
+  showModal({icon:'✉️',title:'Choose mail app',msg:'Which mail app do you want to open?',buttons:[
+    {label:'Default mail app',style:'modal-btn-primary',action:()=>commitWinnerAndOpen('default',data)},
+    {label:'Gmail',style:'modal-btn-ghost',action:()=>commitWinnerAndOpen('gmail',data)},
+    {label:'Outlook',style:'modal-btn-ghost',action:()=>commitWinnerAndOpen('outlook',data)},
+    {label:'Cancel',style:'modal-btn-ghost'}
+  ]});
+}
+

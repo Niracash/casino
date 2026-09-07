@@ -62,6 +62,7 @@
   <span>🎰</span>
   <div class="hdr-logo">Casino</div>
   <span class="hdr-pill idle" id="hdr-pill">No shift</span>
+  <button class="hdr-settings-btn" type="button" onclick="goPage('settings')" aria-label="Open settings">⚙️</button>
 </header>
 
 <!-- HOME -->
@@ -333,7 +334,7 @@
     </div>
     <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--rs);padding:8px 10px">
       <div class="cl" style="font-size:.52rem;font-weight:700;color:var(--sub);text-transform:uppercase;letter-spacing:.9px;margin-bottom:5px">Shop / Location <span style="color:var(--red);font-size:.8em">*</span></div>
-      <input type="text" id="w-shop" placeholder="Enter shop or location" style="font-size:.82rem;padding:8px 10px" oninput="saveWinner()">
+      <select id="w-shop" style="font-size:.82rem;padding:8px 10px" onchange="saveWinner()"><option value="">Choose saved shop</option></select>
     </div>
   </div>
 
@@ -408,6 +409,53 @@
   <div class="sec-title"><span>Closing <span id="cl-closing-count" style="font-weight:500;letter-spacing:0;text-transform:none;opacity:.7"></span></span></div>
   <div class="checklist-group" id="cl-closing"></div>
 
+</div>
+
+<!-- SETTINGS -->
+<div class="page" id="page-settings">
+  <div class="sec-title"><span>Settings</span></div>
+  <p class="caption">These settings are saved permanently on this device and are kept when you reset a shift.</p>
+
+  <div class="settings-card">
+    <div class="fg">
+      <label class="fl" for="set-full-name">Full Name <span style="color:var(--muted)">(used in winner email)</span></label>
+      <input type="text" id="set-full-name" placeholder="Your full name" oninput="saveSettingsField('fullName',this.value)">
+    </div>
+    <div class="fg">
+      <label class="fl" for="set-mail-language">Mail Language</label>
+      <select id="set-mail-language" onchange="saveSettingsField('mailLanguage',this.value)">
+        <option value="da">Danish</option>
+        <option value="en">English</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="sec-title"><span>Shop Locations</span></div>
+  <div class="settings-card">
+    <div class="settings-add-row">
+      <input type="text" id="set-shop-input" placeholder="e.g. Hvidovrevej 253" onkeydown="if(event.key==='Enter'){event.preventDefault();addSavedShop();}">
+      <button class="btn btn-primary" type="button" onclick="addSavedShop()">Add</button>
+    </div>
+    <div id="settings-shop-list" class="settings-list"></div>
+  </div>
+
+  <div class="sec-title"><span>Reports & Reset</span></div>
+  <div class="settings-card">
+    <div class="settings-folder-row">
+      <div>
+        <div class="settings-label">Download folder</div>
+        <div class="settings-value" id="set-download-folder-name">No folder selected</div>
+      </div>
+      <button class="btn btn-ghost" id="choose-download-folder" type="button" onclick="chooseDownloadFolder()">Choose folder</button>
+    </div>
+    <div class="settings-note">For privacy, supported browsers show only the selected folder name, not the full device path.</div>
+    <label class="settings-toggle-row">
+      <span><b>Auto download on reset</b><small>Save the shift report automatically before clearing the day.</small></span>
+      <input type="checkbox" id="set-auto-download" onchange="saveSettingsField('autoDownloadOnReset',this.checked)">
+    </label>
+  </div>
+
+  <button class="btn btn-ghost" type="button" onclick="goPage('home',document.querySelector('.nav .nb'))">← Back to Home</button>
 </div>
 
 <nav class="nav">

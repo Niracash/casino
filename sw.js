@@ -1,4 +1,4 @@
-const CACHE = "casino-v4";
+const CACHE = "casino-v5";
 const FILES = [
   "/casino/",
   "/casino/index.html",
