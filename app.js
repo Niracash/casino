@@ -51,8 +51,12 @@ document.addEventListener('DOMContentLoaded',()=>{
   if(cpSb)cpSb.style.visibility='hidden';
   renderShiftInfo();renderHomeLog();renderExchangeList();renderCashpointList();renderAddList();renderKFLog();
   renderShopItems();renderShopLog();renderExpenseList();
+  // Saved settings live in localStorage with the rest of the app state. Rebuild
+  // dependent controls on every cold start so saved shops are immediately available.
+  renderWinnerShopOptions();
   recalc();updateEstCalc();updateHomeEst();renderShopSummary();fillExpectedIntoCount();
   loadCoffeeTimer();
+  initMobileViewportRecovery();
 });
 
 function goPage(id,btn){
@@ -63,11 +67,56 @@ function goPage(id,btn){
   if(id==='home'){fillExpectedIntoCount();recalc();renderHomeLog();renderExchangeList();renderShopSummary();}
   if(id==='machines'){renderKFLog();renderAddList();}
   if(id==='shift'){
+    renderWinnerShopOptions();
     renderShiftInfo();sPreview();renderCashpointList();renderExpenseList();renderWinnerLog();updateEstCalc();
   }
   if(id==='shop'){renderShopItems();renderShopLog();}
   if(id==='checklist'){renderChecklist();}
   if(id==='settings'){renderSettings();}
+}
+
+// ── iOS / mobile keyboard viewport recovery ──
+// Safari/PWA can occasionally keep fixed UI anchored to the shortened keyboard
+// viewport after the keyboard closes. Track the visual viewport and force a
+// lightweight fixed-element reflow once it returns to full height.
+function initMobileViewportRecovery(){
+  const vv=window.visualViewport;
+  const nav=document.querySelector('.nav');
+  let keyboardWasOpen=false;
+  let settleTimer=null;
+
+  const recover=()=>{
+    document.documentElement.style.setProperty('--app-visible-height',Math.round(window.innerHeight)+'px');
+    if(!nav)return;
+    nav.classList.add('viewport-refresh');
+    requestAnimationFrame(()=>requestAnimationFrame(()=>nav.classList.remove('viewport-refresh')));
+    // iOS sometimes leaves the layout viewport slightly scrolled after dismissing
+    // the keyboard even though the page visually appears stationary.
+    if(window.scrollY<4)window.scrollTo(0,0);
+  };
+
+  const sync=()=>{
+    const visibleHeight=vv?vv.height:window.innerHeight;
+    const fullHeight=window.innerHeight;
+    const keyboardOpen=visibleHeight < fullHeight-120;
+    document.body.classList.toggle('keyboard-open',keyboardOpen);
+    if(keyboardWasOpen&&!keyboardOpen){
+      clearTimeout(settleTimer);
+      settleTimer=setTimeout(recover,80);
+      setTimeout(recover,260);
+    }
+    keyboardWasOpen=keyboardOpen;
+  };
+
+  if(vv){vv.addEventListener('resize',sync);vv.addEventListener('scroll',sync);}
+  window.addEventListener('resize',sync);
+  document.addEventListener('focusout',e=>{
+    if(e.target&&e.target.matches&&e.target.matches('input,select,textarea')){
+      clearTimeout(settleTimer);
+      settleTimer=setTimeout(recover,180);
+    }
+  });
+  sync();
 }
 
 const g=id=>parseFloat(document.getElementById(id).value)||0;
@@ -409,7 +458,7 @@ function getBalanceTarget(type){
 
 function confirmBalanceCount(type){
   if(!D.shift){
-    showModal({icon:'⚠️',title:'No active shift',msg:'Set the start of shift before balancing a count.',buttons:[{label:'OK',style:'modal-btn-primary'}]});
+    showModal({title:'No active shift',msg:'Set the start of shift first.',buttons:[{label:'OK',style:'modal-btn-primary'}]});
     return;
   }
   const meta=COUNT_BALANCE_META[type];
@@ -419,27 +468,24 @@ function confirmBalanceCount(type){
   if(target==null)return;
 
   if(target<0){
-    showModal({icon:'⚠️',title:'Cannot balance with '+meta.label,msg:'The other three boxes already total more than the full expected amount. '+meta.label+' would need to become '+target.toLocaleString('no-NO')+' kr, which is not possible.',buttons:[{label:'OK',style:'modal-btn-primary'}]});
+    showModal({title:'Cannot balance '+meta.label,msg:'Required amount: '+target.toLocaleString('no-NO')+' kr.',buttons:[{label:'OK',style:'modal-btn-primary'}]});
     return;
   }
   if(target%meta.step!==0){
-    showModal({icon:'⚠️',title:'Invalid '+meta.label+' amount',msg:'Balancing would require '+target.toLocaleString('no-NO')+' kr in '+meta.label+'. '+meta.note+' Choose another box to balance instead.',buttons:[{label:'OK',style:'modal-btn-primary'}]});
+    showModal({title:'Cannot balance '+meta.label,msg:'Required amount: '+target.toLocaleString('no-NO')+' kr. Choose another box.',buttons:[{label:'OK',style:'modal-btn-primary'}]});
     return;
   }
   if(target===old){
-    showModal({icon:'✓',title:meta.label+' is already correct',msg:meta.label+' is already '+old.toLocaleString('no-NO')+' kr. No change is needed.',buttons:[{label:'OK',style:'modal-btn-primary'}]});
+    showModal({title:meta.label+' is balanced',msg:old.toLocaleString('no-NO')+' kr. No change needed.',buttons:[{label:'OK',style:'modal-btn-primary'}]});
     return;
   }
 
-  const direction=target>old?'increase':'decrease';
-  const delta=Math.abs(target-old);
   showModal({
-    icon:'⚠️',
     title:'Update '+meta.label+'?',
-    msg:`Are you sure you want to ${direction} ${meta.label} from ${old.toLocaleString('no-NO')} kr to ${target.toLocaleString('no-NO')} kr (${direction==='increase'?'+':'−'}${delta.toLocaleString('no-NO')} kr) so the total balances?`,
+    msg:`${old.toLocaleString('no-NO')} kr → ${target.toLocaleString('no-NO')} kr`,
     buttons:[
       {label:'Cancel',style:'modal-btn-ghost'},
-      {label:'Yes, update '+meta.label,style:'modal-btn-primary',action:()=>applyBalanceCount(type,target)}
+      {label:'Update',style:'modal-btn-primary',action:()=>applyBalanceCount(type,target)}
     ]
   });
 }
