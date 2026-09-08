@@ -270,7 +270,10 @@ function delWinner(i){
   showModal({title:'Remove winner',msg:'Remove this winner from the log and report?',buttons:[
     {label:'Cancel',style:'modal-btn-ghost'},
     {label:'Remove',style:'modal-btn-danger',action:()=>{
-      D.winners.splice(i,1);saveState();renderWinnerLog();
+      D.winners.splice(i,1);
+      if(_activeWinnerIndex===i)_activeWinnerIndex=null;
+      else if(_activeWinnerIndex!=null&&_activeWinnerIndex>i)_activeWinnerIndex--;
+      saveState();renderWinnerLog();
     }}
   ]});
 }
@@ -2041,7 +2044,12 @@ function coffeeTimerReset(){
 
 // ── WINNER EMAIL ──
 
+// While winner fields remain filled, opening mail again updates the same saved winner
+// instead of creating duplicates. Clear Fields starts a fresh winner entry.
+let _activeWinnerIndex=null;
+
 function clearWinnerFields(){
+  _activeWinnerIndex=null;
   ['w-amount','w-machine-nr','w-machine-id','w-machine-name','w-game-name'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   const shop=document.getElementById('w-shop');if(shop)shop.value='';
   const dateEl=document.getElementById('w-date');if(dateEl)dateEl.value=nowDate();
@@ -2106,13 +2114,30 @@ function openWinnerMail(app,data){
       window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${recipient}&su=${subject}&body=${body}`,'_blank','noopener');
     }
   }
-  else if(app==='outlook')window.open(`https://outlook.live.com/mail/0/deeplink/compose?to=${recipient}&subject=${subject}&body=${body}`,'_blank','noopener');
+  else if(app==='outlook'){
+    const ua=navigator.userAgent||'';
+    if(/android/i.test(ua)||/iphone|ipad|ipod/i.test(ua)){
+      // Open the installed Microsoft Outlook app directly on mobile.
+      window.location.href=`ms-outlook://compose?to=${recipient}&subject=${subject}&body=${body}`;
+    } else {
+      // Desktop fallback uses Outlook on the web.
+      window.open(`https://outlook.live.com/mail/0/deeplink/compose?to=${recipient}&subject=${subject}&body=${body}`,'_blank','noopener');
+    }
+  }
   else window.location.href=`mailto:${recipient}?subject=${subject}&body=${body}`;
 }
 function commitWinnerAndOpen(app,data){
   if(!D.winners)D.winners=[];
-  D.winners.push({amount:data.amount,date:data.date,machineNr:data.machineNr,machineId:data.machineId,machineName:data.machineName,gameName:data.gameName,shop:data.shop});
-  saveState();renderWinnerLog();openWinnerMail(app,data);clearWinnerFields();
+  const winner={amount:data.amount,date:data.date,machineNr:data.machineNr,machineId:data.machineId,machineName:data.machineName,gameName:data.gameName,shop:data.shop};
+  if(_activeWinnerIndex!=null&&D.winners[_activeWinnerIndex]){
+    D.winners[_activeWinnerIndex]=winner;
+  } else {
+    D.winners.push(winner);
+    _activeWinnerIndex=D.winners.length-1;
+  }
+  saveState();renderWinnerLog();openWinnerMail(app,data);
+  // Intentionally keep all fields filled so the user can return, correct them,
+  // and open the mail app again. Use Clear Fields to start a new winner.
 }
 function sendWinnerEmail(){
   const data=buildWinnerMailData();if(!data)return;
