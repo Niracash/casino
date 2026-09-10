@@ -216,7 +216,10 @@ function getMachineMatchesAcrossShops(value){
 
 function formatMachineName(info){
   if(!info)return'';
-  const suffix=info.denomination==='1cr'?' (1kr)':info.denomination==='05cr'?' (50øre)':'';
+  // Use the same effective type as Key Fillup so every 0.5-credit machine
+  // is visibly labelled (50øre), even if older cached JSON used a legacy denomination.
+  const effectiveType=getKeyFillupTypeForMachine(info);
+  const suffix=effectiveType==='1cr'?' (1kr)':effectiveType==='05cr'?' (50øre)':'';
   return String(info.name||'')+suffix;
 }
 
