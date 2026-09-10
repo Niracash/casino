@@ -129,6 +129,8 @@ const g=id=>parseFloat(document.getElementById(id).value)||0;
 const fmt=v=>Math.abs(Math.round(v)).toLocaleString('no-NO')+' kr';
 const nowTime=()=>new Date().toLocaleTimeString('no-NO',{hour:'2-digit',minute:'2-digit'});
 const nowDate=()=>new Date().toLocaleDateString('no-NO',{day:'2-digit',month:'2-digit',year:'numeric'});
+const nowISODate=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
+const formatWinnerDate=(value)=>{const v=String(value||'').trim();if(/^\d{4}-\d{2}-\d{2}$/.test(v)){const [y,m,d]=v.split('-');return `${d}.${m}.${y}`;}return v||nowDate();};
 const nowFull=()=>nowDate()+' '+nowTime();
 const CAT_LABELS={cash:'Cash',pc:'Playcoins',coin:'Mønt',bank:'Bank'};
 
@@ -428,7 +430,7 @@ function restoreWinner(){
   // Fields start blank — winners are stored in D.winners log, not as a draft.
   renderWinnerShopOptions();
   const dateEl=document.getElementById('w-date');
-  if(dateEl&&!dateEl.value)dateEl.value=nowDate();
+  if(dateEl&&!dateEl.value)dateEl.value=nowISODate();
   renderWinnerLog();
 }
 
@@ -1611,7 +1613,9 @@ function generateShiftPDF(options={}){
   let fridgeRows='';
   let totalStart=0,totalSold=0,totalFree=0,totalEnd=0,totalRev=0;
   if(D.shop){
-    const products={sodavand:{n:'Sodavand',p:10},redbull:{n:'Redbull',p:20},vand:{n:'Vand',p:5},bounty:{n:'Bounty',p:10},bueno:{n:'Bueno',p:10},mars:{n:'Mars',p:10},snickers:{n:'Snickers',p:10},pringles:{n:'Pringles',p:10},lighter:{n:'Lighter',p:5}};
+    const products={sodavand:{n:'Sodavand',p:10},redbull:{n:'Redbull',p:20},vand:{n:'Vand',p:5},bounty:{n:'Bounty',p:10},bueno:{n:'Bueno',p:10},snickers:{n:'Snickers',p:10},pringles:{n:'Pringles',p:10},lighter:{n:'Lighter',p:5}};
+    const hasLegacyMars=((D.shop.sold&&D.shop.sold.mars)||0)||((D.shop.starts&&D.shop.starts.mars)||0)||((D.shop.freeTakes&&D.shop.freeTakes.mars)||0);
+    if(hasLegacyMars)products.mars={n:'Mars (legacy)',p:10};
     Object.entries(products).forEach(([id,{n,p}])=>{
       const sold=(D.shop.sold&&D.shop.sold[id])||0;
       const start=(D.shop.starts&&D.shop.starts[id])||0;
@@ -1755,7 +1759,8 @@ function doReset(){
   _saveChecks();
   saveChecklistState({});
   saveState();
-  document.querySelectorAll('#page-home input[type=number],#page-home input[type=text],#page-machines input[type=number],#page-machines input[type=text],#page-shift input[type=number],#page-shift input[type=text],#page-shop input[type=number],#page-shop input[type=text]').forEach(el=>el.value='');
+  document.querySelectorAll('#page-home input[type=number],#page-home input[type=text],#page-machines input[type=number],#page-machines input[type=text],#page-shift input[type=number],#page-shift input[type=text],#page-shift input[type=date],#page-shop input[type=number],#page-shop input[type=text]').forEach(el=>el.value='');
+  clearWinnerFields();renderWinnerShopOptions();
   document.getElementById('s-preview').textContent='0 kr';document.getElementById('h-current-total').textContent='0 kr';
   _cpSign=1;const sb=document.getElementById('cp-sign-btn');if(sb){sb.textContent='+';sb.style.color='var(--green)';sb.style.borderColor='var(--green-mid)';sb.style.background='var(--green-dim)';}
   _expSign=-1;const eb=document.getElementById('exp-sign-btn');if(eb){eb.textContent='−';eb.style.color='var(--red)';eb.style.borderColor='var(--red-mid)';eb.style.background='var(--red-dim)';}
@@ -1898,7 +1903,6 @@ const SHOP_PRODUCTS=[
   {id:'vand',name:'Vand',icon:'💧',price:5,unit:'coin'},
   {id:'bounty',name:'Bounty',icon:'🍫',price:10,unit:'coin'},
   {id:'bueno',name:'Bueno',icon:'🍫',price:10,unit:'coin'},
-  {id:'mars',name:'Mars',icon:'🍫',price:10,unit:'coin'},
   {id:'snickers',name:'Snickers',icon:'🍫',price:10,unit:'coin'},
   {id:'pringles',name:'Pringles',icon:'🍟',price:10,unit:'coin'},
   {id:'lighter',name:'Lighter',icon:'🔥',price:5,unit:'coin'},
@@ -2113,7 +2117,7 @@ function shopFreeTake(id){
 
 function renderShopSummary(){
   initShop();
-  const totalRevenue=SHOP_PRODUCTS.reduce((s,p)=>s+(D.shop.sold[p.id]||0)*p.price,0);
+  const totalRevenue=getFridgeTotal(); // Includes legacy Mars sales already recorded before Mars was removed from the Fridge UI.
   const yesterdayMoney=getFridgeYesterdayMoney();
   const combinedRevenue=yesterdayMoney+totalRevenue;
   const totalFree=SHOP_PRODUCTS.reduce((s,p)=>s+(D.shop.freeTakes[p.id]||0),0);
@@ -2459,7 +2463,7 @@ let _activeWinnerIndex=null;
 function clearWinnerFields(){
   _activeWinnerIndex=null;
   ['w-amount','w-machine-nr','w-machine-id','w-machine-name','w-game-name'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
-  const dateEl=document.getElementById('w-date');if(dateEl)dateEl.value=nowDate();
+  const dateEl=document.getElementById('w-date');if(dateEl)dateEl.value=nowISODate();
 }
 
 function buildWinnerMailData(){
@@ -2469,7 +2473,8 @@ function buildWinnerMailData(){
   const machineName=document.getElementById('w-machine-name').value.trim();
   const gameName=document.getElementById('w-game-name').value.trim();
   const shop=getSelectedWinnerShop();
-  const date=document.getElementById('w-date').value.trim()||nowDate();
+  const dateRaw=document.getElementById('w-date').value.trim()||nowISODate();
+  const date=formatWinnerDate(dateRaw);
   if(!amount){flash('w-amount');return null;}if(!date){flash('w-date');return null;}if(!machineNr){flash('w-machine-nr');return null;}if(!machineId){flash('w-machine-id');return null;}if(!machineName){flash('w-machine-name');return null;}if(!gameName){flash('w-game-name');return null;}if(!shop){showModal({title:'Set shift first',msg:'Choose a shop and set the start of shift before creating a winner report.',buttons:[{label:'OK',style:'modal-btn-primary'}]});return null;}
   const st=ensureSettings();const fullName=(st.fullName||'').trim();
   const lang=st.mailLanguage==='en'?'en':'da';

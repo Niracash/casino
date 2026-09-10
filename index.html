@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Casino">
-  <link rel="stylesheet" href="style.css?v=28">
+  <link rel="stylesheet" href="style.css?v=29">
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icon-192.png">
   <style>
@@ -224,14 +224,7 @@
   <div class="fg" style="margin-bottom:14px">
     <label class="fl" for="s-shop">Shop / Location <span style="color:var(--red)">*</span></label>
     <select id="s-shop" onchange="shiftShopChanged()"><option value="">Choose shop</option></select>
-    <button type="button" class="winner-manage-shops-btn" onclick="toggleShiftShopManager()">Manage shops</button>
-    <div id="shift-shop-manager" class="winner-shop-manager" style="display:none">
-      <div class="settings-add-row">
-        <input type="text" id="shift-shop-input" placeholder="Add shop location" onkeydown="if(event.key==='Enter'){event.preventDefault();addSavedShop('shift-shop-input');}">
-        <button class="btn btn-primary" type="button" onclick="addSavedShop('shift-shop-input')">Add</button>
-      </div>
-      <div id="shift-shop-list" class="settings-list"></div>
-    </div>
+    <div style="font-size:.68rem;color:var(--muted);margin-top:6px;line-height:1.45">Can't find your shop? Add it in Settings.</div>
   </div>
 
   <p class="caption">Choose the shop first, then count your drawer and set the start total. This shop is used for the whole shift.</p>
@@ -334,7 +327,7 @@
       </div>
       <div class="cell">
         <div class="cl">Date <span style="color:var(--red);font-size:.7em">*</span></div>
-        <input type="text" id="w-date" placeholder="Date" style="font-size:.88rem;text-align:left" oninput="saveWinner()">
+        <input type="date" id="w-date" style="font-size:.88rem;text-align:left;color-scheme:dark" oninput="saveWinner()">
       </div>
     </div>
     <div class="cgrid" style="margin-bottom:8px">
@@ -507,7 +500,7 @@
   </div>
 </div>
 
-<script src="app.js?v=28"></script>
+<script src="app.js?v=29"></script>
 <script>
   const isStandalone=window.navigator.standalone===true||window.matchMedia('(display-mode: standalone)').matches;
   const isMobile=/android|iphone|ipad|ipod/i.test(navigator.userAgent);
