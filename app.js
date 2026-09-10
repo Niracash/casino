@@ -1,8 +1,8 @@
-let D={shift:null,exchanges:[],cashpoints:[],fillups:[],additions:[],expenses:[],winners:[],auditLog:[],archived:{exchanges:[],cashpoints:[],fillups:[],additions:[]},inputs:{home:{},shift:{},machines:{}},settings:{fullName:'',shops:[],mailLanguage:'da',shopMachines:{},lastMachineShop:'',lastWinnerShop:''},kfType:'kr'};
+let D={shift:null,exchanges:[],cashpoints:[],fillups:[],additions:[],expenses:[],winners:[],auditLog:[],archived:{exchanges:[],cashpoints:[],fillups:[],additions:[]},inputs:{home:{},shift:{},machines:{}},settings:{fullName:'',shops:[],mailLanguage:'da',shopMachines:{},lastMachineShop:'',lastWinnerShop:'',autoFillMachineDetails:true},kfType:'kr'};
 
 function loadState(){
   const raw=localStorage.getItem('ccc_v5');
-  if(raw){const l=JSON.parse(raw);D={...D,...l};if(!D.inputs)D.inputs={home:{},shift:{},machines:{}};if(!D.exchanges)D.exchanges=[];if(!D.cashpoints)D.cashpoints=[];if(!D.auditLog)D.auditLog=[];if(!D.expenses)D.expenses=[];if(!D.archived)D.archived={exchanges:[],cashpoints:[],fillups:[],additions:[]};if(!D.archived.exchanges)D.archived.exchanges=[];if(!D.archived.cashpoints)D.archived.cashpoints=[];if(!D.archived.fillups)D.archived.fillups=[];if(!D.archived.additions)D.archived.additions=[];if(!D.winners)D.winners=[];if(!D.settings)D.settings={fullName:'',shops:[],mailLanguage:'da'};if(!Array.isArray(D.settings.shops))D.settings.shops=[];if(!['da','en'].includes(D.settings.mailLanguage))D.settings.mailLanguage='da';delete D.settings.autoDownloadOnReset;delete D.settings.downloadFolderName;if(D.winner&&!Array.isArray(D.winner)){if(D.winner.amount&&D.winner.machineNr)D.winners.push(D.winner);delete D.winner;}}
+  if(raw){const l=JSON.parse(raw);D={...D,...l};if(!D.inputs)D.inputs={home:{},shift:{},machines:{}};if(!D.exchanges)D.exchanges=[];if(!D.cashpoints)D.cashpoints=[];if(!D.auditLog)D.auditLog=[];if(!D.expenses)D.expenses=[];if(!D.archived)D.archived={exchanges:[],cashpoints:[],fillups:[],additions:[]};if(!D.archived.exchanges)D.archived.exchanges=[];if(!D.archived.cashpoints)D.archived.cashpoints=[];if(!D.archived.fillups)D.archived.fillups=[];if(!D.archived.additions)D.archived.additions=[];if(!D.winners)D.winners=[];if(!D.settings)D.settings={fullName:'',shops:[],mailLanguage:'da',autoFillMachineDetails:true};if(!Array.isArray(D.settings.shops))D.settings.shops=[];if(!['da','en'].includes(D.settings.mailLanguage))D.settings.mailLanguage='da';if(typeof D.settings.autoFillMachineDetails!=='boolean')D.settings.autoFillMachineDetails=true;delete D.settings.autoDownloadOnReset;delete D.settings.downloadFolderName;if(D.winner&&!Array.isArray(D.winner)){if(D.winner.amount&&D.winner.machineNr)D.winners.push(D.winner);delete D.winner;}}
 }
 function saveState(){localStorage.setItem('ccc_v5',JSON.stringify(D));}
 
@@ -71,7 +71,7 @@ function goPage(id,btn){
   if(id==='home'){fillExpectedIntoCount();recalc();renderHomeLog();renderExchangeList();renderShopSummary();}
   if(id==='machines'){renderKFLog();renderAddList();applyKFMachineLookup();}
   if(id==='shift'){
-    renderShiftShopOptions();
+    renderWinnerShopOptions();
     applyWinnerMachineLookup();
     renderShiftInfo();sPreview();renderCashpointList();renderExpenseList();renderWinnerLog();updateEstCalc();
   }
@@ -199,11 +199,18 @@ function getActiveShiftShop(){
 }
 
 function getSelectedWinnerShop(){
-  return getActiveShiftShop();
+  return (document.getElementById('w-shop')?.value||'').trim();
 }
 
-function getSelectedKFShop(){
-  return getActiveShiftShop();
+function getMachineMatchesAcrossShops(value){
+  const nr=normalizeMachineNr(value);
+  if(!nr||nr==='0')return[];
+  const matches=[];
+  getAllShopNames().forEach(shop=>{
+    const info=getShopMachineDirectory(shop)[nr];
+    if(info)matches.push({shop,info});
+  });
+  return matches;
 }
 
 function formatMachineName(info){
@@ -231,18 +238,32 @@ function applyKFMachineLookup(){
   const nameEl=document.getElementById('kf-machine-name');
   const idEl=document.getElementById('kf-machine-id');
   if(!input)return;
-  const shop=getSelectedKFShop();
-  const info=getMachineInfo(input.value,shop);
-  if(info){
-    if(box)box.style.display='';
-    if(nameEl)nameEl.textContent=formatMachineName(info);
-    if(idEl)idEl.textContent=info.id;
+  const st=ensureSettings();
+  const matches=getMachineMatchesAcrossShops(input.value);
+  if(matches.length===1){
+    const {info}=matches[0];
+    input.dataset.machineShop=matches[0].shop;
     const btn=document.getElementById('type-'+info.denomination);
     if(btn&&_kfType!==info.denomination)selType(btn,info.denomination);
+    if(st.autoFillMachineDetails!==false){
+      if(box)box.style.display='';
+      if(nameEl){nameEl.textContent=formatMachineName(info);nameEl.style.color='var(--text)';}
+      if(idEl)idEl.textContent=info.id;
+    }else{
+      if(box)box.style.display='none';
+      if(nameEl){nameEl.textContent='—';nameEl.style.color='';}
+      if(idEl)idEl.textContent='—';
+    }
+  }else if(matches.length>1){
+    if(box)box.style.display='';
+    if(nameEl){nameEl.textContent='Machine number exists in multiple shops';nameEl.style.color='var(--red)';}
+    if(idEl)idEl.textContent='—';
+    delete input.dataset.machineShop;
   }else{
     if(box)box.style.display='none';
-    if(nameEl)nameEl.textContent='—';
+    if(nameEl){nameEl.textContent='—';nameEl.style.color='';}
     if(idEl)idEl.textContent='—';
+    delete input.dataset.machineShop;
   }
   stashInputs();
 }
@@ -252,6 +273,12 @@ function applyWinnerMachineLookup(){
   const idEl=document.getElementById('w-machine-id');
   const nameEl=document.getElementById('w-machine-name');
   if(!nrEl||!idEl||!nameEl)return;
+  const st=ensureSettings();
+  if(st.autoFillMachineDetails===false){
+    if(idEl.dataset.autofilled==='1'){idEl.value='';delete idEl.dataset.autofilled;}
+    if(nameEl.dataset.autofilled==='1'){nameEl.value='';delete nameEl.dataset.autofilled;}
+    saveWinner();return;
+  }
   const info=getMachineInfo(nrEl.value,getSelectedWinnerShop());
   if(info){
     idEl.value=info.id;
@@ -264,6 +291,7 @@ function applyWinnerMachineLookup(){
   }
   saveWinner();
 }
+
 
 
 function flash(id){const el=document.getElementById(id);if(!el)return;el.style.borderColor='var(--red)';el.focus();setTimeout(()=>el.style.borderColor='',1600);}
@@ -357,7 +385,7 @@ function getExpected(){
 
 function stashInputs(){
   D.inputs.home={coin:document.getElementById('h-coin').value,cash:document.getElementById('h-cash').value,pc:document.getElementById('h-pc').value,bank:document.getElementById('h-bank').value};
-  D.inputs.shift={coin:document.getElementById('s-coin').value,cash:document.getElementById('s-cash').value,pc:document.getElementById('s-pc').value,bank:document.getElementById('s-bank').value,shop:(document.getElementById('s-shop')?.value||'')};
+  D.inputs.shift={coin:document.getElementById('s-coin').value,cash:document.getElementById('s-cash').value,pc:document.getElementById('s-pc').value,bank:document.getElementById('s-bank').value};
   D.inputs.machines={machine:document.getElementById('kf-machine').value,val:document.getElementById('kf-val').value};
   D.kfType=_kfType;saveState();
 }
@@ -366,8 +394,7 @@ function restoreInputs(){
   const set=(id,v)=>{const el=document.getElementById(id);if(el&&v!=null&&v!=='')el.value=v;};
   if(D.inputs.home){set('h-coin',D.inputs.home.coin);set('h-cash',D.inputs.home.cash);set('h-pc',D.inputs.home.pc);set('h-bank',D.inputs.home.bank);}
   if(D.inputs.shift){set('s-coin',D.inputs.shift.coin);set('s-cash',D.inputs.shift.cash);set('s-pc',D.inputs.shift.pc);set('s-bank',D.inputs.shift.bank);}
-  renderShiftShopOptions();
-  if(!D.shift&&D.inputs.shift&&D.inputs.shift.shop){const ss=document.getElementById('s-shop');if(ss&&[...ss.options].some(o=>o.value===D.inputs.shift.shop))ss.value=D.inputs.shift.shop;}
+  renderWinnerShopOptions();
   if(D.inputs.machines){set('kf-machine',D.inputs.machines.machine);set('kf-val',D.inputs.machines.val);}
   restoreWinner();
 }
@@ -379,6 +406,7 @@ function saveWinner(){
 
 function restoreWinner(){
   // Fields start blank — winners are stored in D.winners log, not as a draft.
+  renderWinnerShopOptions();
   const dateEl=document.getElementById('w-date');
   if(dateEl&&!dateEl.value)dateEl.value=nowDate();
   renderWinnerLog();
@@ -1216,13 +1244,15 @@ let _kfLogPage=0;
 function saveKF(){
   const raw=parseFloat(document.getElementById('kf-val').value);if(isNaN(raw)||raw<=0)return;
   const machine=document.getElementById('kf-machine').value.trim()||'Unknown';
-  const machineShop=getActiveShiftShop();
-  if(!machineShop){showModal({title:'Set shift first',msg:'Choose a shop and set the start of shift before saving a fillup.',buttons:[{label:'OK',style:'modal-btn-primary'}]});return;}
-  const machineInfo=getMachineInfo(machine,machineShop);
+  const matches=getMachineMatchesAcrossShops(machine);
+  if(matches.length>1){showModal({title:'Machine found in multiple shops',msg:'This machine number exists in more than one shop. Add a unique machine number or edit the shop machine lists.',buttons:[{label:'OK',style:'modal-btn-primary'}]});return;}
+  const machineShop=matches.length===1?matches[0].shop:'';
+  const machineInfo=matches.length===1?matches[0].info:null;
   let kr=0,coins=0;
   if(_kfType==='kr'){kr=raw;}else if(_kfType==='1cr'){kr=raw/2;}else{kr=raw/4;}
   coins=Math.ceil(Math.floor(kr/20)/5)*5||5;
-  D.fillups.push({machine,shop:machineShop,machineName:machineInfo?formatMachineName(machineInfo):'',machineId:machineInfo?machineInfo.id:'',type:_kfType,inputVal:raw,kr,coins,date:nowFull(),ts:Date.now()});saveState();
+  const useMachineDetails=ensureSettings().autoFillMachineDetails!==false;
+  D.fillups.push({machine,shop:machineShop,machineName:useMachineDetails&&machineInfo?formatMachineName(machineInfo):'',machineId:useMachineDetails&&machineInfo?machineInfo.id:'',type:_kfType,inputVal:raw,kr,coins,date:nowFull(),ts:Date.now()});saveState();
   document.getElementById('kf-val').value='';document.getElementById('kf-res').style.display='none';document.getElementById('kf-save-btn').disabled=true;
   haptic('success');
   renderKFLog();renderHomeLog();recalc();updateEstCalc();updateHomeEst();fillExpectedIntoCount();
@@ -1274,14 +1304,12 @@ function sPreview(){
 }
 function setShift(){
   const coin=g('s-coin'),cash=g('s-cash'),pc=g('s-pc'),bank=g('s-bank');
-  const shop=(document.getElementById('s-shop')?.value||'').trim();
-  if(!shop){flash('s-shop');showModal({title:'Choose shop',msg:'Choose the shop for this shift first.',buttons:[{label:'OK',style:'modal-btn-primary'}]});return;}
   if(!coin&&!cash&&!pc&&!bank){
     showModal({title:'No values entered',msg:'Enter at least one value before setting the start total.',buttons:[{label:'OK',style:'modal-btn-primary'}]});
     return;
   }
   const total=coin+cash+pc+bank;
-  D.shift={coin,cash,pc,bank,total,originalTotal:total,originalCoin:coin,originalCash:cash,originalPc:pc,originalBank:bank,shop,date:nowFull()};
+  D.shift={coin,cash,pc,bank,total,originalTotal:total,originalCoin:coin,originalCash:cash,originalPc:pc,originalBank:bank,date:nowFull()};
   saveState();renderShiftInfo();recalc();updateEstCalc();updateHomeEst();haptic('success');
   const btn=event.currentTarget;btn.innerHTML='✓ Done!';btn.style.opacity='.7';
   setTimeout(()=>{btn.innerHTML='✓ Set as Start Total';btn.style.opacity='';},2000);
@@ -1299,18 +1327,15 @@ function lockShiftInputs(locked){
   if(btn){btn.disabled=locked;btn.style.opacity=locked?'0.3':'';}
   const preview=document.getElementById('s-preview');
   if(preview)preview.style.opacity=locked?'0.4':'1';
-  const shop=document.getElementById('s-shop');
-  if(shop){shop.disabled=locked;shop.style.opacity=locked?'0.5':'1';}
 }
 function renderShiftInfo(){
-  const el=document.getElementById('shift-total-display'),date=document.getElementById('shift-date-display'),shopEl=document.getElementById('shift-shop-display');
+  const el=document.getElementById('shift-total-display'),date=document.getElementById('shift-date-display');
   if(D.shift){
     const displayTotal=D.shift.originalTotal!=null?D.shift.originalTotal:D.shift.total;
-    el.textContent=fmt(displayTotal);el.className='ssv';date.textContent='Set: '+D.shift.date;if(shopEl)shopEl.textContent=D.shift.shop||'';
-    const shopSel=document.getElementById('s-shop');if(shopSel&&D.shift.shop)shopSel.value=D.shift.shop;
+    el.textContent=fmt(displayTotal);el.className='ssv';date.textContent='Set: '+D.shift.date;
     lockShiftInputs(true);
   } else {
-    el.textContent='Not set';el.className='ssv idle';date.textContent='';if(shopEl)shopEl.textContent='';
+    el.textContent='Not set';el.className='ssv idle';date.textContent='';
     lockShiftInputs(false);
   }
 }
@@ -1602,11 +1627,12 @@ function doReset(){
 
 // ── SETTINGS / PERSISTENT PROFILE ──
 function ensureSettings(){
-  if(!D.settings)D.settings={fullName:'',shops:[],mailLanguage:'da',shopMachines:{},lastMachineShop:'',lastWinnerShop:''};
+  if(!D.settings)D.settings={fullName:'',shops:[],mailLanguage:'da',shopMachines:{},lastMachineShop:'',lastWinnerShop:'',autoFillMachineDetails:true};
   const st=D.settings;
   if(!Array.isArray(st.shops))st.shops=[];
   if(!st.shopMachines||typeof st.shopMachines!=='object'||Array.isArray(st.shopMachines))st.shopMachines={};
   if(!['da','en'].includes(st.mailLanguage))st.mailLanguage='da';
+  if(typeof st.autoFillMachineDetails!=='boolean')st.autoFillMachineDetails=true;
   // User-created shops only live here. Built-in database shops are merged at render/lookup time.
   st.shops=[...new Map(st.shops.map(x=>[String(x).trim().toLowerCase(),String(x).trim()])).values()].filter(Boolean);
   st.shops.forEach(shop=>{if(!st.shopMachines[shop])st.shopMachines[shop]={};});
@@ -1620,89 +1646,80 @@ function ensureSettings(){
   return st;
 }
 
-let _settingsOpenMachineShop='';
 function renderSettings(){
   const st=ensureSettings();
   const name=document.getElementById('set-full-name');if(name&&document.activeElement!==name)name.value=st.fullName||'';
   const lang=document.getElementById('set-mail-language');if(lang)lang.value=st.mailLanguage||'da';
+  const autoFill=document.getElementById('set-auto-fill-machine');if(autoFill)autoFill.checked=st.autoFillMachineDetails!==false;
   const list=document.getElementById('settings-shop-list');
   if(!list)return;
   list.innerHTML='';
 
-  // Database shops: visible and usable, but protected from removal/editing in Settings.
+  // Built-in database shops are visible but cannot be edited or removed.
   getBuiltinShopNames().forEach(shop=>{
-    const machines=getShopMachineDirectory(shop),count=Object.keys(machines).length;
     const wrap=document.createElement('div');wrap.className='settings-shop-block';
-    wrap.innerHTML=`<div class="settings-list-row"><div style="min-width:0"><div style="font-weight:600">${escapeHtml(shop)} <span class="settings-db-badge">Database</span></div><div class="settings-value">${count} machine${count===1?'':'s'} · built-in</div></div><div class="settings-shop-actions"><button type="button" class="settings-manage" onclick="toggleDatabaseShopMachines('${escapeHtml(shop)}')">${_settingsOpenMachineShop===shop?'Close':'Machines'}</button></div></div>`;
-    if(_settingsOpenMachineShop===shop){
-      const editor=document.createElement('div');editor.className='settings-machine-editor';
-      const rows=Object.entries(machines).sort((a,b)=>Number(a[0])-Number(b[0])).map(([nr,m])=>`<div class="settings-machine-row"><div class="settings-machine-main"><b>#${escapeHtml(nr)}</b><span>${escapeHtml(m.name||'')}</span><small>ID ${escapeHtml(m.id||'—')} · ${machineTypeLabel(m.denomination)}</small></div></div>`).join('');
-      editor.innerHTML=`<div class="settings-db-note">Built-in machine data comes from shops.json and cannot be removed in Settings.</div><div class="settings-machine-list">${rows||'<div class="settings-empty">No machines in database</div>'}</div>`;
-      wrap.appendChild(editor);
-    }
+    wrap.innerHTML=`<div class="settings-list-row"><div style="min-width:0"><div style="font-weight:600">${escapeHtml(shop)} <span class="settings-db-badge">Database</span></div><div class="settings-value">Built-in location</div></div></div>`;
     list.appendChild(wrap);
   });
 
-  // User shops: fully editable/removable and kept in localStorage.
+  // User shops can be added/removed, but machine data is not editable in the app.
   st.shops.forEach((shop,i)=>{
-    const machines=st.shopMachines[shop]||{};
-    const count=Object.keys(machines).length;
     const wrap=document.createElement('div');wrap.className='settings-shop-block';
-    wrap.innerHTML=`<div class="settings-list-row"><div style="min-width:0"><div style="font-weight:600">${escapeHtml(shop)}</div><div class="settings-value">${count} machine${count===1?'':'s'}</div></div><div class="settings-shop-actions"><button type="button" class="settings-manage" onclick="toggleShopMachines(${i})">${_settingsOpenMachineShop===shop?'Close':'Machines'}</button><button type="button" class="settings-remove" onclick="removeSavedShop(${i})">✕</button></div></div>`;
-    if(_settingsOpenMachineShop===shop){
-      const editor=document.createElement('div');editor.className='settings-machine-editor';
-      const rows=Object.entries(machines).sort((a,b)=>Number(a[0])-Number(b[0])).map(([nr,m])=>`<div class="settings-machine-row"><div class="settings-machine-main"><b>#${escapeHtml(nr)}</b><span>${escapeHtml(m.name||'')}</span><small>ID ${escapeHtml(m.id||'—')} · ${machineTypeLabel(m.denomination)}</small></div><div class="settings-machine-actions"><button type="button" onclick="editSettingsMachine(${i},'${escapeHtml(nr)}')">Edit</button><button type="button" class="danger" onclick="removeSettingsMachine(${i},'${escapeHtml(nr)}')">✕</button></div></div>`).join('');
-      editor.innerHTML=`<div class="settings-machine-form"><input type="text" id="sm-nr-${i}" inputmode="numeric" placeholder="Machine nr"><input type="text" id="sm-name-${i}" placeholder="Machine name"><input type="text" id="sm-id-${i}" placeholder="ID (last 4)"><select id="sm-type-${i}"><option value="kr">KR</option><option value="1cr">1 kr</option><option value="05cr">50 øre</option></select><button class="btn btn-primary" type="button" onclick="saveSettingsMachine(${i})">Save machine</button></div><div class="settings-machine-list">${rows||'<div class="settings-empty">No machines saved for this shop</div>'}</div>`;
-      wrap.appendChild(editor);
-    }
+    wrap.innerHTML=`<div class="settings-list-row"><div style="min-width:0"><div style="font-weight:600">${escapeHtml(shop)}</div></div><div class="settings-shop-actions"><button type="button" class="settings-remove" onclick="removeSavedShop(${i})">✕</button></div></div>`;
     list.appendChild(wrap);
   });
   if(!getBuiltinShopNames().length&&!st.shops.length)list.innerHTML='<div class="settings-empty">No shop locations saved</div>';
 }
-function toggleDatabaseShopMachines(shop){_settingsOpenMachineShop=_settingsOpenMachineShop===shop?'':shop;renderSettings();}
 function machineTypeLabel(type){return type==='1cr'?'1 kr':type==='05cr'?'50 øre':'KR';}
 function saveSettingsField(field,value){const st=ensureSettings();st[field]=value;saveState();}
-function addSavedShop(){
-  const input=document.getElementById('set-shop-input');if(!input)return;
+function setAutoFillMachineDetails(enabled){
+  const st=ensureSettings();st.autoFillMachineDetails=!!enabled;saveState();applyWinnerMachineLookup();applyKFMachineLookup();
+}
+function addSavedShop(inputId='set-shop-input'){
+  const input=document.getElementById(inputId);if(!input)return;
   const name=input.value.trim();if(!name)return;
   const st=ensureSettings();
   if(!getAllShopNames().some(s=>s.toLowerCase()===name.toLowerCase())){st.shops.push(name);st.shopMachines[name]={};}
-  input.value='';saveState();renderSettings();renderShiftShopOptions();
+  input.value='';saveState();renderSettings();renderWinnerShopOptions();renderShiftShopManager();
 }
 function removeSavedShop(i){
   const st=ensureSettings();const shop=st.shops[i];if(!shop)return;
-  showModal({title:'Remove shop?',msg:`${shop} and its ${Object.keys(st.shopMachines[shop]||{}).length} saved machines will be removed.`,buttons:[{label:'Cancel',style:'modal-btn-ghost'},{label:'Remove',style:'modal-btn-danger',action:()=>{st.shops.splice(i,1);delete st.shopMachines[shop];if(st.lastMachineShop===shop)st.lastMachineShop='';if(st.lastWinnerShop===shop)st.lastWinnerShop='';if(_settingsOpenMachineShop===shop)_settingsOpenMachineShop='';saveState();renderSettings();renderShiftShopOptions();}}]});
+  showModal({title:'Remove shop?',msg:`Remove ${shop}?`,buttons:[{label:'Cancel',style:'modal-btn-ghost'},{label:'Remove',style:'modal-btn-danger',action:()=>{st.shops.splice(i,1);delete st.shopMachines[shop];if(st.lastMachineShop===shop)st.lastMachineShop='';if(st.lastWinnerShop===shop)st.lastWinnerShop='';saveState();renderSettings();renderWinnerShopOptions();renderShiftShopManager();}}]});
 }
-function toggleShopMachines(i){const shop=ensureSettings().shops[i];_settingsOpenMachineShop=_settingsOpenMachineShop===shop?'':shop;renderSettings();}
-function saveSettingsMachine(i){
-  const st=ensureSettings(),shop=st.shops[i];if(!shop)return;
-  const nr=normalizeMachineNr(document.getElementById(`sm-nr-${i}`).value);
-  const name=document.getElementById(`sm-name-${i}`).value.trim();
-  const idRaw=document.getElementById(`sm-id-${i}`).value.trim();
-  const type=document.getElementById(`sm-type-${i}`).value;
-  if(!nr||nr==='0'){flash(`sm-nr-${i}`);return;} if(!name){flash(`sm-name-${i}`);return;} if(!idRaw){flash(`sm-id-${i}`);return;}
-  st.shopMachines[shop][nr]={name,id:idRaw.slice(-4),denomination:['kr','1cr','05cr'].includes(type)?type:'kr'};
-  saveState();renderSettings();applyWinnerMachineLookup();applyKFMachineLookup();
+function renderShiftShopOptions(){}
+let _shiftShopManagerOpen=false;
+function toggleShiftShopManager(){
+  _shiftShopManagerOpen=!_shiftShopManagerOpen;
+  const box=document.getElementById('shift-shop-manager');if(box)box.style.display=_shiftShopManagerOpen?'':'none';
+  if(_shiftShopManagerOpen)renderShiftShopManager();
 }
-function editSettingsMachine(i,nr){
-  const st=ensureSettings(),shop=st.shops[i],m=(st.shopMachines[shop]||{})[nr];if(!m)return;
-  document.getElementById(`sm-nr-${i}`).value=nr;document.getElementById(`sm-name-${i}`).value=m.name||'';document.getElementById(`sm-id-${i}`).value=m.id||'';document.getElementById(`sm-type-${i}`).value=m.denomination||'kr';
-  document.getElementById(`sm-name-${i}`).focus();
+function renderShiftShopManager(){
+  const list=document.getElementById('shift-shop-list');if(!list)return;
+  const st=ensureSettings();list.innerHTML='';
+  getBuiltinShopNames().forEach(shop=>{
+    const row=document.createElement('div');row.className='settings-list-row';
+    row.innerHTML=`<div style="min-width:0"><div style="font-weight:600">${escapeHtml(shop)} <span class="settings-db-badge">Database</span></div><div class="settings-value">Built-in shop</div></div>`;
+    list.appendChild(row);
+  });
+  st.shops.forEach((shop,i)=>{
+    const row=document.createElement('div');row.className='settings-list-row';
+    row.innerHTML=`<div style="min-width:0"><div style="font-weight:600">${escapeHtml(shop)}</div><div class="settings-value">Your shop</div></div><button type="button" class="settings-remove" onclick="removeSavedShop(${i})">✕</button>`;
+    list.appendChild(row);
+  });
+  if(!getBuiltinShopNames().length&&!st.shops.length)list.innerHTML='<div class="settings-empty">No shop locations saved</div>';
 }
-function removeSettingsMachine(i,nr){
-  const st=ensureSettings(),shop=st.shops[i];if(!shop)return;
-  delete st.shopMachines[shop][nr];saveState();renderSettings();applyWinnerMachineLookup();applyKFMachineLookup();
-}
-function renderShiftShopOptions(){
-  const sel=document.getElementById('s-shop');if(!sel)return;
+function renderWinnerShopOptions(){
+  const sel=document.getElementById('w-shop');if(!sel)return;
   const shops=getAllShopNames();
-  const current=(D.shift&&D.shift.shop)||sel.value||(D.inputs.shift&&D.inputs.shift.shop)||'';
+  const st=ensureSettings();
+  const current=sel.value||st.lastWinnerShop||'';
   sel.innerHTML='<option value="">Choose shop</option>'+shops.map(x=>`<option value="${escapeHtml(x)}">${escapeHtml(x)}</option>`).join('');
   if(shops.includes(current))sel.value=current;else if(shops.length===1)sel.value=shops[0];
 }
-function renderWinnerShopOptions(){renderShiftShopOptions();}
-function renderMachineShopOptions(){renderShiftShopOptions();}
-function winnerShopChanged(){applyWinnerMachineLookup();}
+function renderMachineShopOptions(){}
+function winnerShopChanged(){
+  const st=ensureSettings();st.lastWinnerShop=(document.getElementById('w-shop')?.value||'');saveState();applyWinnerMachineLookup();
+}
 function kfShopChanged(){applyKFMachineLookup();}
 function escapeHtml(v){return String(v).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
 
@@ -2284,9 +2301,9 @@ function buildWinnerMailData(){
   const machineId=document.getElementById('w-machine-id').value.trim();
   const machineName=document.getElementById('w-machine-name').value.trim();
   const gameName=document.getElementById('w-game-name').value.trim();
-  const shop=getActiveShiftShop();
+  const shop=getSelectedWinnerShop();
   const date=document.getElementById('w-date').value.trim()||nowDate();
-  if(!amount){flash('w-amount');return null;}if(!date){flash('w-date');return null;}if(!machineNr){flash('w-machine-nr');return null;}if(!machineId){flash('w-machine-id');return null;}if(!machineName){flash('w-machine-name');return null;}if(!gameName){flash('w-game-name');return null;}if(!shop){showModal({title:'Set shift first',msg:'Choose a shop and set the start of shift before creating a winner report.',buttons:[{label:'OK',style:'modal-btn-primary'}]});return null;}
+  if(!amount){flash('w-amount');return null;}if(!date){flash('w-date');return null;}if(!machineNr){flash('w-machine-nr');return null;}if(!machineId){flash('w-machine-id');return null;}if(!machineName){flash('w-machine-name');return null;}if(!gameName){flash('w-game-name');return null;}if(!shop){flash('w-shop');return null;}
   const st=ensureSettings();const fullName=(st.fullName||'').trim();
   const lang=st.mailLanguage==='en'?'en':'da';
   const subject=lang==='en'?`We have a win of ${amount} kr - ${shop}`:`Vi har en gevinst på ${amount} kr - ${shop}`;

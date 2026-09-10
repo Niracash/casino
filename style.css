@@ -316,3 +316,9 @@ select:focus{border-color:var(--accent)}
 /* Built-in shop database labels */
 .settings-db-badge{display:inline-flex;align-items:center;margin-left:6px;padding:2px 6px;border-radius:999px;background:var(--accent-dim);border:1px solid var(--accent-mid);color:var(--accent);font-size:.55rem;font-weight:700;vertical-align:middle;text-transform:uppercase;letter-spacing:.4px}
 .settings-db-note{font-size:.7rem;line-height:1.5;color:var(--sub);padding:9px 10px;margin-bottom:8px;background:var(--card2);border:1px solid var(--border);border-radius:8px}
+
+/* Winner report shop manager */
+.winner-manage-shops-btn{margin-top:7px;border:none;background:none;color:var(--accent);font-size:.7rem;font-weight:600;font-family:inherit;cursor:pointer;padding:4px 0}
+.winner-shop-manager{margin-top:8px;padding:10px;background:var(--inp);border:1px solid var(--border2);border-radius:9px}
+.winner-shop-manager .settings-list{margin-top:8px}
+.winner-shop-manager .settings-list-row{padding:8px 9px}
