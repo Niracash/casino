@@ -171,7 +171,11 @@
   <div class="sec-title"><span>Key Fillup</span></div>
   <div class="fg">
     <label class="fl">Machine number</label>
-    <input type="text" id="kf-machine" placeholder="Enter machine number" oninput="stashInputs()">
+    <input type="text" id="kf-machine" placeholder="Enter machine number" inputmode="numeric" oninput="applyKFMachineLookup()">
+  </div>
+  <div class="res-card" id="kf-machine-info" style="display:none;margin-top:-1px;margin-bottom:11px">
+    <div class="rrow"><span class="rl">Machine name</span><span class="rv" id="kf-machine-name">—</span></div>
+    <div class="rrow"><span class="rl">Machine ID</span><span class="rv" id="kf-machine-id">—</span></div>
   </div>
   <div class="fg">
     <label class="fl">Type</label>
@@ -318,7 +322,7 @@
     <div class="cgrid" style="margin-bottom:8px">
       <div class="cell">
         <div class="cl">Machine number <span style="color:var(--red);font-size:.7em">*</span></div>
-        <input type="text" id="w-machine-nr" placeholder="Machine nr" style="font-size:.88rem;text-align:left" oninput="saveWinner()">
+        <input type="text" id="w-machine-nr" placeholder="Machine nr" inputmode="numeric" style="font-size:.88rem;text-align:left" oninput="applyWinnerMachineLookup()">
       </div>
       <div class="cell">
         <div class="cl">Machine ID <span style="color:var(--red);font-size:.7em">*</span></div>
