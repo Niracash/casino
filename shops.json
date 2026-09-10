@@ -1,0 +1,311 @@
+{
+  "version": 1,
+  "shops": [
+    {
+      "name": "Hvidovrevej 253A",
+      "locked": true,
+      "machines": {
+        "11": {
+          "name": "ALLAN CAPONE",
+          "id": "8c04",
+          "denomination": "kr"
+        },
+        "57": {
+          "name": "ALLAN CAPONE",
+          "id": "86c1",
+          "denomination": "kr"
+        },
+        "21": {
+          "name": "BAKER ST. 211B",
+          "id": "9268",
+          "denomination": "1cr"
+        },
+        "25": {
+          "name": "BAKER ST. 211B",
+          "id": "88ce",
+          "denomination": "kr"
+        },
+        "29": {
+          "name": "BAKER ST. 211B",
+          "id": "374c",
+          "denomination": "kr"
+        },
+        "24": {
+          "name": "BAKER ST. 211B",
+          "id": "b114",
+          "denomination": "kr"
+        },
+        "56": {
+          "name": "BAKER ST. 211B",
+          "id": "345f",
+          "denomination": "1cr"
+        },
+        "49": {
+          "name": "BAKER ST. 211B",
+          "id": "3343",
+          "denomination": "kr"
+        },
+        "42": {
+          "name": "BAKER ST. 211B",
+          "id": "9e73",
+          "denomination": "kr"
+        },
+        "8": {
+          "name": "CGDAE Multi 5",
+          "id": "b4ed",
+          "denomination": "kr"
+        },
+        "9": {
+          "name": "CGDAE Multi 5",
+          "id": "9855",
+          "denomination": "kr"
+        },
+        "55": {
+          "name": "CGDAE Multi 5",
+          "id": "034f",
+          "denomination": "kr"
+        },
+        "37": {
+          "name": "CGDAE Multi 5",
+          "id": "3a84",
+          "denomination": "kr"
+        },
+        "27": {
+          "name": "EXTREME",
+          "id": "1bc7",
+          "denomination": "kr"
+        },
+        "20": {
+          "name": "FIREDANCE",
+          "id": "968c",
+          "denomination": "kr"
+        },
+        "1": {
+          "name": "GamblifyOnline",
+          "id": "0e1f",
+          "denomination": "kr"
+        },
+        "4": {
+          "name": "GamblifyOnline",
+          "id": "eac7",
+          "denomination": "kr"
+        },
+        "33": {
+          "name": "GamblifyOnline",
+          "id": "9dca",
+          "denomination": "kr"
+        },
+        "34": {
+          "name": "GamblifyOnline",
+          "id": "a404",
+          "denomination": "kr"
+        },
+        "3": {
+          "name": "GamblifyOnline",
+          "id": "420d",
+          "denomination": "kr"
+        },
+        "13": {
+          "name": "GamblifyOnline",
+          "id": "ffd0",
+          "denomination": "kr"
+        },
+        "15": {
+          "name": "GamblifyOnline",
+          "id": "6cd6",
+          "denomination": "kr"
+        },
+        "14": {
+          "name": "GamblifyOnline",
+          "id": "47cc",
+          "denomination": "kr"
+        },
+        "2": {
+          "name": "GamblifyOnline",
+          "id": "0df6",
+          "denomination": "kr"
+        },
+        "16": {
+          "name": "GamblifyOnline",
+          "id": "abfe",
+          "denomination": "kr"
+        },
+        "47": {
+          "name": "HOT STUFF",
+          "id": "9f94",
+          "denomination": "kr"
+        },
+        "32": {
+          "name": "MAGIC NIGHT",
+          "id": "24a1",
+          "denomination": "kr"
+        },
+        "39": {
+          "name": "MIDNIGHTMADNESS",
+          "id": "8bfe",
+          "denomination": "kr"
+        },
+        "36": {
+          "name": "MOUNT EVEREST",
+          "id": "4b5c",
+          "denomination": "1cr"
+        },
+        "23": {
+          "name": "ORIENT EXPRES",
+          "id": "9178",
+          "denomination": "1cr"
+        },
+        "26": {
+          "name": "ORIENT EXPRES",
+          "id": "281b",
+          "denomination": "kr"
+        },
+        "17": {
+          "name": "ORIENT EXPRES",
+          "id": "a1bb",
+          "denomination": "kr"
+        },
+        "30": {
+          "name": "ORIENT EXPRES",
+          "id": "8713",
+          "denomination": "kr"
+        },
+        "10": {
+          "name": "ORIENT EXPRES",
+          "id": "9631",
+          "denomination": "kr"
+        },
+        "59": {
+          "name": "ORIENT EXPRES",
+          "id": "1b28",
+          "denomination": "kr"
+        },
+        "52": {
+          "name": "ORIENT EXPRES",
+          "id": "8617",
+          "denomination": "kr"
+        },
+        "40": {
+          "name": "ORIENT EXPRES",
+          "id": "871a",
+          "denomination": "kr"
+        },
+        "5": {
+          "name": "ORIENT EXPRES",
+          "id": "8615",
+          "denomination": "1cr"
+        },
+        "12": {
+          "name": "ORIENT EXPRES",
+          "id": "87cc",
+          "denomination": "1cr"
+        },
+        "53": {
+          "name": "ORIENT EXPRES",
+          "id": "1f73",
+          "denomination": "1cr"
+        },
+        "43": {
+          "name": "ORIENT EXPRES",
+          "id": "8712",
+          "denomination": "1cr"
+        },
+        "28": {
+          "name": "ORIENTEN 2",
+          "id": "0a74",
+          "denomination": "kr"
+        },
+        "35": {
+          "name": "ROBOTS",
+          "id": "7e18",
+          "denomination": "kr"
+        },
+        "22": {
+          "name": "THORS HAMMER",
+          "id": "aa39",
+          "denomination": "kr"
+        },
+        "6": {
+          "name": "THORS HAMMER",
+          "id": "8141",
+          "denomination": "kr"
+        },
+        "58": {
+          "name": "THORS HAMMER",
+          "id": "8144",
+          "denomination": "kr"
+        },
+        "50": {
+          "name": "THORS HAMMER",
+          "id": "8c0a",
+          "denomination": "1cr"
+        },
+        "38": {
+          "name": "THORS HAMMER",
+          "id": "938e",
+          "denomination": "1cr"
+        },
+        "46": {
+          "name": "THORS HAMMER",
+          "id": "ae51",
+          "denomination": "kr"
+        },
+        "7": {
+          "name": "THORS HAMMER",
+          "id": "2549",
+          "denomination": "1cr"
+        },
+        "48": {
+          "name": "THORS HAMMER",
+          "id": "8a2b",
+          "denomination": "1cr"
+        },
+        "19": {
+          "name": "VIRGINIA CITY",
+          "id": "939a",
+          "denomination": "1cr"
+        },
+        "18": {
+          "name": "VIRGINIA CITY",
+          "id": "926b",
+          "denomination": "kr"
+        },
+        "31": {
+          "name": "VIRGINIA CITY",
+          "id": "05f4",
+          "denomination": "kr"
+        },
+        "41": {
+          "name": "VIRGINIA CITY",
+          "id": "9887",
+          "denomination": "1cr"
+        },
+        "44": {
+          "name": "VIRGINIA CITY",
+          "id": "34e6",
+          "denomination": "kr"
+        },
+        "60": {
+          "name": "VIRGINIA CITY",
+          "id": "1874",
+          "denomination": "1cr"
+        },
+        "54": {
+          "name": "VIRGINIA CITY",
+          "id": "1f47",
+          "denomination": "05cr"
+        },
+        "45": {
+          "name": "VIRGINIA CITY",
+          "id": "1f45",
+          "denomination": "05cr"
+        },
+        "51": {
+          "name": "VIRGINIA CITY",
+          "id": "0222",
+          "denomination": "1cr"
+        }
+      }
+    }
+  ]
+}

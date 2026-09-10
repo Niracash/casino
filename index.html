@@ -170,8 +170,16 @@
 
   <div class="sec-title"><span>Key Fillup</span></div>
   <div class="fg">
+    <label class="fl" for="kf-shop">Shop / Location</label>
+    <select id="kf-shop" onchange="kfShopChanged()"><option value="">Choose shop</option></select>
+  </div>
+  <div class="fg">
     <label class="fl">Machine number</label>
-    <input type="text" id="kf-machine" placeholder="Enter machine number" oninput="stashInputs()">
+    <input type="text" id="kf-machine" placeholder="Enter machine number" inputmode="numeric" oninput="applyKFMachineLookup()">
+  </div>
+  <div class="res-card" id="kf-machine-info" style="display:none;margin-top:-1px;margin-bottom:11px">
+    <div class="rrow"><span class="rl">Machine name</span><span class="rv" id="kf-machine-name">—</span></div>
+    <div class="rrow"><span class="rl">Machine ID</span><span class="rv" id="kf-machine-id">—</span></div>
   </div>
   <div class="fg">
     <label class="fl">Type</label>
@@ -318,7 +326,7 @@
     <div class="cgrid" style="margin-bottom:8px">
       <div class="cell">
         <div class="cl">Machine number <span style="color:var(--red);font-size:.7em">*</span></div>
-        <input type="text" id="w-machine-nr" placeholder="Machine nr" style="font-size:.88rem;text-align:left" oninput="saveWinner()">
+        <input type="text" id="w-machine-nr" placeholder="Machine nr" inputmode="numeric" style="font-size:.88rem;text-align:left" oninput="applyWinnerMachineLookup()">
       </div>
       <div class="cell">
         <div class="cl">Machine ID <span style="color:var(--red);font-size:.7em">*</span></div>
@@ -335,7 +343,7 @@
     </div>
     <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--rs);padding:8px 10px">
       <div class="cl" style="font-size:.52rem;font-weight:700;color:var(--sub);text-transform:uppercase;letter-spacing:.9px;margin-bottom:5px">Shop / Location <span style="color:var(--red);font-size:.8em">*</span></div>
-      <select id="w-shop" style="font-size:.82rem;padding:8px 10px" onchange="saveWinner()"><option value="">Choose saved shop</option></select>
+      <select id="w-shop" style="font-size:.82rem;padding:8px 10px" onchange="winnerShopChanged()"><option value="">Choose saved shop</option></select>
     </div>
   </div>
 
@@ -434,7 +442,7 @@
   <div class="sec-title"><span>Shop Locations</span></div>
   <div class="settings-card">
     <div class="settings-add-row">
-      <input type="text" id="set-shop-input" placeholder="e.g. Hvidovrevej 253" onkeydown="if(event.key==='Enter'){event.preventDefault();addSavedShop();}">
+      <input type="text" id="set-shop-input" placeholder="e.g. Hvidovrevej 253A" onkeydown="if(event.key==='Enter'){event.preventDefault();addSavedShop();}">
       <button class="btn btn-primary" type="button" onclick="addSavedShop()">Add</button>
     </div>
     <div id="settings-shop-list" class="settings-list"></div>

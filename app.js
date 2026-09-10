@@ -1,4 +1,4 @@
-let D={shift:null,exchanges:[],cashpoints:[],fillups:[],additions:[],expenses:[],winners:[],auditLog:[],archived:{exchanges:[],cashpoints:[],fillups:[],additions:[]},inputs:{home:{},shift:{},machines:{}},settings:{fullName:'',shops:[],mailLanguage:'da'},kfType:'kr'};
+let D={shift:null,exchanges:[],cashpoints:[],fillups:[],additions:[],expenses:[],winners:[],auditLog:[],archived:{exchanges:[],cashpoints:[],fillups:[],additions:[]},inputs:{home:{},shift:{},machines:{}},settings:{fullName:'',shops:[],mailLanguage:'da',shopMachines:{},lastMachineShop:'',lastWinnerShop:''},kfType:'kr'};
 
 function loadState(){
   const raw=localStorage.getItem('ccc_v5');
@@ -7,6 +7,7 @@ function loadState(){
 function saveState(){localStorage.setItem('ccc_v5',JSON.stringify(D));}
 
 loadState();
+loadMachineDatabase();
 
 // ── Haptic feedback ──
 function haptic(style='light'){
@@ -38,13 +39,16 @@ document.addEventListener('DOMContentLoaded',()=>{
   document.getElementById('modal-overlay').addEventListener('click',e=>{
     if(e.target===document.getElementById('modal-overlay'))closeModal();
   });
+  ensureSettings();
   restoreInputs();
+  renderMachineShopOptions();
   if(D.kfType){
     _kfType=D.kfType;
     document.querySelectorAll('#page-machines .type-sel.cols-3 .tsb').forEach(b=>b.classList.remove('on'));
     const ab=document.getElementById('type-'+D.kfType);if(ab)ab.classList.add('on');
     document.getElementById('kf-input-label').textContent={kr:'Win amount (kr)','1cr':'Credits on display','05cr':'Credits on display'}[D.kfType]||'Win amount (kr)';
   }
+  applyKFMachineLookup();
   selExFrom(_exFrom);
   // Init cashpoint sign button visibility (bank is default, sign not needed)
   const cpSb=document.getElementById('cp-sign-btn');
@@ -65,9 +69,10 @@ function goPage(id,btn){
   const page=document.getElementById('page-'+id);if(page)page.classList.add('on');
   if(btn&&btn.classList)btn.classList.add('on');
   if(id==='home'){fillExpectedIntoCount();recalc();renderHomeLog();renderExchangeList();renderShopSummary();}
-  if(id==='machines'){renderKFLog();renderAddList();}
+  if(id==='machines'){renderMachineShopOptions();renderKFLog();renderAddList();applyKFMachineLookup();}
   if(id==='shift'){
     renderWinnerShopOptions();
+    applyWinnerMachineLookup();
     renderShiftInfo();sPreview();renderCashpointList();renderExpenseList();renderWinnerLog();updateEstCalc();
   }
   if(id==='shop'){renderShopItems();renderShopLog();}
@@ -125,6 +130,127 @@ const nowTime=()=>new Date().toLocaleTimeString('no-NO',{hour:'2-digit',minute:'
 const nowDate=()=>new Date().toLocaleDateString('no-NO',{day:'2-digit',month:'2-digit',year:'numeric'});
 const nowFull=()=>nowDate()+' '+nowTime();
 const CAT_LABELS={cash:'Cash',pc:'Playcoins',coin:'Mønt',bank:'Bank'};
+
+// ── Shop-specific machine directories ──
+// This built-in seed belongs ONLY to Hvidovrevej 253A. Other shops start with an empty machine list.
+// ID values are the last 4 characters from the machine serial list.
+// denomination: '1cr' = 1 kr machine, '05cr' = 50 øre machine, 'kr' = regular kr entry.
+// ── Shop-specific machine database ──
+// Built-in shops and machines live in shops.json. User-added shops/machines stay in localStorage.
+let BUILTIN_SHOPS={};
+let MACHINE_DB_LOADED=false;
+const DEFAULT_MACHINE_SHOP='Hvidovrevej 253A';
+
+async function loadMachineDatabase(){
+  try{
+    const res=await fetch('shops.json',{cache:'no-store'});
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    const data=await res.json();
+    const next={};
+    (Array.isArray(data.shops)?data.shops:[]).forEach(shop=>{
+      const name=String(shop&&shop.name||'').trim();
+      if(!name)return;
+      next[name]={locked:shop.locked!==false,machines:(shop.machines&&typeof shop.machines==='object')?shop.machines:{}};
+    });
+    BUILTIN_SHOPS=next;
+    MACHINE_DB_LOADED=true;
+    migrateDatabaseShops();
+    renderWinnerShopOptions();renderMachineShopOptions();
+    if(document.getElementById('page-settings')?.classList.contains('on'))renderSettings();
+    applyWinnerMachineLookup();applyKFMachineLookup();
+  }catch(err){
+    console.warn('Could not load shops.json',err);
+    MACHINE_DB_LOADED=true;
+  }
+}
+
+function getBuiltinShopNames(){return Object.keys(BUILTIN_SHOPS);}
+function isBuiltinShop(shop){return !!(shop&&BUILTIN_SHOPS[shop]);}
+function getAllShopNames(){
+  const st=ensureSettings();
+  return [...getBuiltinShopNames(),...st.shops.filter(x=>!isBuiltinShop(x))];
+}
+function migrateDatabaseShops(){
+  const st=ensureSettings();
+  const before=JSON.stringify({shops:st.shops,shopMachines:st.shopMachines});
+  // v13 stored the Hvidovrevej seed in localStorage. shops.json is now the canonical source.
+  st.shops=st.shops.filter(shop=>!isBuiltinShop(shop));
+  getBuiltinShopNames().forEach(shop=>{delete st.shopMachines[shop];});
+  st.machineDirectoryV14Migrated=true;
+  const all=getAllShopNames();
+  if(!st.lastMachineShop||!all.includes(st.lastMachineShop))st.lastMachineShop=all.includes(DEFAULT_MACHINE_SHOP)?DEFAULT_MACHINE_SHOP:(all[0]||'');
+  if(st.lastWinnerShop&&!all.includes(st.lastWinnerShop))st.lastWinnerShop='';
+  if(before!==JSON.stringify({shops:st.shops,shopMachines:st.shopMachines}))saveState();
+}
+
+
+function normalizeMachineNr(value){
+  return String(value||'').trim().replace(/^0+/,'')||'0';
+}
+
+function getSelectedWinnerShop(){
+  const el=document.getElementById('w-shop');
+  return el?el.value.trim():'';
+}
+
+function getSelectedKFShop(){
+  const el=document.getElementById('kf-shop');
+  return el?el.value.trim():'';
+}
+
+function getShopMachineDirectory(shop){
+  if(!shop)return{};
+  if(isBuiltinShop(shop))return BUILTIN_SHOPS[shop].machines||{};
+  const st=ensureSettings();
+  return (st.shopMachines&&st.shopMachines[shop])||{};
+}
+
+function getMachineInfo(value,shop){
+  const nr=normalizeMachineNr(value);
+  const dir=getShopMachineDirectory(shop);
+  return dir[nr]||null;
+}
+
+function applyKFMachineLookup(){
+  const input=document.getElementById('kf-machine');
+  const box=document.getElementById('kf-machine-info');
+  const nameEl=document.getElementById('kf-machine-name');
+  const idEl=document.getElementById('kf-machine-id');
+  if(!input)return;
+  const shop=getSelectedKFShop();
+  const info=getMachineInfo(input.value,shop);
+  if(info){
+    if(box)box.style.display='';
+    if(nameEl)nameEl.textContent=info.name;
+    if(idEl)idEl.textContent=info.id;
+    const btn=document.getElementById('type-'+info.denomination);
+    if(btn&&_kfType!==info.denomination)selType(btn,info.denomination);
+  }else{
+    if(box)box.style.display='none';
+    if(nameEl)nameEl.textContent='—';
+    if(idEl)idEl.textContent='—';
+  }
+  stashInputs();
+}
+
+function applyWinnerMachineLookup(){
+  const nrEl=document.getElementById('w-machine-nr');
+  const idEl=document.getElementById('w-machine-id');
+  const nameEl=document.getElementById('w-machine-name');
+  if(!nrEl||!idEl||!nameEl)return;
+  const info=getMachineInfo(nrEl.value,getSelectedWinnerShop());
+  if(info){
+    idEl.value=info.id;
+    nameEl.value=info.name;
+    idEl.dataset.autofilled='1';
+    nameEl.dataset.autofilled='1';
+  }else{
+    if(idEl.dataset.autofilled==='1'){idEl.value='';delete idEl.dataset.autofilled;}
+    if(nameEl.dataset.autofilled==='1'){nameEl.value='';delete nameEl.dataset.autofilled;}
+  }
+  saveWinner();
+}
+
 
 function flash(id){const el=document.getElementById(id);if(!el)return;el.style.borderColor='var(--red)';el.focus();setTimeout(()=>el.style.borderColor='',1600);}
 
@@ -218,7 +344,7 @@ function getExpected(){
 function stashInputs(){
   D.inputs.home={coin:document.getElementById('h-coin').value,cash:document.getElementById('h-cash').value,pc:document.getElementById('h-pc').value,bank:document.getElementById('h-bank').value};
   D.inputs.shift={coin:document.getElementById('s-coin').value,cash:document.getElementById('s-cash').value,pc:document.getElementById('s-pc').value,bank:document.getElementById('s-bank').value};
-  D.inputs.machines={machine:document.getElementById('kf-machine').value,val:document.getElementById('kf-val').value};
+  D.inputs.machines={machine:document.getElementById('kf-machine').value,val:document.getElementById('kf-val').value,shop:getSelectedKFShop()};
   D.kfType=_kfType;saveState();
 }
 
@@ -534,7 +660,7 @@ function renderHomeLog(){
     const d=entry.data,div=document.createElement('div');div.className='log-item';
     if(entry.type==='fillup'){
       div.innerHTML=`<div class="log-ico" style="background:var(--green-dim)">🔑</div>
-        <div class="log-body"><div class="log-title">Key Fillup — Machine ${d.machine}</div><div class="log-meta">${d.coins} playcoins · ${fmt(d.coins*20)}</div></div>
+        <div class="log-body"><div class="log-title">Key Fillup — Machine ${d.machine}${d.machineName?' · '+d.machineName:''}</div><div class="log-meta">${d.shop?d.shop+' · ':''}${d.machineId?'ID: '+d.machineId+' · ':''}${d.coins} playcoins · ${fmt(d.coins*20)}</div></div>
         <div class="log-right"><div class="log-amt">${fmt(d.coins*20)}</div><div class="log-time">${d.date}</div></div>
         <button class="log-del" onclick="delFillup(${entry.i})">✕</button>`;
     } else if(entry.type==='cashpoint'){
@@ -1074,10 +1200,12 @@ let _kfLogPage=0;
 function saveKF(){
   const raw=parseFloat(document.getElementById('kf-val').value);if(isNaN(raw)||raw<=0)return;
   const machine=document.getElementById('kf-machine').value.trim()||'Unknown';
+  const machineShop=getSelectedKFShop();
+  const machineInfo=getMachineInfo(machine,machineShop);
   let kr=0,coins=0;
   if(_kfType==='kr'){kr=raw;}else if(_kfType==='1cr'){kr=raw/2;}else{kr=raw/4;}
   coins=Math.ceil(Math.floor(kr/20)/5)*5||5;
-  D.fillups.push({machine,type:_kfType,inputVal:raw,kr,coins,date:nowFull(),ts:Date.now()});saveState();
+  D.fillups.push({machine,shop:machineShop,machineName:machineInfo?machineInfo.name:'',machineId:machineInfo?machineInfo.id:'',type:_kfType,inputVal:raw,kr,coins,date:nowFull(),ts:Date.now()});saveState();
   document.getElementById('kf-val').value='';document.getElementById('kf-res').style.display='none';document.getElementById('kf-save-btn').disabled=true;
   haptic('success');
   renderKFLog();renderHomeLog();recalc();updateEstCalc();updateHomeEst();fillExpectedIntoCount();
@@ -1114,10 +1242,10 @@ function renderKFLog(){
     const krStr=f.type!=='kr'?` = ${f.kr!=null?f.kr.toLocaleString('no-NO'):''} kr`:'';
     const inputStr=`<div style="font-size:.72rem;color:var(--sub);margin-top:2px">${inputLabels[f.type]||f.type}: <b style="color:var(--text)">${f.inputVal!=null?f.inputVal.toLocaleString('no-NO'):f.kr.toLocaleString('no-NO')}</b>${krStr}</div>`;
     d.innerHTML=`<div class="mlog-top">
-      <div class="mlog-title">🔑 Machine ${f.machine}</div>
+      <div class="mlog-title">🔑 Machine ${f.machine}${f.machineName?` · ${f.machineName}`:''}</div>
       <div style="display:flex;align-items:center;gap:6px"><span class="mlog-badge">${typeMap[f.type]||f.type}</span><button class="mlog-del" onclick="delFillup(${i})">✕</button></div>
     </div>
-    <div class="mlog-detail"><span style="color:var(--text);font-weight:600">${f.coins} playcoins · ${fmt(f.coins*20)}</span>${inputStr}${stepsHtml}<div style="margin-top:6px;color:var(--muted);font-size:.65rem">${f.date}</div></div>`;
+    <div class="mlog-detail">${f.shop?`<div style="font-size:.7rem;color:var(--sub);margin-bottom:3px">Shop: <b style="color:var(--text)">${f.shop}</b></div>`:''}${f.machineId?`<div style="font-size:.7rem;color:var(--sub);margin-bottom:3px">ID: <b style="color:var(--text)">${f.machineId}</b></div>`:''}<span style="color:var(--text);font-weight:600">${f.coins} playcoins · ${fmt(f.coins*20)}</span>${inputStr}${stepsHtml}<div style="margin-top:6px;color:var(--muted);font-size:.65rem">${f.date}</div></div>`;
     el.appendChild(d);
   });
   renderLogPagination('kf-log-pagination',_kfLogPage,totalPages,total,(p)=>{_kfLogPage=p;renderKFLog();});
@@ -1268,7 +1396,7 @@ function generateShiftPDF(options={}){
     const d=ev.data;
     let label='',detail='',amount='';
     if(ev.type==='fillup'){
-      label='Key Fillup';detail=`Machine ${d.machine} — ${d.coins} coins`;amount=f(d.coins*20);
+      label='Key Fillup';detail=`${d.shop?d.shop+' — ':''}Machine ${d.machine}${d.machineName?' · '+d.machineName:''}${d.machineId?' · ID '+d.machineId:''} — ${d.coins} coins`;amount=f(d.coins*20);
     } else if(ev.type==='addition'){
       label=d.type==='playcoin'?'Playcoins Added':'Cash Added';detail='Replenishment';amount=f(d.amount);
     } else if(ev.type==='cashpoint'){
@@ -1447,41 +1575,120 @@ function doReset(){
   document.getElementById('s-preview').textContent='0 kr';document.getElementById('h-current-total').textContent='0 kr';
   _cpSign=1;const sb=document.getElementById('cp-sign-btn');if(sb){sb.textContent='+';sb.style.color='var(--green)';sb.style.borderColor='var(--green-mid)';sb.style.background='var(--green-dim)';}
   _expSign=-1;const eb=document.getElementById('exp-sign-btn');if(eb){eb.textContent='−';eb.style.color='var(--red)';eb.style.borderColor='var(--red-mid)';eb.style.background='var(--red-dim)';}
-  renderShiftInfo();renderHomeLog();renderExchangeList();renderCashpointList();renderAddList();renderKFLog();renderExpenseList();renderChecklist();renderWinnerShopOptions();recalc();updateEstCalc();updateHomeEst();
+  renderShiftInfo();renderHomeLog();renderExchangeList();renderCashpointList();renderAddList();renderKFLog();renderExpenseList();renderChecklist();renderWinnerShopOptions();renderMachineShopOptions();recalc();updateEstCalc();updateHomeEst();
 }
 
 // ── SETTINGS / PERSISTENT PROFILE ──
 function ensureSettings(){
-  if(!D.settings)D.settings={fullName:'',shops:[],mailLanguage:'da'};
-  if(!Array.isArray(D.settings.shops))D.settings.shops=[];
-  return D.settings;
+  if(!D.settings)D.settings={fullName:'',shops:[],mailLanguage:'da',shopMachines:{},lastMachineShop:'',lastWinnerShop:''};
+  const st=D.settings;
+  if(!Array.isArray(st.shops))st.shops=[];
+  if(!st.shopMachines||typeof st.shopMachines!=='object'||Array.isArray(st.shopMachines))st.shopMachines={};
+  if(!['da','en'].includes(st.mailLanguage))st.mailLanguage='da';
+  // User-created shops only live here. Built-in database shops are merged at render/lookup time.
+  st.shops=[...new Map(st.shops.map(x=>[String(x).trim().toLowerCase(),String(x).trim()])).values()].filter(Boolean);
+  st.shops.forEach(shop=>{if(!st.shopMachines[shop])st.shopMachines[shop]={};});
+  if(MACHINE_DB_LOADED){
+    st.shops=st.shops.filter(shop=>!isBuiltinShop(shop));
+    getBuiltinShopNames().forEach(shop=>{delete st.shopMachines[shop];});
+    const all=[...getBuiltinShopNames(),...st.shops];
+    if(st.lastMachineShop&&!all.includes(st.lastMachineShop))st.lastMachineShop='';
+    if(st.lastWinnerShop&&!all.includes(st.lastWinnerShop))st.lastWinnerShop='';
+  }
+  return st;
 }
+
+let _settingsOpenMachineShop='';
 function renderSettings(){
   const st=ensureSettings();
   const name=document.getElementById('set-full-name');if(name&&document.activeElement!==name)name.value=st.fullName||'';
   const lang=document.getElementById('set-mail-language');if(lang)lang.value=st.mailLanguage||'da';
   const list=document.getElementById('settings-shop-list');
-  if(list){
-    list.innerHTML='';
-    st.shops.forEach((shop,i)=>{const row=document.createElement('div');row.className='settings-list-row';row.innerHTML=`<span>${escapeHtml(shop)}</span><button type="button" class="settings-remove" onclick="removeSavedShop(${i})">✕</button>`;list.appendChild(row);});
-    if(!st.shops.length)list.innerHTML='<div class="settings-empty">No shop locations saved</div>';
-  }
+  if(!list)return;
+  list.innerHTML='';
+
+  // Database shops: visible and usable, but protected from removal/editing in Settings.
+  getBuiltinShopNames().forEach(shop=>{
+    const machines=getShopMachineDirectory(shop),count=Object.keys(machines).length;
+    const wrap=document.createElement('div');wrap.className='settings-shop-block';
+    wrap.innerHTML=`<div class="settings-list-row"><div style="min-width:0"><div style="font-weight:600">${escapeHtml(shop)} <span class="settings-db-badge">Database</span></div><div class="settings-value">${count} machine${count===1?'':'s'} · built-in</div></div><div class="settings-shop-actions"><button type="button" class="settings-manage" onclick="toggleDatabaseShopMachines('${escapeHtml(shop)}')">${_settingsOpenMachineShop===shop?'Close':'Machines'}</button></div></div>`;
+    if(_settingsOpenMachineShop===shop){
+      const editor=document.createElement('div');editor.className='settings-machine-editor';
+      const rows=Object.entries(machines).sort((a,b)=>Number(a[0])-Number(b[0])).map(([nr,m])=>`<div class="settings-machine-row"><div class="settings-machine-main"><b>#${escapeHtml(nr)}</b><span>${escapeHtml(m.name||'')}</span><small>ID ${escapeHtml(m.id||'—')} · ${machineTypeLabel(m.denomination)}</small></div></div>`).join('');
+      editor.innerHTML=`<div class="settings-db-note">Built-in machine data comes from shops.json and cannot be removed in Settings.</div><div class="settings-machine-list">${rows||'<div class="settings-empty">No machines in database</div>'}</div>`;
+      wrap.appendChild(editor);
+    }
+    list.appendChild(wrap);
+  });
+
+  // User shops: fully editable/removable and kept in localStorage.
+  st.shops.forEach((shop,i)=>{
+    const machines=st.shopMachines[shop]||{};
+    const count=Object.keys(machines).length;
+    const wrap=document.createElement('div');wrap.className='settings-shop-block';
+    wrap.innerHTML=`<div class="settings-list-row"><div style="min-width:0"><div style="font-weight:600">${escapeHtml(shop)}</div><div class="settings-value">${count} machine${count===1?'':'s'}</div></div><div class="settings-shop-actions"><button type="button" class="settings-manage" onclick="toggleShopMachines(${i})">${_settingsOpenMachineShop===shop?'Close':'Machines'}</button><button type="button" class="settings-remove" onclick="removeSavedShop(${i})">✕</button></div></div>`;
+    if(_settingsOpenMachineShop===shop){
+      const editor=document.createElement('div');editor.className='settings-machine-editor';
+      const rows=Object.entries(machines).sort((a,b)=>Number(a[0])-Number(b[0])).map(([nr,m])=>`<div class="settings-machine-row"><div class="settings-machine-main"><b>#${escapeHtml(nr)}</b><span>${escapeHtml(m.name||'')}</span><small>ID ${escapeHtml(m.id||'—')} · ${machineTypeLabel(m.denomination)}</small></div><div class="settings-machine-actions"><button type="button" onclick="editSettingsMachine(${i},'${escapeHtml(nr)}')">Edit</button><button type="button" class="danger" onclick="removeSettingsMachine(${i},'${escapeHtml(nr)}')">✕</button></div></div>`).join('');
+      editor.innerHTML=`<div class="settings-machine-form"><input type="text" id="sm-nr-${i}" inputmode="numeric" placeholder="Machine nr"><input type="text" id="sm-name-${i}" placeholder="Machine name"><input type="text" id="sm-id-${i}" placeholder="ID (last 4)"><select id="sm-type-${i}"><option value="kr">KR</option><option value="1cr">1 kr</option><option value="05cr">50 øre</option></select><button class="btn btn-primary" type="button" onclick="saveSettingsMachine(${i})">Save machine</button></div><div class="settings-machine-list">${rows||'<div class="settings-empty">No machines saved for this shop</div>'}</div>`;
+      wrap.appendChild(editor);
+    }
+    list.appendChild(wrap);
+  });
+  if(!getBuiltinShopNames().length&&!st.shops.length)list.innerHTML='<div class="settings-empty">No shop locations saved</div>';
 }
-function saveSettingsField(field,value){const st=ensureSettings();st[field]=value;saveState();if(field==='shops')renderWinnerShopOptions();}
+function toggleDatabaseShopMachines(shop){_settingsOpenMachineShop=_settingsOpenMachineShop===shop?'':shop;renderSettings();}
+function machineTypeLabel(type){return type==='1cr'?'1 kr':type==='05cr'?'50 øre':'KR';}
+function saveSettingsField(field,value){const st=ensureSettings();st[field]=value;saveState();}
 function addSavedShop(){
   const input=document.getElementById('set-shop-input');if(!input)return;
   const name=input.value.trim();if(!name)return;
-  const st=ensureSettings();if(!st.shops.some(s=>s.toLowerCase()===name.toLowerCase()))st.shops.push(name);
-  input.value='';saveState();renderSettings();renderWinnerShopOptions();
+  const st=ensureSettings();
+  if(!getAllShopNames().some(s=>s.toLowerCase()===name.toLowerCase())){st.shops.push(name);st.shopMachines[name]={};}
+  input.value='';saveState();renderSettings();renderWinnerShopOptions();renderMachineShopOptions();
 }
-function removeSavedShop(i){const st=ensureSettings();st.shops.splice(i,1);saveState();renderSettings();renderWinnerShopOptions();}
+function removeSavedShop(i){
+  const st=ensureSettings();const shop=st.shops[i];if(!shop)return;
+  showModal({title:'Remove shop?',msg:`${shop} and its ${Object.keys(st.shopMachines[shop]||{}).length} saved machines will be removed.`,buttons:[{label:'Cancel',style:'modal-btn-ghost'},{label:'Remove',style:'modal-btn-danger',action:()=>{st.shops.splice(i,1);delete st.shopMachines[shop];if(st.lastMachineShop===shop)st.lastMachineShop='';if(st.lastWinnerShop===shop)st.lastWinnerShop='';if(_settingsOpenMachineShop===shop)_settingsOpenMachineShop='';saveState();renderSettings();renderWinnerShopOptions();renderMachineShopOptions();}}]});
+}
+function toggleShopMachines(i){const shop=ensureSettings().shops[i];_settingsOpenMachineShop=_settingsOpenMachineShop===shop?'':shop;renderSettings();}
+function saveSettingsMachine(i){
+  const st=ensureSettings(),shop=st.shops[i];if(!shop)return;
+  const nr=normalizeMachineNr(document.getElementById(`sm-nr-${i}`).value);
+  const name=document.getElementById(`sm-name-${i}`).value.trim();
+  const idRaw=document.getElementById(`sm-id-${i}`).value.trim();
+  const type=document.getElementById(`sm-type-${i}`).value;
+  if(!nr||nr==='0'){flash(`sm-nr-${i}`);return;} if(!name){flash(`sm-name-${i}`);return;} if(!idRaw){flash(`sm-id-${i}`);return;}
+  st.shopMachines[shop][nr]={name,id:idRaw.slice(-4),denomination:['kr','1cr','05cr'].includes(type)?type:'kr'};
+  saveState();renderSettings();applyWinnerMachineLookup();applyKFMachineLookup();
+}
+function editSettingsMachine(i,nr){
+  const st=ensureSettings(),shop=st.shops[i],m=(st.shopMachines[shop]||{})[nr];if(!m)return;
+  document.getElementById(`sm-nr-${i}`).value=nr;document.getElementById(`sm-name-${i}`).value=m.name||'';document.getElementById(`sm-id-${i}`).value=m.id||'';document.getElementById(`sm-type-${i}`).value=m.denomination||'kr';
+  document.getElementById(`sm-name-${i}`).focus();
+}
+function removeSettingsMachine(i,nr){
+  const st=ensureSettings(),shop=st.shops[i];if(!shop)return;
+  delete st.shopMachines[shop][nr];saveState();renderSettings();applyWinnerMachineLookup();applyKFMachineLookup();
+}
 function renderWinnerShopOptions(){
   const sel=document.getElementById('w-shop');if(!sel)return;
-  const current=sel.value;const shops=ensureSettings().shops;
-  sel.innerHTML='<option value="">Choose saved shop</option>'+shops.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+  const st=ensureSettings(),shops=getAllShopNames(),current=sel.value||st.lastWinnerShop||'';
+  sel.innerHTML='<option value="">Choose saved shop</option>'+shops.map(x=>`<option value="${escapeHtml(x)}">${escapeHtml(x)}</option>`).join('');
   if(shops.includes(current))sel.value=current;else if(shops.length===1)sel.value=shops[0];
+  if(sel.value)st.lastWinnerShop=sel.value;
 }
+function winnerShopChanged(){const st=ensureSettings();st.lastWinnerShop=getSelectedWinnerShop();saveState();applyWinnerMachineLookup();saveWinner();}
+function renderMachineShopOptions(){
+  const sel=document.getElementById('kf-shop');if(!sel)return;
+  const st=ensureSettings(),shops=getAllShopNames();const current=sel.value||(D.inputs.machines&&D.inputs.machines.shop)||st.lastMachineShop||'';
+  sel.innerHTML='<option value="">Choose shop</option>'+shops.map(x=>`<option value="${escapeHtml(x)}">${escapeHtml(x)}</option>`).join('');
+  if(shops.includes(current))sel.value=current;else if(shops.length===1)sel.value=shops[0];
+  if(sel.value)st.lastMachineShop=sel.value;
+}
+function kfShopChanged(){const st=ensureSettings();st.lastMachineShop=getSelectedKFShop();saveState();applyKFMachineLookup();stashInputs();}
 function escapeHtml(v){return String(v).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
+
 
 // ── SHOP ──
 const SHOP_PRODUCTS=[

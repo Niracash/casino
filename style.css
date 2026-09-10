@@ -294,3 +294,25 @@ select:focus{border-color:var(--accent)}
 .settings-toggle-row small{display:block;color:var(--sub);font-size:.66rem;font-weight:400;margin-top:3px;line-height:1.45}
 .settings-toggle-row input{width:20px;height:20px;accent-color:var(--accent);flex-shrink:0}
 @media(max-width:360px){.settings-folder-row{align-items:flex-start;flex-direction:column}.settings-folder-row .btn{width:100%;max-width:none}}
+
+/* ── Shop-specific machine settings ── */
+.settings-shop-block{display:flex;flex-direction:column;gap:6px}
+.settings-shop-actions{display:flex;align-items:center;gap:4px;flex-shrink:0}
+.settings-manage,.settings-machine-actions button{border:1px solid var(--border2);background:var(--card);color:var(--sub);border-radius:7px;padding:6px 9px;font-size:.68rem;font-weight:600;font-family:inherit;cursor:pointer}
+.settings-machine-editor{border:1px solid var(--border2);background:var(--inp);border-radius:9px;padding:10px}
+.settings-machine-form{display:grid;grid-template-columns:78px 1fr;gap:7px}
+.settings-machine-form input,.settings-machine-form select{font-size:.78rem;padding:8px 9px;min-width:0}
+.settings-machine-form #sm-name{grid-column:span 2}
+.settings-machine-form .btn{grid-column:1/-1;padding:9px;font-size:.76rem}
+.settings-machine-list{display:flex;flex-direction:column;gap:5px;margin-top:10px}
+.settings-machine-row{display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 9px}
+.settings-machine-main{min-width:0;display:grid;grid-template-columns:auto 1fr;gap:2px 7px;align-items:center;font-size:.74rem}
+.settings-machine-main b{font-family:'JetBrains Mono',monospace;color:var(--accent)}
+.settings-machine-main span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text)}
+.settings-machine-main small{grid-column:1/-1;color:var(--muted);font-size:.62rem}
+.settings-machine-actions{display:flex;gap:4px;flex-shrink:0}.settings-machine-actions .danger{color:var(--red)}
+@media(max-width:390px){.settings-machine-form{grid-template-columns:1fr 1fr}.settings-machine-row{align-items:flex-start}.settings-machine-actions{flex-direction:column}}
+
+/* Built-in shop database labels */
+.settings-db-badge{display:inline-flex;align-items:center;margin-left:6px;padding:2px 6px;border-radius:999px;background:var(--accent-dim);border:1px solid var(--accent-mid);color:var(--accent);font-size:.55rem;font-weight:700;vertical-align:middle;text-transform:uppercase;letter-spacing:.4px}
+.settings-db-note{font-size:.7rem;line-height:1.5;color:var(--sub);padding:9px 10px;margin-bottom:8px;background:var(--card2);border:1px solid var(--border);border-radius:8px}
