@@ -1,8 +1,8 @@
-let D={shift:null,exchanges:[],cashpoints:[],fillups:[],additions:[],expenses:[],winners:[],auditLog:[],archived:{exchanges:[],cashpoints:[],fillups:[],additions:[]},inputs:{home:{},shift:{},machines:{}},settings:{fullName:'',shops:[],mailLanguage:'da',shopMachines:{},lastMachineShop:'',lastWinnerShop:'',autoFillMachineDetails:true},kfType:'kr'};
+let D={shift:null,exchanges:[],cashpoints:[],fillups:[],additions:[],expenses:[],balanceUpdates:[],winners:[],auditLog:[],archived:{exchanges:[],cashpoints:[],fillups:[],additions:[]},inputs:{home:{},shift:{},machines:{}},settings:{fullName:'',shops:[],mailLanguage:'da',shopMachines:{},lastMachineShop:'',lastWinnerShop:'',autoFillMachineDetails:true},kfType:'kr'};
 
 function loadState(){
   const raw=localStorage.getItem('ccc_v5');
-  if(raw){const l=JSON.parse(raw);D={...D,...l};if(!D.inputs)D.inputs={home:{},shift:{},machines:{}};if(!D.exchanges)D.exchanges=[];if(!D.cashpoints)D.cashpoints=[];if(!D.auditLog)D.auditLog=[];if(!D.expenses)D.expenses=[];if(!D.archived)D.archived={exchanges:[],cashpoints:[],fillups:[],additions:[]};if(!D.archived.exchanges)D.archived.exchanges=[];if(!D.archived.cashpoints)D.archived.cashpoints=[];if(!D.archived.fillups)D.archived.fillups=[];if(!D.archived.additions)D.archived.additions=[];if(!D.winners)D.winners=[];if(!D.settings)D.settings={fullName:'',shops:[],mailLanguage:'da',autoFillMachineDetails:true};if(!Array.isArray(D.settings.shops))D.settings.shops=[];if(!['da','en'].includes(D.settings.mailLanguage))D.settings.mailLanguage='da';if(typeof D.settings.autoFillMachineDetails!=='boolean')D.settings.autoFillMachineDetails=true;delete D.settings.autoDownloadOnReset;delete D.settings.downloadFolderName;if(D.winner&&!Array.isArray(D.winner)){if(D.winner.amount&&D.winner.machineNr)D.winners.push(D.winner);delete D.winner;}}
+  if(raw){const l=JSON.parse(raw);D={...D,...l};if(!D.inputs)D.inputs={home:{},shift:{},machines:{}};if(!D.exchanges)D.exchanges=[];if(!D.cashpoints)D.cashpoints=[];if(!D.auditLog)D.auditLog=[];if(!D.expenses)D.expenses=[];if(!D.balanceUpdates)D.balanceUpdates=[];if(!D.archived)D.archived={exchanges:[],cashpoints:[],fillups:[],additions:[]};if(!D.archived.exchanges)D.archived.exchanges=[];if(!D.archived.cashpoints)D.archived.cashpoints=[];if(!D.archived.fillups)D.archived.fillups=[];if(!D.archived.additions)D.archived.additions=[];if(!D.winners)D.winners=[];if(!D.settings)D.settings={fullName:'',shops:[],mailLanguage:'da',autoFillMachineDetails:true};if(!Array.isArray(D.settings.shops))D.settings.shops=[];if(!['da','en'].includes(D.settings.mailLanguage))D.settings.mailLanguage='da';if(typeof D.settings.autoFillMachineDetails!=='boolean')D.settings.autoFillMachineDetails=true;delete D.settings.autoDownloadOnReset;delete D.settings.downloadFolderName;if(D.winner&&!Array.isArray(D.winner)){if(D.winner.amount&&D.winner.machineNr)D.winners.push(D.winner);delete D.winner;}}
 }
 function saveState(){localStorage.setItem('ccc_v5',JSON.stringify(D));}
 
@@ -391,6 +391,15 @@ function getExpected(){
     cash+=sign*(e.cashPart||0);
     coin+=sign*(e.coinPart||0);
   });}
+
+  // Saved Current Count updates. These persist denomination corrections without
+  // rewriting or deleting the transaction history.
+  if(D.balanceUpdates){D.balanceUpdates.forEach(u=>{
+    coin+=u.coin||0;
+    cash+=u.cash||0;
+    pc+=u.pc||0;
+    bank+=u.bank||0;
+  });}
   return{coin,cash,pc,bank,total:coin+cash+pc+bank};
 }
 
@@ -488,11 +497,22 @@ function getFridgeCashConversion(){
   return{cashPart,coinPart};
 }
 
+// Physical fridge money counted at the counter. The complete fridge total (today +
+// carried money) is split into Danish notes and coins: full 50 kr blocks are cash,
+// and the remainder is mønt. This is intentionally separate from the daily transfer
+// calculation above.
+function getFridgeCountBreakdown(){
+  const total=getFridgeCombinedTotal();
+  const cashPart=Math.floor(total/50)*50;
+  const coinPart=total-cashPart;
+  return{cashPart,coinPart,total};
+}
+
 function renderHomeFridgeMini(){renderShopSummary();}
 
 function updateHomeEst(){
   const exp=getExpected();
-  const {cashPart:fridgeCash,coinPart:fridgeCoin}=getFridgeCashConversion();
+  const {cashPart:fridgeCash,coinPart:fridgeCoin}=getFridgeCountBreakdown();
 
   const setV=(id,v,fridgePart)=>{
     const el=document.getElementById(id);
@@ -515,7 +535,7 @@ function updateHomeEst(){
 
 function updateHomeHints(){
   const exp=getExpected();
-  const {cashPart:fridgeCash,coinPart:fridgeCoin}=getFridgeCashConversion();
+  const {cashPart:fridgeCash,coinPart:fridgeCoin}=getFridgeCountBreakdown();
   const setH=(id,base,fridgePart,{totalWithFridge=false}={})=>{
     const el=document.getElementById(id);if(!el)return;
     if(!D.shift){el.innerHTML='';return;}
@@ -575,7 +595,7 @@ function recalc(){
   }
 
   const exp=getExpected(),expected=exp.total,hasCurrent=coin>0||cash>0||pc>0||bank>0;
-  const fridge=getFridgeTotal();
+  const fridge=getFridgeCombinedTotal();
   br.classList.add('on');
 
   const physDiff=current-D.shift.total;
@@ -639,12 +659,34 @@ const COUNT_BALANCE_META={
   bank:{id:'h-bank',label:'Bank',step:1,note:'Bank can balance any whole-kr amount.'}
 };
 
-function getBalanceTarget(type){
+function getCurrentCountValues(){
+  return{coin:g('h-coin'),cash:g('h-cash'),pc:g('h-pc'),bank:g('h-bank')};
+}
+
+// Staff count the drawer together with the fridge money. Before an Update is saved,
+// strip that fridge money back out so the saved expected amounts remain the drawer's
+// accounting amounts. Example: 135 kr fridge => 100 cash + 35 mønt.
+function normalizeCountForFridge(values){
+  const fridge=getFridgeCountBreakdown();
+  return{
+    coin:Math.round(values.coin-fridge.coinPart),
+    cash:Math.round(values.cash-fridge.cashPart),
+    pc:Math.round(values.pc),
+    bank:Math.round(values.bank),
+    fridge
+  };
+}
+
+function getBalancePlan(type){
   if(!D.shift||!COUNT_BALANCE_META[type])return null;
   const exp=getExpected();
-  const values={coin:g('h-coin'),cash:g('h-cash'),pc:g('h-pc'),bank:g('h-bank')};
+  const current=getCurrentCountValues();
+  const normalized=normalizeCountForFridge(current);
+  const values={coin:normalized.coin,cash:normalized.cash,pc:normalized.pc,bank:normalized.bank};
   const otherTotal=Object.entries(values).reduce((sum,[k,v])=>k===type?sum:sum+v,0);
-  return Math.round(exp.total-otherTotal);
+  const target=Math.round(exp.total-otherTotal);
+  values[type]=target;
+  return{type,exp,current,normalized,values,target,fridge:normalized.fridge};
 }
 
 function confirmBalanceCount(type){
@@ -654,44 +696,84 @@ function confirmBalanceCount(type){
   }
   const meta=COUNT_BALANCE_META[type];
   if(!meta)return;
-  const target=getBalanceTarget(type);
-  const old=Math.round(g(meta.id));
-  if(target==null)return;
+  const plan=getBalancePlan(type);
+  if(!plan)return;
 
-  if(target<0){
-    showModal({title:'Cannot balance '+meta.label,msg:'Required amount: '+target.toLocaleString('no-NO')+' kr.',buttons:[{label:'OK',style:'modal-btn-primary'}]});
+  const {target,values,current,fridge}=plan;
+  if(values.cash<0||values.coin<0||values.pc<0||values.bank<0){
+    showModal({title:'Cannot update',msg:'One of the amounts would become negative. Check the count and try again.',buttons:[{label:'OK',style:'modal-btn-primary'}]});
     return;
   }
   if(target%meta.step!==0){
-    showModal({title:'Cannot balance '+meta.label,msg:'Required amount: '+target.toLocaleString('no-NO')+' kr. Choose another box.',buttons:[{label:'OK',style:'modal-btn-primary'}]});
+    showModal({title:'Cannot update '+meta.label,msg:'Required amount: '+target.toLocaleString('no-NO')+' kr. Choose another Update button.',buttons:[{label:'OK',style:'modal-btn-primary'}]});
     return;
   }
-  if(target===old){
-    showModal({title:meta.label+' is balanced',msg:old.toLocaleString('no-NO')+' kr. No change needed.',buttons:[{label:'OK',style:'modal-btn-primary'}]});
+  if(values.cash%50!==0){
+    showModal({title:'Cannot update',msg:'Cash must end on a 50 kr amount. Check the cash count.',buttons:[{label:'OK',style:'modal-btn-primary'}]});
+    return;
+  }
+  if(values.pc%20!==0){
+    showModal({title:'Cannot update',msg:'Playcoins must end on a 20 kr amount. Choose another Update button.',buttons:[{label:'OK',style:'modal-btn-primary'}]});
     return;
   }
 
+  const changed=['coin','cash','pc','bank'].some(k=>Math.round(current[k])!==Math.round(values[k]));
+  const expChanged=['coin','cash','pc','bank'].some(k=>Math.round(plan.exp[k])!==Math.round(values[k]));
+  if(!changed&&!expChanged){
+    showModal({title:meta.label+' is up to date',msg:Math.round(values[type]).toLocaleString('no-NO')+' kr. No change needed.',buttons:[{label:'OK',style:'modal-btn-primary'}]});
+    return;
+  }
+
+  const details=[];
+  if(Math.round(current[type])!==Math.round(values[type]))details.push(meta.label+': '+Math.round(current[type]).toLocaleString('no-NO')+' → '+Math.round(values[type]).toLocaleString('no-NO')+' kr');
+  if(fridge.cashPart>0&&Math.round(current.cash)!==Math.round(values.cash))details.push('Cash: '+Math.round(current.cash).toLocaleString('no-NO')+' → '+Math.round(values.cash).toLocaleString('no-NO')+' kr');
+  if(fridge.coinPart>0&&type!=='coin'&&Math.round(current.coin)!==Math.round(values.coin))details.push('Mønt: '+Math.round(current.coin).toLocaleString('no-NO')+' → '+Math.round(values.coin).toLocaleString('no-NO')+' kr');
+  if(details.length===0)details.push('Save the counted amounts as the new expected balance.');
+
   showModal({
     title:'Update '+meta.label+'?',
-    msg:`${old.toLocaleString('no-NO')} kr → ${target.toLocaleString('no-NO')} kr`,
+    msg:details.join(' · '),
     buttons:[
       {label:'Cancel',style:'modal-btn-ghost'},
-      {label:'Update',style:'modal-btn-primary',action:()=>applyBalanceCount(type,target)}
+      {label:'Update',style:'modal-btn-primary',action:()=>applyBalanceCount(plan)}
     ]
   });
 }
 
-function applyBalanceCount(type,target){
-  const meta=COUNT_BALANCE_META[type];
-  if(!meta)return;
-  const el=document.getElementById(meta.id);
-  if(!el)return;
-  el.value=target;
-  el.style.borderColor='var(--green)';
-  el.style.background='var(--green-dim)';
-  setTimeout(()=>{el.style.borderColor='';el.style.background='';},900);
+function applyBalanceCount(plan){
+  if(!plan||!D.shift)return;
+  const exp=getExpected();
+  const v=plan.values;
+  const delta={
+    coin:Math.round(v.coin-exp.coin),
+    cash:Math.round(v.cash-exp.cash),
+    pc:Math.round(v.pc-exp.pc),
+    bank:Math.round(v.bank-exp.bank)
+  };
+
+  if(!D.balanceUpdates)D.balanceUpdates=[];
+  if(delta.coin||delta.cash||delta.pc||delta.bank){
+    D.balanceUpdates.push({...delta,selected:plan.type,date:nowFull(),ts:Date.now()});
+  }
+
+  const map={coin:'h-coin',cash:'h-cash',pc:'h-pc',bank:'h-bank'};
+  Object.entries(map).forEach(([k,id])=>{
+    const el=document.getElementById(id);if(!el)return;
+    const old=Math.round(g(id));
+    el.value=Math.round(v[k]);
+    if(old!==Math.round(v[k])){
+      el.style.borderColor='var(--green)';
+      el.style.background='var(--green-dim)';
+      setTimeout(()=>{el.style.borderColor='';el.style.background='';},900);
+    }
+  });
+
   stashInputs();
+  saveState();
+  renderHomeLog();
   recalc();
+  updateEstCalc();
+  updateHomeEst();
 }
 
 // ── Log Pagination ──
@@ -703,6 +785,7 @@ function renderHomeLog(){
     ...D.fillups.map((f,i)=>({type:'fillup',i,ts:f.ts||0,data:f})),
     ...D.additions.map((a,i)=>({type:'addition',i,ts:a.ts||0,data:a})),
     ...(D.expenses||[]).map((e,i)=>({type:'expense',i,ts:e.ts||0,data:e})),
+    ...(D.balanceUpdates||[]).map((u,i)=>({type:'balanceUpdate',i,ts:u.ts||0,data:u})),
     ...D.cashpoints.map((c,i)=>({type:'cashpoint',i,ts:c.ts||0,data:c}))
   ].sort((a,b)=>b.ts-a.ts);
   const el=document.getElementById('home-log');
@@ -746,6 +829,15 @@ function renderHomeLog(){
         <div class="log-body"><div class="log-title">${isAdd?'Added':'Removed'} — ${d.reason||'No reason'}</div><div class="log-meta">${metaStr}</div></div>
         <div class="log-right"><div class="log-amt" style="color:${isAdd?'var(--green)':'var(--red)'}">${isAdd?'+':'−'}${fmt(d.amount)}</div><div class="log-time">${d.date}</div></div>
         <button class="log-del" onclick="delExpense(${entry.i})">✕</button>`;
+    } else if(entry.type==='balanceUpdate'){
+      const parts=[];
+      if(d.coin)parts.push('Mønt '+(d.coin>0?'+':'−')+fmt(Math.abs(d.coin)));
+      if(d.cash)parts.push('Cash '+(d.cash>0?'+':'−')+fmt(Math.abs(d.cash)));
+      if(d.pc)parts.push('Playcoins '+(d.pc>0?'+':'−')+fmt(Math.abs(d.pc)));
+      if(d.bank)parts.push('Bank '+(d.bank>0?'+':'−')+fmt(Math.abs(d.bank)));
+      div.innerHTML=`<div class="log-ico" style="background:var(--accent-dim)">↺</div>
+        <div class="log-body"><div class="log-title">Count Updated</div><div class="log-meta">${parts.join(' · ')||'Saved current count'}</div></div>
+        <div class="log-right"><div class="log-time">${d.date||''}</div></div>`;
     } else {
       const icon=d.type==='playcoin'?'🪙':'💵',title=d.type==='playcoin'?'Playcoins Added':'Cash Added';
       div.innerHTML=`<div class="log-ico" style="background:var(--teal-dim)">${icon}</div>
@@ -1382,7 +1474,7 @@ function generateShiftPDF(options={}){
   const fridge=getFridgeTotal();
   const fridgeYesterday=getFridgeYesterdayMoney();
   const fridgeCombined=fridgeYesterday+fridge;
-  const {cashPart:fridgeCash,coinPart:fridgeCoin}=getFridgeCashConversion();
+  const {cashPart:fridgeCash,coinPart:fridgeCoin}=getFridgeCountBreakdown();
 
   const archived=D.archived||{exchanges:[],cashpoints:[],fillups:[],additions:[]};
   const allFillups=[...(archived.fillups||[]),...D.fillups];
@@ -1390,6 +1482,7 @@ function generateShiftPDF(options={}){
   const allCashpoints=[...(archived.cashpoints||[]),...D.cashpoints];
   const allExchanges=[...(archived.exchanges||[]),...D.exchanges];
   const allExpenses=D.expenses||[];
+  const allBalanceUpdates=D.balanceUpdates||[];
 
   const CAT={cash:'Cash',pc:'Playcoins',coin:'Mønt',bank:'Bank'};
 
@@ -1405,6 +1498,7 @@ function generateShiftPDF(options={}){
     ...allCashpoints.map(x=>({type:'cashpoint',ts:x.ts||0,data:x})),
     ...allExchanges.map(x=>({type:'exchange',ts:x.ts||0,data:x})),
     ...allExpenses.map(x=>({type:'expense',ts:x.ts||0,data:x})),
+    ...allBalanceUpdates.map(x=>({type:'balanceUpdate',ts:x.ts||0,data:x})),
   ].sort((a,b)=>a.ts-b.ts);
 
   let rCoin=D.shift?D.shift.coin:0;
@@ -1455,6 +1549,11 @@ function generateShiftPDF(options={}){
       const sign=d.sign||-1;
       rCash+=sign*(d.cashPart||0);
       rCoin+=sign*(d.coinPart||0);
+    } else if(ev.type==='balanceUpdate'){
+      rCoin+=d.coin||0;
+      rCash+=d.cash||0;
+      rPc+=d.pc||0;
+      rBank+=d.bank||0;
     }
     ev.snapshot={coin:rCoin,cash:rCash,pc:rPc,bank:rBank};
   });
@@ -1484,6 +1583,15 @@ function generateShiftPDF(options={}){
       label=isAdd?'Unexpected Change (Added)':'Unexpected Change (Removed)';
       detail=d.reason||'—';
       amount=(isAdd?'+':'−')+f(d.amount);
+    } else if(ev.type==='balanceUpdate'){
+      label='Count Updated';
+      const parts=[];
+      if(d.coin)parts.push('Mønt '+(d.coin>0?'+':'−')+f(Math.abs(d.coin)));
+      if(d.cash)parts.push('Cash '+(d.cash>0?'+':'−')+f(Math.abs(d.cash)));
+      if(d.pc)parts.push('Playcoins '+(d.pc>0?'+':'−')+f(Math.abs(d.pc)));
+      if(d.bank)parts.push('Bank '+(d.bank>0?'+':'−')+f(Math.abs(d.bank)));
+      detail=parts.join(' · ')||'Saved current count';
+      amount='—';
     }
     logRows+=`<tr><td>${d.date||''}</td><td>${label}</td><td>${detail}</td><td style="text-align:right;font-family:monospace">${amount}</td><td style="text-align:right">${expCellHtml(ev.snapshot)}</td></tr>`;
   });
@@ -1641,7 +1749,7 @@ function confirmReset(){
 
 function doReset(){
   const savedSettings={...(D.settings||{fullName:'',shops:[],mailLanguage:'da'})};delete savedSettings.autoDownloadOnReset;delete savedSettings.downloadFolderName;
-  D={shift:null,exchanges:[],cashpoints:[],fillups:[],additions:[],expenses:[],winners:[],auditLog:[],archived:{exchanges:[],cashpoints:[],fillups:[],additions:[]},shop:{starts:{},sold:{},freeTakes:{},log:[],yesterdayMoney:0},inputs:{home:{},shift:{},machines:{}},settings:savedSettings,kfType:'kr'};
+  D={shift:null,exchanges:[],cashpoints:[],fillups:[],additions:[],expenses:[],balanceUpdates:[],winners:[],auditLog:[],archived:{exchanges:[],cashpoints:[],fillups:[],additions:[]},shop:{starts:{},sold:{},freeTakes:{},log:[],yesterdayMoney:0},inputs:{home:{},shift:{},machines:{}},settings:savedSettings,kfType:'kr'};
   _homeLogPage=0;_exListPage=0;_cpListPage=0;_addListPage=0;_kfLogPage=0;_expenseListPage=0;
   Object.keys(_checkStates).forEach(k=>delete _checkStates[k]);
   _saveChecks();
@@ -2023,7 +2131,7 @@ function renderShopSummary(){
     return;
   }
 
-  const {cashPart,coinPart}=getFridgeCashConversion();
+  const {cashPart,coinPart}=getFridgeCountBreakdown();
   let html='';
   SHOP_PRODUCTS.forEach(p=>{
     const sold=D.shop.sold[p.id]||0;

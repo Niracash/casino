@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Casino">
-  <link rel="stylesheet" href="style.css?v=26">
+  <link rel="stylesheet" href="style.css?v=27">
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icon-192.png">
   <style>
@@ -111,25 +111,25 @@
       <div class="cl">💰 Mønt (coins)</div>
       <input type="number" id="h-coin" placeholder="0" min="0" inputmode="numeric" oninput="recalc();stashInputs()">
       <div class="exp-hint" id="h-coin-hint"></div>
-      <button class="count-balance-btn" type="button" onclick="confirmBalanceCount('coin')">Balance with Mønt</button>
+      <button class="count-balance-btn" type="button" onclick="confirmBalanceCount('coin')">Update</button>
     </div>
     <div class="cell">
       <div class="cl">💵 Cash</div>
       <input type="number" id="h-cash" placeholder="0" min="0" inputmode="numeric" oninput="recalc();stashInputs()">
       <div class="exp-hint" id="h-cash-hint"></div>
-      <button class="count-balance-btn" type="button" onclick="confirmBalanceCount('cash')">Balance with Cash</button>
+      <button class="count-balance-btn" type="button" onclick="confirmBalanceCount('cash')">Update</button>
     </div>
     <div class="cell">
       <div class="cl">🪙 Playcoins</div>
       <input type="number" id="h-pc" placeholder="0" min="0" inputmode="numeric" oninput="recalc();stashInputs()">
       <div class="exp-hint" id="h-pc-hint"></div>
-      <button class="count-balance-btn" type="button" onclick="confirmBalanceCount('pc')">Balance with Playcoins</button>
+      <button class="count-balance-btn" type="button" onclick="confirmBalanceCount('pc')">Update</button>
     </div>
     <div class="cell">
       <div class="cl">💳 Bank</div>
       <input type="number" id="h-bank" placeholder="0" min="0" inputmode="numeric" oninput="recalc();stashInputs()">
       <div class="exp-hint" id="h-bank-hint"></div>
-      <button class="count-balance-btn" type="button" onclick="confirmBalanceCount('bank')">Balance with Bank</button>
+      <button class="count-balance-btn" type="button" onclick="confirmBalanceCount('bank')">Update</button>
     </div>
   </div>
 
@@ -507,7 +507,7 @@
   </div>
 </div>
 
-<script src="app.js?v=26"></script>
+<script src="app.js?v=27"></script>
 <script>
   const isStandalone=window.navigator.standalone===true||window.matchMedia('(display-mode: standalone)').matches;
   const isMobile=/android|iphone|ipad|ipod/i.test(navigator.userAgent);
