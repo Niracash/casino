@@ -45,7 +45,6 @@ document.addEventListener('DOMContentLoaded',()=>{
     const ab=document.getElementById('type-'+D.kfType);if(ab)ab.classList.add('on');
     document.getElementById('kf-input-label').textContent={kr:'Win amount (kr)','1cr':'Credits on display','05cr':'Credits on display'}[D.kfType]||'Win amount (kr)';
   }
-  applyKFMachineLookup();
   selExFrom(_exFrom);
   // Init cashpoint sign button visibility (bank is default, sign not needed)
   const cpSb=document.getElementById('cp-sign-btn');
@@ -126,118 +125,6 @@ const nowTime=()=>new Date().toLocaleTimeString('no-NO',{hour:'2-digit',minute:'
 const nowDate=()=>new Date().toLocaleDateString('no-NO',{day:'2-digit',month:'2-digit',year:'numeric'});
 const nowFull=()=>nowDate()+' '+nowTime();
 const CAT_LABELS={cash:'Cash',pc:'Playcoins',coin:'Mønt',bank:'Bank'};
-
-// ── Machine directory ──
-// ID values are the last 4 characters from the machine serial list.
-// denomination: '1cr' = 1 kr machine, '05cr' = 50 øre machine, 'kr' = regular kr entry.
-const MACHINE_DIRECTORY={
-  '11':{name:'ALLAN CAPONE',id:'8c04',denomination:'kr'},
-  '57':{name:'ALLAN CAPONE',id:'86c1',denomination:'kr'},
-  '21':{name:'BAKER ST. 211B',id:'9268',denomination:'1cr'},
-  '25':{name:'BAKER ST. 211B',id:'88ce',denomination:'kr'},
-  '29':{name:'BAKER ST. 211B',id:'374c',denomination:'kr'},
-  '24':{name:'BAKER ST. 211B',id:'b114',denomination:'kr'},
-  '56':{name:'BAKER ST. 211B',id:'345f',denomination:'1cr'},
-  '49':{name:'BAKER ST. 211B',id:'3343',denomination:'kr'},
-  '42':{name:'BAKER ST. 211B',id:'9e73',denomination:'kr'},
-  '8':{name:'CGDAE Multi 5',id:'b4ed',denomination:'kr'},
-  '9':{name:'CGDAE Multi 5',id:'9855',denomination:'kr'},
-  '55':{name:'CGDAE Multi 5',id:'034f',denomination:'kr'},
-  '37':{name:'CGDAE Multi 5',id:'3a84',denomination:'kr'},
-  '27':{name:'EXTREME',id:'1bc7',denomination:'kr'},
-  '20':{name:'FIREDANCE',id:'968c',denomination:'kr'},
-  '1':{name:'GamblifyOnline',id:'0e1f',denomination:'kr'},
-  '4':{name:'GamblifyOnline',id:'eac7',denomination:'kr'},
-  '33':{name:'GamblifyOnline',id:'9dca',denomination:'kr'},
-  '34':{name:'GamblifyOnline',id:'a404',denomination:'kr'},
-  '3':{name:'GamblifyOnline',id:'420d',denomination:'kr'},
-  '13':{name:'GamblifyOnline',id:'ffd0',denomination:'kr'},
-  '15':{name:'GamblifyOnline',id:'6cd6',denomination:'kr'},
-  '14':{name:'GamblifyOnline',id:'47cc',denomination:'kr'},
-  '2':{name:'GamblifyOnline',id:'0df6',denomination:'kr'},
-  '16':{name:'GamblifyOnline',id:'abfe',denomination:'kr'},
-  '47':{name:'HOT STUFF',id:'9f94',denomination:'kr'},
-  '32':{name:'MAGIC NIGHT',id:'24a1',denomination:'kr'},
-  '39':{name:'MIDNIGHTMADNESS',id:'8bfe',denomination:'kr'},
-  '36':{name:'MOUNT EVEREST',id:'4b5c',denomination:'1cr'},
-  '23':{name:'ORIENT EXPRES',id:'9178',denomination:'1cr'},
-  '26':{name:'ORIENT EXPRES',id:'281b',denomination:'kr'},
-  '17':{name:'ORIENT EXPRES',id:'a1bb',denomination:'kr'},
-  '30':{name:'ORIENT EXPRES',id:'8713',denomination:'kr'},
-  '10':{name:'ORIENT EXPRES',id:'9631',denomination:'kr'},
-  '59':{name:'ORIENT EXPRES',id:'1b28',denomination:'kr'},
-  '52':{name:'ORIENT EXPRES',id:'8617',denomination:'kr'},
-  '40':{name:'ORIENT EXPRES',id:'871a',denomination:'kr'},
-  '5':{name:'ORIENT EXPRES',id:'8615',denomination:'1cr'},
-  '12':{name:'ORIENT EXPRES',id:'87cc',denomination:'1cr'},
-  '53':{name:'ORIENT EXPRES',id:'1f73',denomination:'1cr'},
-  '43':{name:'ORIENT EXPRES',id:'8712',denomination:'1cr'},
-  '28':{name:'ORIENTEN 2',id:'0a74',denomination:'kr'},
-  '35':{name:'ROBOTS',id:'7e18',denomination:'kr'},
-  '22':{name:'THORS HAMMER',id:'aa39',denomination:'kr'},
-  '6':{name:'THORS HAMMER',id:'8141',denomination:'kr'},
-  '58':{name:'THORS HAMMER',id:'8144',denomination:'kr'},
-  '50':{name:'THORS HAMMER',id:'8c0a',denomination:'1cr'},
-  '38':{name:'THORS HAMMER',id:'938e',denomination:'1cr'},
-  '46':{name:'THORS HAMMER',id:'ae51',denomination:'kr'},
-  '7':{name:'THORS HAMMER',id:'2549',denomination:'1cr'},
-  '48':{name:'THORS HAMMER',id:'8a2b',denomination:'1cr'},
-  '19':{name:'VIRGINIA CITY',id:'939a',denomination:'1cr'},
-  '18':{name:'VIRGINIA CITY',id:'926b',denomination:'kr'},
-  '31':{name:'VIRGINIA CITY',id:'05f4',denomination:'kr'},
-  '41':{name:'VIRGINIA CITY',id:'9887',denomination:'1cr'},
-  '44':{name:'VIRGINIA CITY',id:'34e6',denomination:'kr'},
-  '60':{name:'VIRGINIA CITY',id:'1874',denomination:'1cr'},
-  '54':{name:'VIRGINIA CITY',id:'1f47',denomination:'05cr'},
-  '45':{name:'VIRGINIA CITY',id:'1f45',denomination:'05cr'},
-  '51':{name:'VIRGINIA CITY',id:'0222',denomination:'1cr'}
-};
-
-function getMachineInfo(value){
-  const nr=String(value||'').trim().replace(/^0+/,'')||'0';
-  return MACHINE_DIRECTORY[nr]||null;
-}
-
-function applyKFMachineLookup(){
-  const input=document.getElementById('kf-machine');
-  const box=document.getElementById('kf-machine-info');
-  const nameEl=document.getElementById('kf-machine-name');
-  const idEl=document.getElementById('kf-machine-id');
-  if(!input)return;
-  const info=getMachineInfo(input.value);
-  if(info){
-    if(box)box.style.display='';
-    if(nameEl)nameEl.textContent=info.name;
-    if(idEl)idEl.textContent=info.id;
-    // Select the machine denomination automatically, but it can still be changed manually.
-    const btn=document.getElementById('type-'+info.denomination);
-    if(btn&&_kfType!==info.denomination)selType(btn,info.denomination);
-  }else{
-    if(box)box.style.display='none';
-    if(nameEl)nameEl.textContent='—';
-    if(idEl)idEl.textContent='—';
-  }
-  stashInputs();
-}
-
-function applyWinnerMachineLookup(){
-  const nrEl=document.getElementById('w-machine-nr');
-  const idEl=document.getElementById('w-machine-id');
-  const nameEl=document.getElementById('w-machine-name');
-  if(!nrEl||!idEl||!nameEl)return;
-  const info=getMachineInfo(nrEl.value);
-  if(info){
-    idEl.value=info.id;
-    nameEl.value=info.name;
-    idEl.dataset.autofilled='1';
-    nameEl.dataset.autofilled='1';
-  }else{
-    if(idEl.dataset.autofilled==='1'){idEl.value='';delete idEl.dataset.autofilled;}
-    if(nameEl.dataset.autofilled==='1'){nameEl.value='';delete nameEl.dataset.autofilled;}
-  }
-  saveWinner();
-}
-
 
 function flash(id){const el=document.getElementById(id);if(!el)return;el.style.borderColor='var(--red)';el.focus();setTimeout(()=>el.style.borderColor='',1600);}
 
@@ -647,7 +534,7 @@ function renderHomeLog(){
     const d=entry.data,div=document.createElement('div');div.className='log-item';
     if(entry.type==='fillup'){
       div.innerHTML=`<div class="log-ico" style="background:var(--green-dim)">🔑</div>
-        <div class="log-body"><div class="log-title">Key Fillup — Machine ${d.machine}${d.machineName?' · '+d.machineName:''}</div><div class="log-meta">${d.machineId?'ID: '+d.machineId+' · ':''}${d.coins} playcoins · ${fmt(d.coins*20)}</div></div>
+        <div class="log-body"><div class="log-title">Key Fillup — Machine ${d.machine}</div><div class="log-meta">${d.coins} playcoins · ${fmt(d.coins*20)}</div></div>
         <div class="log-right"><div class="log-amt">${fmt(d.coins*20)}</div><div class="log-time">${d.date}</div></div>
         <button class="log-del" onclick="delFillup(${entry.i})">✕</button>`;
     } else if(entry.type==='cashpoint'){
@@ -1187,11 +1074,10 @@ let _kfLogPage=0;
 function saveKF(){
   const raw=parseFloat(document.getElementById('kf-val').value);if(isNaN(raw)||raw<=0)return;
   const machine=document.getElementById('kf-machine').value.trim()||'Unknown';
-  const machineInfo=getMachineInfo(machine);
   let kr=0,coins=0;
   if(_kfType==='kr'){kr=raw;}else if(_kfType==='1cr'){kr=raw/2;}else{kr=raw/4;}
   coins=Math.ceil(Math.floor(kr/20)/5)*5||5;
-  D.fillups.push({machine,machineName:machineInfo?machineInfo.name:'',machineId:machineInfo?machineInfo.id:'',type:_kfType,inputVal:raw,kr,coins,date:nowFull(),ts:Date.now()});saveState();
+  D.fillups.push({machine,type:_kfType,inputVal:raw,kr,coins,date:nowFull(),ts:Date.now()});saveState();
   document.getElementById('kf-val').value='';document.getElementById('kf-res').style.display='none';document.getElementById('kf-save-btn').disabled=true;
   haptic('success');
   renderKFLog();renderHomeLog();recalc();updateEstCalc();updateHomeEst();fillExpectedIntoCount();
@@ -1228,10 +1114,10 @@ function renderKFLog(){
     const krStr=f.type!=='kr'?` = ${f.kr!=null?f.kr.toLocaleString('no-NO'):''} kr`:'';
     const inputStr=`<div style="font-size:.72rem;color:var(--sub);margin-top:2px">${inputLabels[f.type]||f.type}: <b style="color:var(--text)">${f.inputVal!=null?f.inputVal.toLocaleString('no-NO'):f.kr.toLocaleString('no-NO')}</b>${krStr}</div>`;
     d.innerHTML=`<div class="mlog-top">
-      <div class="mlog-title">🔑 Machine ${f.machine}${f.machineName?` · ${f.machineName}`:''}</div>
+      <div class="mlog-title">🔑 Machine ${f.machine}</div>
       <div style="display:flex;align-items:center;gap:6px"><span class="mlog-badge">${typeMap[f.type]||f.type}</span><button class="mlog-del" onclick="delFillup(${i})">✕</button></div>
     </div>
-    <div class="mlog-detail">${f.machineId?`<div style="font-size:.7rem;color:var(--sub);margin-bottom:3px">ID: <b style="color:var(--text)">${f.machineId}</b></div>`:''}<span style="color:var(--text);font-weight:600">${f.coins} playcoins · ${fmt(f.coins*20)}</span>${inputStr}${stepsHtml}<div style="margin-top:6px;color:var(--muted);font-size:.65rem">${f.date}</div></div>`;
+    <div class="mlog-detail"><span style="color:var(--text);font-weight:600">${f.coins} playcoins · ${fmt(f.coins*20)}</span>${inputStr}${stepsHtml}<div style="margin-top:6px;color:var(--muted);font-size:.65rem">${f.date}</div></div>`;
     el.appendChild(d);
   });
   renderLogPagination('kf-log-pagination',_kfLogPage,totalPages,total,(p)=>{_kfLogPage=p;renderKFLog();});
@@ -1382,7 +1268,7 @@ function generateShiftPDF(options={}){
     const d=ev.data;
     let label='',detail='',amount='';
     if(ev.type==='fillup'){
-      label='Key Fillup';detail=`Machine ${d.machine}${d.machineName?' · '+d.machineName:''}${d.machineId?' · ID '+d.machineId:''} — ${d.coins} coins`;amount=f(d.coins*20);
+      label='Key Fillup';detail=`Machine ${d.machine} — ${d.coins} coins`;amount=f(d.coins*20);
     } else if(ev.type==='addition'){
       label=d.type==='playcoin'?'Playcoins Added':'Cash Added';detail='Replenishment';amount=f(d.amount);
     } else if(ev.type==='cashpoint'){
