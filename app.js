@@ -551,7 +551,7 @@ function updateHomeHints(){
   // Loose fridge money below the next 50 kr transfer belongs physically in Mønt.
   // Show the combined physical expectation in the hint only; do not change the input value or accounting state.
   setH('h-coin-hint',exp.coin,fridgeCoin,{totalWithFridge:true});
-  setH('h-cash-hint',exp.cash,fridgeCash);
+  setH('h-cash-hint',exp.cash,fridgeCash,{totalWithFridge:true});
   setH('h-pc-hint',exp.pc,0);
   setH('h-bank-hint',exp.bank,0);
 }
