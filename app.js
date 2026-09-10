@@ -236,11 +236,13 @@ function getMachineInfo(value,shop){
 function getKeyFillupTypeForMachine(info){
   if(!info)return'kr';
   const name=String(info.name||'').trim();
-  // Gamblify and CGDAE machines always use direct KR input in Key Fillup.
+  // Key Fillup rule for this machine setup:
+  // - GamblifyOnline / CGDAE Multi 5 use direct KR input.
+  // - Machines marked 1 kr use 1 Credit.
+  // - Every other machine uses 0.5 Credit (50 øre).
   if(/gamblify|cgdae/i.test(name))return'kr';
   if(info.denomination==='1cr')return'1cr';
-  if(info.denomination==='05cr')return'05cr';
-  return'kr';
+  return'05cr';
 }
 
 function applyKFMachineLookup(){
@@ -1318,8 +1320,6 @@ function setShift(){
   D.shift={coin,cash,pc,bank,total,originalTotal:total,originalCoin:coin,originalCash:cash,originalPc:pc,originalBank:bank,shop,date:nowFull()};
   const st=ensureSettings();st.lastWinnerShop=shop;st.lastMachineShop=shop;
   saveState();renderShiftInfo();recalc();updateEstCalc();updateHomeEst();applyWinnerMachineLookup();applyKFMachineLookup();haptic('success');
-  const btn=event.currentTarget;btn.innerHTML='✓ Done!';btn.style.opacity='.7';
-  setTimeout(()=>{btn.innerHTML='✓ Set as Start Total';btn.style.opacity='';},2000);
 }
 function lockShiftInputs(locked){
   ['s-coin','s-cash','s-pc','s-bank'].forEach(id=>{
@@ -1330,8 +1330,13 @@ function lockShiftInputs(locked){
     el.style.cursor=locked?'not-allowed':'';
     el.style.pointerEvents=locked?'none':'';
   });
-  const btn=document.querySelector('#page-shift .btn-primary');
-  if(btn){btn.disabled=locked;btn.style.opacity=locked?'0.3':'';}
+  const btn=document.getElementById('set-shift-btn');
+  if(btn){
+    btn.disabled=locked;
+    btn.style.opacity=locked?'0.3':'';
+    btn.style.cursor=locked?'not-allowed':'';
+    btn.textContent=locked?'✓ Start Total Set':'✓ Set as Start Total';
+  }
   const preview=document.getElementById('s-preview');
   if(preview)preview.style.opacity=locked?'0.4':'1';
   const shop=document.getElementById('s-shop');

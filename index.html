@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Casino">
-  <link rel="stylesheet" href="style.css?v=22">
+  <link rel="stylesheet" href="style.css?v=24">
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icon-192.png">
   <style>
@@ -258,7 +258,7 @@
     <span class="tl">Total preview</span>
     <span class="tv" id="s-preview">0 kr</span>
   </div>
-  <button class="btn btn-primary" onclick="setShift()">✓ Set as Start Total</button>
+  <button class="btn btn-primary" id="set-shift-btn" onclick="setShift()">✓ Set as Start Total</button>
 
   <div class="shift-card" style="margin-top:12px">
     <div>
@@ -325,7 +325,7 @@
   <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:14px;margin-bottom:10px">
     <div class="fg" style="margin-bottom:10px">
       <label class="fl" for="w-shop-display">Shop / Location</label>
-      <input type="text" id="w-shop-display" value="" placeholder="Set a shop at Start of Shift" readonly aria-readonly="true" style="background:var(--card2);color:var(--text);cursor:default">
+      <input type="text" id="w-shop-display" value="" placeholder="Set a shop at Start of Shift" readonly aria-readonly="true" tabindex="-1" onfocus="this.blur()" style="background:var(--card2);color:var(--text);cursor:default;pointer-events:none;user-select:text">
     </div>
     <div class="cgrid" style="margin-bottom:8px">
       <div class="cell">
@@ -507,7 +507,7 @@
   </div>
 </div>
 
-<script src="app.js?v=22"></script>
+<script src="app.js?v=24"></script>
 <script>
   const isStandalone=window.navigator.standalone===true||window.matchMedia('(display-mode: standalone)').matches;
   const isMobile=/android|iphone|ipad|ipod/i.test(navigator.userAgent);
