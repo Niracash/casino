@@ -516,14 +516,21 @@ function updateHomeEst(){
 function updateHomeHints(){
   const exp=getExpected();
   const {cashPart:fridgeCash,coinPart:fridgeCoin}=getFridgeCashConversion();
-  const setH=(id,base,fridgePart)=>{
+  const setH=(id,base,fridgePart,{totalWithFridge=false}={})=>{
     const el=document.getElementById(id);if(!el)return;
     if(!D.shift){el.innerHTML='';return;}
+    if(totalWithFridge&&fridgePart>0){
+      const total=Math.round(base+fridgePart).toLocaleString('no-NO');
+      el.innerHTML=`Expected: <span style="color:var(--green)">${total} kr with fridge</span>`;
+      return;
+    }
     const baseStr=`Expected: <span>${Math.round(base).toLocaleString('no-NO')} kr</span>`;
     const fridgeStr=fridgePart>0?` <span style="color:var(--green)">(+${fridgePart.toLocaleString('no-NO')} kr fridge)</span>`:'';
     el.innerHTML=baseStr+fridgeStr;
   };
-  setH('h-coin-hint',exp.coin,fridgeCoin);
+  // Loose fridge money below the next 50 kr transfer belongs physically in Mønt.
+  // Show the combined physical expectation in the hint only; do not change the input value or accounting state.
+  setH('h-coin-hint',exp.coin,fridgeCoin,{totalWithFridge:true});
   setH('h-cash-hint',exp.cash,fridgeCash);
   setH('h-pc-hint',exp.pc,0);
   setH('h-bank-hint',exp.bank,0);
