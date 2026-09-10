@@ -71,6 +71,7 @@ function goPage(id,btn){
   if(id==='home'){fillExpectedIntoCount();recalc();renderHomeLog();renderExchangeList();renderShopSummary();}
   if(id==='machines'){renderKFLog();renderAddList();applyKFMachineLookup();}
   if(id==='shift'){
+    renderShiftShopOptions();
     renderWinnerShopOptions();
     applyWinnerMachineLookup();
     renderShiftInfo();sPreview();renderCashpointList();renderExpenseList();renderWinnerLog();updateEstCalc();
@@ -199,7 +200,7 @@ function getActiveShiftShop(){
 }
 
 function getSelectedWinnerShop(){
-  return (document.getElementById('w-shop')?.value||'').trim();
+  return getActiveShiftShop();
 }
 
 function getMachineMatchesAcrossShops(value){
@@ -239,10 +240,10 @@ function applyKFMachineLookup(){
   const idEl=document.getElementById('kf-machine-id');
   if(!input)return;
   const st=ensureSettings();
-  const matches=getMachineMatchesAcrossShops(input.value);
-  if(matches.length===1){
-    const {info}=matches[0];
-    input.dataset.machineShop=matches[0].shop;
+  const shop=getActiveShiftShop();
+  const info=shop?getMachineInfo(input.value,shop):null;
+  if(info){
+    input.dataset.machineShop=shop;
     const btn=document.getElementById('type-'+info.denomination);
     if(btn&&_kfType!==info.denomination)selType(btn,info.denomination);
     if(st.autoFillMachineDetails!==false){
@@ -254,11 +255,6 @@ function applyKFMachineLookup(){
       if(nameEl){nameEl.textContent='—';nameEl.style.color='';}
       if(idEl)idEl.textContent='—';
     }
-  }else if(matches.length>1){
-    if(box)box.style.display='';
-    if(nameEl){nameEl.textContent='Machine number exists in multiple shops';nameEl.style.color='var(--red)';}
-    if(idEl)idEl.textContent='—';
-    delete input.dataset.machineShop;
   }else{
     if(box)box.style.display='none';
     if(nameEl){nameEl.textContent='—';nameEl.style.color='';}
@@ -274,11 +270,10 @@ function applyWinnerMachineLookup(){
   const nameEl=document.getElementById('w-machine-name');
   if(!nrEl||!idEl||!nameEl)return;
   const st=ensureSettings();
-  if(st.autoFillMachineDetails===false){
-    if(idEl.dataset.autofilled==='1'){idEl.value='';delete idEl.dataset.autofilled;}
-    if(nameEl.dataset.autofilled==='1'){nameEl.value='';delete nameEl.dataset.autofilled;}
-    saveWinner();return;
-  }
+  // When auto fill is disabled, machine number entry must never modify the
+  // manually editable ID/name fields. setAutoFillMachineDetails(false)
+  // clears any previously generated values once when the setting is switched off.
+  if(st.autoFillMachineDetails===false){saveWinner();return;}
   const info=getMachineInfo(nrEl.value,getSelectedWinnerShop());
   if(info){
     idEl.value=info.id;
@@ -385,7 +380,7 @@ function getExpected(){
 
 function stashInputs(){
   D.inputs.home={coin:document.getElementById('h-coin').value,cash:document.getElementById('h-cash').value,pc:document.getElementById('h-pc').value,bank:document.getElementById('h-bank').value};
-  D.inputs.shift={coin:document.getElementById('s-coin').value,cash:document.getElementById('s-cash').value,pc:document.getElementById('s-pc').value,bank:document.getElementById('s-bank').value};
+  D.inputs.shift={shop:document.getElementById('s-shop')?.value||'',coin:document.getElementById('s-coin').value,cash:document.getElementById('s-cash').value,pc:document.getElementById('s-pc').value,bank:document.getElementById('s-bank').value};
   D.inputs.machines={machine:document.getElementById('kf-machine').value,val:document.getElementById('kf-val').value};
   D.kfType=_kfType;saveState();
 }
@@ -393,7 +388,7 @@ function stashInputs(){
 function restoreInputs(){
   const set=(id,v)=>{const el=document.getElementById(id);if(el&&v!=null&&v!=='')el.value=v;};
   if(D.inputs.home){set('h-coin',D.inputs.home.coin);set('h-cash',D.inputs.home.cash);set('h-pc',D.inputs.home.pc);set('h-bank',D.inputs.home.bank);}
-  if(D.inputs.shift){set('s-coin',D.inputs.shift.coin);set('s-cash',D.inputs.shift.cash);set('s-pc',D.inputs.shift.pc);set('s-bank',D.inputs.shift.bank);}
+  if(D.inputs.shift){set('s-shop',D.inputs.shift.shop);set('s-coin',D.inputs.shift.coin);set('s-cash',D.inputs.shift.cash);set('s-pc',D.inputs.shift.pc);set('s-bank',D.inputs.shift.bank);}
   renderWinnerShopOptions();
   if(D.inputs.machines){set('kf-machine',D.inputs.machines.machine);set('kf-val',D.inputs.machines.val);}
   restoreWinner();
@@ -1244,10 +1239,8 @@ let _kfLogPage=0;
 function saveKF(){
   const raw=parseFloat(document.getElementById('kf-val').value);if(isNaN(raw)||raw<=0)return;
   const machine=document.getElementById('kf-machine').value.trim()||'Unknown';
-  const matches=getMachineMatchesAcrossShops(machine);
-  if(matches.length>1){showModal({title:'Machine found in multiple shops',msg:'This machine number exists in more than one shop. Add a unique machine number or edit the shop machine lists.',buttons:[{label:'OK',style:'modal-btn-primary'}]});return;}
-  const machineShop=matches.length===1?matches[0].shop:'';
-  const machineInfo=matches.length===1?matches[0].info:null;
+  const machineShop=getActiveShiftShop();
+  const machineInfo=machineShop?getMachineInfo(machine,machineShop):null;
   let kr=0,coins=0;
   if(_kfType==='kr'){kr=raw;}else if(_kfType==='1cr'){kr=raw/2;}else{kr=raw/4;}
   coins=Math.ceil(Math.floor(kr/20)/5)*5||5;
@@ -1304,13 +1297,16 @@ function sPreview(){
 }
 function setShift(){
   const coin=g('s-coin'),cash=g('s-cash'),pc=g('s-pc'),bank=g('s-bank');
+  const shop=(document.getElementById('s-shop')?.value||'').trim();
+  if(!shop){flash('s-shop');showModal({title:'Choose shop',msg:'Choose the shop for this shift first.',buttons:[{label:'OK',style:'modal-btn-primary'}]});return;}
   if(!coin&&!cash&&!pc&&!bank){
     showModal({title:'No values entered',msg:'Enter at least one value before setting the start total.',buttons:[{label:'OK',style:'modal-btn-primary'}]});
     return;
   }
   const total=coin+cash+pc+bank;
-  D.shift={coin,cash,pc,bank,total,originalTotal:total,originalCoin:coin,originalCash:cash,originalPc:pc,originalBank:bank,date:nowFull()};
-  saveState();renderShiftInfo();recalc();updateEstCalc();updateHomeEst();haptic('success');
+  D.shift={coin,cash,pc,bank,total,originalTotal:total,originalCoin:coin,originalCash:cash,originalPc:pc,originalBank:bank,shop,date:nowFull()};
+  const st=ensureSettings();st.lastWinnerShop=shop;st.lastMachineShop=shop;
+  saveState();renderShiftInfo();recalc();updateEstCalc();updateHomeEst();applyWinnerMachineLookup();applyKFMachineLookup();haptic('success');
   const btn=event.currentTarget;btn.innerHTML='✓ Done!';btn.style.opacity='.7';
   setTimeout(()=>{btn.innerHTML='✓ Set as Start Total';btn.style.opacity='';},2000);
 }
@@ -1327,15 +1323,22 @@ function lockShiftInputs(locked){
   if(btn){btn.disabled=locked;btn.style.opacity=locked?'0.3':'';}
   const preview=document.getElementById('s-preview');
   if(preview)preview.style.opacity=locked?'0.4':'1';
+  const shop=document.getElementById('s-shop');
+  if(shop){shop.disabled=locked;shop.style.opacity=locked?'0.5':'1';}
 }
 function renderShiftInfo(){
-  const el=document.getElementById('shift-total-display'),date=document.getElementById('shift-date-display');
+  const el=document.getElementById('shift-total-display'),date=document.getElementById('shift-date-display'),shopEl=document.getElementById('shift-shop-display'),winnerShop=document.getElementById('w-shop-display');
   if(D.shift){
     const displayTotal=D.shift.originalTotal!=null?D.shift.originalTotal:D.shift.total;
     el.textContent=fmt(displayTotal);el.className='ssv';date.textContent='Set: '+D.shift.date;
+    if(shopEl)shopEl.textContent=D.shift.shop||'';
+    if(winnerShop)winnerShop.textContent=D.shift.shop||'No shop selected';
+    const shopSel=document.getElementById('s-shop');if(shopSel&&D.shift.shop)shopSel.value=D.shift.shop;
     lockShiftInputs(true);
   } else {
     el.textContent='Not set';el.className='ssv idle';date.textContent='';
+    if(shopEl)shopEl.textContent='';
+    if(winnerShop)winnerShop.textContent='Set a shop at Start of Shift';
     lockShiftInputs(false);
   }
 }
@@ -1673,20 +1676,45 @@ function renderSettings(){
 function machineTypeLabel(type){return type==='1cr'?'1 kr':type==='05cr'?'50 øre':'KR';}
 function saveSettingsField(field,value){const st=ensureSettings();st[field]=value;saveState();}
 function setAutoFillMachineDetails(enabled){
-  const st=ensureSettings();st.autoFillMachineDetails=!!enabled;saveState();applyWinnerMachineLookup();applyKFMachineLookup();
+  const st=ensureSettings();
+  st.autoFillMachineDetails=!!enabled;
+  if(!st.autoFillMachineDetails){
+    // Remove values/details that may have been generated before this setting
+    // was disabled. After this one-time clear, the winner fields remain fully
+    // manual and are not touched by machine-number lookup.
+    const idEl=document.getElementById('w-machine-id');
+    const nameEl=document.getElementById('w-machine-name');
+    if(idEl){idEl.value='';delete idEl.dataset.autofilled;}
+    if(nameEl){nameEl.value='';delete nameEl.dataset.autofilled;}
+    const box=document.getElementById('kf-machine-info');
+    if(box)box.style.display='none';
+    const kfName=document.getElementById('kf-machine-name');
+    const kfId=document.getElementById('kf-machine-id');
+    if(kfName){kfName.textContent='—';kfName.style.color='';}
+    if(kfId)kfId.textContent='—';
+  }
+  saveState();
+  if(st.autoFillMachineDetails){applyWinnerMachineLookup();applyKFMachineLookup();}
 }
 function addSavedShop(inputId='set-shop-input'){
   const input=document.getElementById(inputId);if(!input)return;
   const name=input.value.trim();if(!name)return;
   const st=ensureSettings();
   if(!getAllShopNames().some(s=>s.toLowerCase()===name.toLowerCase())){st.shops.push(name);st.shopMachines[name]={};}
-  input.value='';saveState();renderSettings();renderWinnerShopOptions();renderShiftShopManager();
+  input.value='';saveState();renderSettings();renderShiftShopOptions();renderShiftShopManager();
 }
 function removeSavedShop(i){
   const st=ensureSettings();const shop=st.shops[i];if(!shop)return;
-  showModal({title:'Remove shop?',msg:`Remove ${shop}?`,buttons:[{label:'Cancel',style:'modal-btn-ghost'},{label:'Remove',style:'modal-btn-danger',action:()=>{st.shops.splice(i,1);delete st.shopMachines[shop];if(st.lastMachineShop===shop)st.lastMachineShop='';if(st.lastWinnerShop===shop)st.lastWinnerShop='';saveState();renderSettings();renderWinnerShopOptions();renderShiftShopManager();}}]});
+  showModal({title:'Remove shop?',msg:`Remove ${shop}?`,buttons:[{label:'Cancel',style:'modal-btn-ghost'},{label:'Remove',style:'modal-btn-danger',action:()=>{st.shops.splice(i,1);delete st.shopMachines[shop];if(st.lastMachineShop===shop)st.lastMachineShop='';if(st.lastWinnerShop===shop)st.lastWinnerShop='';saveState();renderSettings();renderShiftShopOptions();renderShiftShopManager();}}]});
 }
-function renderShiftShopOptions(){}
+function renderShiftShopOptions(){
+  const sel=document.getElementById('s-shop');if(!sel)return;
+  const shops=getAllShopNames();
+  const current=(D.shift&&D.shift.shop)||sel.value||(D.inputs.shift&&D.inputs.shift.shop)||ensureSettings().lastWinnerShop||'';
+  sel.innerHTML='<option value="">Choose shop</option>'+shops.map(x=>`<option value="${escapeHtml(x)}">${escapeHtml(x)}</option>`).join('');
+  if(shops.includes(current))sel.value=current;else if(shops.length===1)sel.value=shops[0];
+  if(D.shift)sel.disabled=true;
+}
 let _shiftShopManagerOpen=false;
 function toggleShiftShopManager(){
   _shiftShopManagerOpen=!_shiftShopManagerOpen;
@@ -1709,17 +1737,12 @@ function renderShiftShopManager(){
   if(!getBuiltinShopNames().length&&!st.shops.length)list.innerHTML='<div class="settings-empty">No shop locations saved</div>';
 }
 function renderWinnerShopOptions(){
-  const sel=document.getElementById('w-shop');if(!sel)return;
-  const shops=getAllShopNames();
-  const st=ensureSettings();
-  const current=sel.value||st.lastWinnerShop||'';
-  sel.innerHTML='<option value="">Choose shop</option>'+shops.map(x=>`<option value="${escapeHtml(x)}">${escapeHtml(x)}</option>`).join('');
-  if(shops.includes(current))sel.value=current;else if(shops.length===1)sel.value=shops[0];
+  const el=document.getElementById('w-shop-display');if(!el)return;
+  el.textContent=getActiveShiftShop()||'Set a shop at Start of Shift';
 }
+
 function renderMachineShopOptions(){}
-function winnerShopChanged(){
-  const st=ensureSettings();st.lastWinnerShop=(document.getElementById('w-shop')?.value||'');saveState();applyWinnerMachineLookup();
-}
+function winnerShopChanged(){applyWinnerMachineLookup();}
 function kfShopChanged(){applyKFMachineLookup();}
 function escapeHtml(v){return String(v).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
 
@@ -2303,7 +2326,7 @@ function buildWinnerMailData(){
   const gameName=document.getElementById('w-game-name').value.trim();
   const shop=getSelectedWinnerShop();
   const date=document.getElementById('w-date').value.trim()||nowDate();
-  if(!amount){flash('w-amount');return null;}if(!date){flash('w-date');return null;}if(!machineNr){flash('w-machine-nr');return null;}if(!machineId){flash('w-machine-id');return null;}if(!machineName){flash('w-machine-name');return null;}if(!gameName){flash('w-game-name');return null;}if(!shop){flash('w-shop');return null;}
+  if(!amount){flash('w-amount');return null;}if(!date){flash('w-date');return null;}if(!machineNr){flash('w-machine-nr');return null;}if(!machineId){flash('w-machine-id');return null;}if(!machineName){flash('w-machine-name');return null;}if(!gameName){flash('w-game-name');return null;}if(!shop){showModal({title:'Set shift first',msg:'Choose a shop and set the start of shift before creating a winner report.',buttons:[{label:'OK',style:'modal-btn-primary'}]});return null;}
   const st=ensureSettings();const fullName=(st.fullName||'').trim();
   const lang=st.mailLanguage==='en'?'en':'da';
   const subject=lang==='en'?`We have a win of ${amount} kr - ${shop}`:`Vi har en gevinst på ${amount} kr - ${shop}`;

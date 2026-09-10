@@ -220,7 +220,20 @@
 <div class="page" id="page-shift">
 
   <div class="sec-title"><span>Start of Shift</span></div>
-  <p class="caption">Count your drawer at shift start and tap Set. This becomes your reference total for the day.</p>
+  <p class="caption">Choose the shop, count your drawer at shift start and tap Set. The selected shop is used for this whole shift.</p>
+
+  <div class="fg">
+    <label class="fl" for="s-shop">Shop / Location</label>
+    <select id="s-shop" onchange="stashInputs()"><option value="">Choose shop</option></select>
+    <button type="button" class="winner-manage-shops-btn" onclick="toggleShiftShopManager()">Manage shops</button>
+    <div id="shift-shop-manager" class="winner-shop-manager" style="display:none">
+      <div class="settings-add-row">
+        <input type="text" id="shift-shop-input" placeholder="Add shop location" onkeydown="if(event.key==='Enter'){event.preventDefault();addSavedShop('shift-shop-input');}">
+        <button class="btn btn-primary" type="button" onclick="addSavedShop('shift-shop-input')">Add</button>
+      </div>
+      <div id="shift-shop-list" class="settings-list"></div>
+    </div>
+  </div>
 
   <div class="cgrid">
     <div class="cell">
@@ -250,6 +263,7 @@
     <div>
       <div class="ssl">Active Start Total</div>
       <div class="ssv idle" id="shift-total-display">Not set</div>
+      <div class="shift-date" id="shift-shop-display" style="color:var(--text);font-weight:600;margin-top:4px"></div>
       <div class="shift-date" id="shift-date-display"></div>
     </div>
     <button class="btn btn-red" style="width:auto;padding:7px 13px;font-size:.74rem" onclick="confirmReset()">Reset</button>
@@ -309,16 +323,8 @@
 
   <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:14px;margin-bottom:10px">
     <div class="fg" style="margin-bottom:10px">
-      <label class="fl" for="w-shop">Shop / Location <span style="color:var(--red);font-size:.75em">*</span></label>
-      <select id="w-shop" onchange="winnerShopChanged()"><option value="">Choose shop</option></select>
-      <button type="button" class="winner-manage-shops-btn" onclick="toggleShiftShopManager()">Manage shops</button>
-      <div id="shift-shop-manager" class="winner-shop-manager" style="display:none">
-        <div class="settings-add-row">
-          <input type="text" id="shift-shop-input" placeholder="Add shop location" onkeydown="if(event.key==='Enter'){event.preventDefault();addSavedShop('shift-shop-input');}">
-          <button class="btn btn-primary" type="button" onclick="addSavedShop('shift-shop-input')">Add</button>
-        </div>
-        <div id="shift-shop-list" class="settings-list"></div>
-      </div>
+      <div class="fl">Shop / Location</div>
+      <div id="w-shop-display" style="background:var(--inp);border:1px solid var(--border2);border-radius:var(--rs);color:var(--text);font-size:.92rem;padding:10px 12px;min-height:42px;display:flex;align-items:center">Set a shop at Start of Shift</div>
     </div>
     <div class="cgrid" style="margin-bottom:8px">
       <div class="cell">
@@ -442,7 +448,7 @@
     </div>
     <label class="settings-toggle-row" for="set-auto-fill-machine">
       <span><b>Auto fill machine ID & name</b><small>Automatically use saved machine details when a machine number is entered.</small></span>
-      <input type="checkbox" id="set-auto-fill-machine" onchange="setAutoFillMachineDetails(this.checked)">
+      <input type="checkbox" id="set-auto-fill-machine" checked onchange="setAutoFillMachineDetails(this.checked)">
     </label>
   </div>
 
