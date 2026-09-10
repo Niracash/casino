@@ -233,6 +233,16 @@ function getMachineInfo(value,shop){
   return dir[nr]||null;
 }
 
+function getKeyFillupTypeForMachine(info){
+  if(!info)return'kr';
+  const name=String(info.name||'').trim();
+  // Gamblify and CGDAE machines always use direct KR input in Key Fillup.
+  if(/gamblify|cgdae/i.test(name))return'kr';
+  if(info.denomination==='1cr')return'1cr';
+  if(info.denomination==='05cr')return'05cr';
+  return'kr';
+}
+
 function applyKFMachineLookup(){
   const input=document.getElementById('kf-machine');
   const box=document.getElementById('kf-machine-info');
@@ -244,8 +254,9 @@ function applyKFMachineLookup(){
   const info=shop?getMachineInfo(input.value,shop):null;
   if(info){
     input.dataset.machineShop=shop;
-    const btn=document.getElementById('type-'+info.denomination);
-    if(btn&&_kfType!==info.denomination)selType(btn,info.denomination);
+    const keyFillType=getKeyFillupTypeForMachine(info);
+    const btn=document.getElementById('type-'+keyFillType);
+    if(btn&&_kfType!==keyFillType)selType(btn,keyFillType);
     if(st.autoFillMachineDetails!==false){
       if(box)box.style.display='';
       if(nameEl){nameEl.textContent=formatMachineName(info);nameEl.style.color='var(--text)';}
@@ -1332,13 +1343,13 @@ function renderShiftInfo(){
     const displayTotal=D.shift.originalTotal!=null?D.shift.originalTotal:D.shift.total;
     el.textContent=fmt(displayTotal);el.className='ssv';date.textContent='Set: '+D.shift.date;
     if(shopEl)shopEl.textContent=D.shift.shop||'';
-    if(winnerShop)winnerShop.textContent=D.shift.shop||'No shop selected';
+    if(winnerShop)winnerShop.value=D.shift.shop||'';
     const shopSel=document.getElementById('s-shop');if(shopSel&&D.shift.shop)shopSel.value=D.shift.shop;
     lockShiftInputs(true);
   } else {
     el.textContent='Not set';el.className='ssv idle';date.textContent='';
     if(shopEl)shopEl.textContent='';
-    if(winnerShop)winnerShop.textContent='Set a shop at Start of Shift';
+    if(winnerShop)winnerShop.value='';
     lockShiftInputs(false);
   }
 }
@@ -1707,6 +1718,16 @@ function removeSavedShop(i){
   const st=ensureSettings();const shop=st.shops[i];if(!shop)return;
   showModal({title:'Remove shop?',msg:`Remove ${shop}?`,buttons:[{label:'Cancel',style:'modal-btn-ghost'},{label:'Remove',style:'modal-btn-danger',action:()=>{st.shops.splice(i,1);delete st.shopMachines[shop];if(st.lastMachineShop===shop)st.lastMachineShop='';if(st.lastWinnerShop===shop)st.lastWinnerShop='';saveState();renderSettings();renderShiftShopOptions();renderShiftShopManager();}}]});
 }
+function shiftShopChanged(){
+  const sel=document.getElementById('s-shop');
+  if(D.shift){if(sel)sel.value=D.shift.shop||'';return;}
+  if(!D.inputs)D.inputs={home:{},shift:{},machines:{}};
+  if(!D.inputs.shift)D.inputs.shift={};
+  D.inputs.shift.shop=sel?sel.value:'';
+  ensureSettings().lastWinnerShop=sel?sel.value:'';
+  saveState();
+}
+
 function renderShiftShopOptions(){
   const sel=document.getElementById('s-shop');if(!sel)return;
   const shops=getAllShopNames();
@@ -1738,7 +1759,7 @@ function renderShiftShopManager(){
 }
 function renderWinnerShopOptions(){
   const el=document.getElementById('w-shop-display');if(!el)return;
-  el.textContent=getActiveShiftShop()||'Set a shop at Start of Shift';
+  el.value=getActiveShiftShop()||'';
 }
 
 function renderMachineShopOptions(){}

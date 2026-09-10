@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Casino">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=22">
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icon-192.png">
   <style>
@@ -220,11 +220,10 @@
 <div class="page" id="page-shift">
 
   <div class="sec-title"><span>Start of Shift</span></div>
-  <p class="caption">Choose the shop, count your drawer at shift start and tap Set. The selected shop is used for this whole shift.</p>
 
-  <div class="fg">
-    <label class="fl" for="s-shop">Shop / Location</label>
-    <select id="s-shop" onchange="stashInputs()"><option value="">Choose shop</option></select>
+  <div class="fg" style="margin-bottom:14px">
+    <label class="fl" for="s-shop">Shop / Location <span style="color:var(--red)">*</span></label>
+    <select id="s-shop" onchange="shiftShopChanged()"><option value="">Choose shop</option></select>
     <button type="button" class="winner-manage-shops-btn" onclick="toggleShiftShopManager()">Manage shops</button>
     <div id="shift-shop-manager" class="winner-shop-manager" style="display:none">
       <div class="settings-add-row">
@@ -234,6 +233,8 @@
       <div id="shift-shop-list" class="settings-list"></div>
     </div>
   </div>
+
+  <p class="caption">Choose the shop first, then count your drawer and set the start total. This shop is used for the whole shift.</p>
 
   <div class="cgrid">
     <div class="cell">
@@ -323,8 +324,8 @@
 
   <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:14px;margin-bottom:10px">
     <div class="fg" style="margin-bottom:10px">
-      <div class="fl">Shop / Location</div>
-      <div id="w-shop-display" style="background:var(--inp);border:1px solid var(--border2);border-radius:var(--rs);color:var(--text);font-size:.92rem;padding:10px 12px;min-height:42px;display:flex;align-items:center">Set a shop at Start of Shift</div>
+      <label class="fl" for="w-shop-display">Shop / Location</label>
+      <input type="text" id="w-shop-display" value="" placeholder="Set a shop at Start of Shift" readonly aria-readonly="true" style="background:var(--card2);color:var(--text);cursor:default">
     </div>
     <div class="cgrid" style="margin-bottom:8px">
       <div class="cell">
@@ -506,7 +507,7 @@
   </div>
 </div>
 
-<script src="app.js"></script>
+<script src="app.js?v=22"></script>
 <script>
   const isStandalone=window.navigator.standalone===true||window.matchMedia('(display-mode: standalone)').matches;
   const isMobile=/android|iphone|ipad|ipod/i.test(navigator.userAgent);
