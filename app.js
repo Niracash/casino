@@ -499,10 +499,16 @@ function getFridgeCashConversion(){
   return{cashPart,coinPart};
 }
 
-// Physical fridge money counted at the counter. The complete fridge total (today +
-// carried money) is split into Danish notes and coins: full 50 kr blocks are cash,
-// and the remainder is mønt. This is intentionally separate from the daily transfer
-// calculation above.
+// Physical fridge money counted in today's Current Count. Yesterday's carried amount is
+// intentionally excluded here: it is only used on the Fridge page for the combined exchange target.
+// Today's revenue is split into Danish notes (50 kr steps) plus a mønt remainder.
+function getFridgeTodayCountBreakdown(){
+  const total=getFridgeTotal();
+  const cashPart=Math.floor(total/50)*50;
+  const coinPart=total-cashPart;
+  return{cashPart,coinPart,total};
+}
+
 function getFridgeCountBreakdown(){
   const total=getFridgeCombinedTotal();
   const cashPart=Math.floor(total/50)*50;
@@ -514,7 +520,7 @@ function renderHomeFridgeMini(){renderShopSummary();}
 
 function updateHomeEst(){
   const exp=getExpected();
-  const {cashPart:fridgeCash,coinPart:fridgeCoin}=getFridgeCountBreakdown();
+  const {cashPart:fridgeCash,coinPart:fridgeCoin}=getFridgeTodayCountBreakdown();
 
   const setV=(id,v,fridgePart)=>{
     const el=document.getElementById(id);
@@ -537,7 +543,7 @@ function updateHomeEst(){
 
 function updateHomeHints(){
   const exp=getExpected();
-  const {cashPart:fridgeCash,coinPart:fridgeCoin}=getFridgeCountBreakdown();
+  const {cashPart:fridgeCash,coinPart:fridgeCoin}=getFridgeTodayCountBreakdown();
   const setH=(id,base,fridgePart,{totalWithFridge=false}={})=>{
     const el=document.getElementById(id);if(!el)return;
     if(!D.shift){el.innerHTML='';return;}
@@ -597,7 +603,7 @@ function recalc(){
   }
 
   const exp=getExpected(),expected=exp.total,hasCurrent=coin>0||cash>0||pc>0||bank>0;
-  const fridge=getFridgeCombinedTotal();
+  const fridge=getFridgeTotal();
   br.classList.add('on');
 
   const physDiff=current-D.shift.total;
@@ -665,11 +671,11 @@ function getCurrentCountValues(){
   return{coin:g('h-coin'),cash:g('h-cash'),pc:g('h-pc'),bank:g('h-bank')};
 }
 
-// Staff count the drawer together with the fridge money. Before an Update is saved,
-// strip that fridge money back out so the saved expected amounts remain the drawer's
-// accounting amounts. Example: 135 kr fridge => 100 cash + 35 mønt.
+// Staff count the drawer together with TODAY'S fridge money. Before an Update is saved,
+// strip only today's fridge money back out so yesterday's carried fridge amount never affects
+// Current Count. Example: 135 kr sold today => 100 cash + 35 mønt.
 function normalizeCountForFridge(values){
-  const fridge=getFridgeCountBreakdown();
+  const fridge=getFridgeTodayCountBreakdown();
   return{
     coin:Math.round(values.coin-fridge.coinPart),
     cash:Math.round(values.cash-fridge.cashPart),
@@ -1476,7 +1482,7 @@ function generateShiftPDF(options={}){
   const fridge=getFridgeTotal();
   const fridgeYesterday=getFridgeYesterdayMoney();
   const fridgeCombined=fridgeYesterday+fridge;
-  const {cashPart:fridgeCash,coinPart:fridgeCoin}=getFridgeCountBreakdown();
+  const {cashPart:fridgeCash,coinPart:fridgeCoin}=getFridgeTodayCountBreakdown();
 
   const archived=D.archived||{exchanges:[],cashpoints:[],fillups:[],additions:[]};
   const allFillups=[...(archived.fillups||[]),...D.fillups];
@@ -2185,12 +2191,28 @@ function renderShopSummary(){
       <span style="font-family:'JetBrains Mono',monospace;font-weight:600;font-size:.78rem;color:var(--accent)">${totalFree} pcs</span>
     </div>`;
   }
-  // Show cash/coin breakdown of fridge revenue
-  const parts=[];
-  if(cashPart>0) parts.push(`💵 ${cashPart.toLocaleString('no-NO')} kr cash`);
-  if(coinPart>0) parts.push(`💰 ${coinPart.toLocaleString('no-NO')} kr coin`);
-  if(parts.length>0){
-    html+=`<div style="margin-top:6px;font-size:.72rem;color:var(--sub);text-align:right">${parts.join(' + ')}</div>`;
+  // Fridge handling instructions:
+  // 1) Today's sales are the amount physically collected from the fridge today.
+  // 2) The combined today + yesterday total is the useful denomination target for exchanging
+  //    accumulated small money into Danish notes (50 kr steps) plus a mønt remainder.
+  if(totalRevenue>0){
+    html+=`<div style="margin-top:9px;padding-top:8px;border-top:1px solid var(--border2);font-size:.72rem;line-height:1.65">
+      <div style="color:var(--text)">Take out <b style="color:var(--green)">${totalRevenue.toLocaleString('no-NO')} kr mønt</b> from today</div>`;
+
+    const totalParts=[];
+    if(cashPart>0) totalParts.push(`${cashPart.toLocaleString('no-NO')} kr notes`);
+    if(coinPart>0) totalParts.push(`${coinPart.toLocaleString('no-NO')} kr mønt`);
+    if(totalParts.length>0){
+      html+=`<div style="color:var(--sub)">Exchange <b style="color:var(--text)">${totalParts.join(' + ')}</b> from total</div>`;
+    }
+    html+=`</div>`;
+  } else if(combinedRevenue>0){
+    const totalParts=[];
+    if(cashPart>0) totalParts.push(`${cashPart.toLocaleString('no-NO')} kr notes`);
+    if(coinPart>0) totalParts.push(`${coinPart.toLocaleString('no-NO')} kr mønt`);
+    if(totalParts.length>0){
+      html+=`<div style="margin-top:9px;padding-top:8px;border-top:1px solid var(--border2);font-size:.72rem;color:var(--sub);line-height:1.65">Exchange <b style="color:var(--text)">${totalParts.join(' + ')}</b> from total</div>`;
+    }
   }
 
   targets.forEach(({summaryEl,labelEl})=>{

@@ -1,9 +1,9 @@
-const CACHE = "casino-v29";
+const CACHE = "casino-v31";
 const FILES = [
   "/casino/",
   "/casino/index.html",
-  "/casino/style.css?v=29",
-  "/casino/app.js?v=29",
+  "/casino/style.css?v=31",
+  "/casino/app.js?v=31",
   "/casino/manifest.json",
   "/casino/shops.json",
   "/casino/icon-192.png",
