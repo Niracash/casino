@@ -2196,8 +2196,13 @@ function renderShopSummary(){
   // 2) The combined today + yesterday total is the useful denomination target for exchanging
   //    accumulated small money into Danish notes (50 kr steps) plus a mønt remainder.
   if(totalRevenue>0){
+    const todayBreakdown=getFridgeTodayCountBreakdown();
+    const todayParts=[];
+    if(todayBreakdown.cashPart>0) todayParts.push(`${todayBreakdown.cashPart.toLocaleString('no-NO')} kr notes`);
+    if(todayBreakdown.coinPart>0) todayParts.push(`${todayBreakdown.coinPart.toLocaleString('no-NO')} kr mønt`);
+
     html+=`<div style="margin-top:9px;padding-top:8px;border-top:1px solid var(--border2);font-size:.72rem;line-height:1.65">
-      <div style="color:var(--text)">Take out <b style="color:var(--green)">${totalRevenue.toLocaleString('no-NO')} kr mønt</b> from today</div>`;
+      <div style="color:var(--text)">Take out <b style="color:var(--green)">${todayParts.join(' + ')}</b> from today</div>`;
 
     const totalParts=[];
     if(cashPart>0) totalParts.push(`${cashPart.toLocaleString('no-NO')} kr notes`);
